@@ -60,6 +60,266 @@ pf(q = F_value, df1 = 1, df2 = 8, lower.tail = FALSE)
 ##Anova - 3 variables
 
 
+# 1. Data Setup (Different sample sizes for each group)
+# male (n=5), female (n=4), other (n=6)
+male   <- c(327, 291, 323, 284, 305)
+female <- c(308, 324, 353, 344)
+other  <- c(315, 330, 310, 320, 325, 318)
+
+# 2. Data Transformation
+# Combine all scores
+all_scores <- c(male, female, other)
+
+# Create grouping labels corresponding to the number of data points in each group
+group_labels <- c(rep("Male", length(male)), 
+                  rep("Female", length(female)), 
+                  rep("Other", length(other)))
+
+# Create a data frame
+df_unbalanced <- data.frame(
+  group = factor(group_labels),
+  score = all_scores
+)
+
+# 3. Check sample size for each group
+table(df_unbalanced$group)
+
+# 4. Perform One-way ANOVA  
+# R's aov() handles unbalanced data using Type I Sum of Squares by default
+anova_model <- aov(score ~ group, data = df_unbalanced)
+
+# 5. Check ANOVA Summary Table
+summary(anova_model)
+
+# 6. Post-hoc Analysis (Tukey's HSD)
+# TukeyHSD in R automatically adjusts for unequal sample sizes (Tukey-Kramer method)
+tukey_result <- TukeyHSD(anova_model)
+print(tukey_result)
+
+# 7. Visualization
+boxplot(score ~ group, data = df_unbalanced,
+        main = "Unbalanced ANOVA: Score Comparison",
+        xlab = "Group (Different Sample Sizes)",
+        ylab = "Score",
+        col = c("lightpink", "lightblue", "lightgreen"))
+
+
+## exercise
+
+##1.1 - 1
+
+
+# 1. Load required libraries
+library(sasLM)
+library(ggplot2)
+
+# 2. Data Preparation
+# Load bondreturn dataset: Returns of bonds according to their ratings
+sasLM::bondreturn
+
+# 3. Exploratory Data Analysis (EDA)
+# Check the internal structure and statistical summary
+str(bondreturn)
+summary(bondreturn)
+
+# Check sample sizes for each group (Verifying Unbalanced Design)
+table(bondreturn$Bond)
+
+# 4. Create Boxplot comparing 'bank' vs 'corp'
+ggplot(bondreturn, aes(x = Bond, y = Return, fill = Bond)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = NA) +
+  geom_jitter(width = 0.1, color = "black", alpha = 0.5) +
+  theme_minimal() +
+  labs(
+    title = "Comparison of Bond Returns: Bank vs. Corporation",
+    subtitle = "Yield analysis between different bond sectors",
+    x = "Bond Type",
+    y = "Return Rate (%)"
+  ) +
+  # Use exact level names. If levels are capitalized, use "Bank" and "Corp"
+  # Alternatively, use scale_fill_brewer for automatic mapping
+  scale_fill_brewer(palette = "Set2") + 
+  theme(legend.position = "none")
+
+
+##1.1 - 2
+
+
+# 1. Load library and data
+library(sasLM)
+sasLM::bondreturn
+
+# 2. Check group levels and sample size
+# Verify that there are exactly two groups: 'bank' and 'corp'
+table(bondreturn$Bond)
+
+# 3. Check for Homogeneity of Variance (Levene's Test)
+# This determines whether to use a standard t-test or Welch's t-test
+var.test(Return ~ Bond, data = bondreturn) #p-value = 0.7939
+
+# 4. Perform Independent t-test
+# t.test() in R defaults to Welch's t-test (var.equal = FALSE)
+# If variances are equal, set var.equal = TRUE
+t_result <- t.test(Return ~ Bond, data = bondreturn, var.equal = TRUE)
+print(t_result) #p-value = 0.04611
+
+
+##1.1 - 3
+
+
+# 1. Load Data
+library(sasLM)
+sasLM::bondreturn
+
+# 2. Split Data by Group (bank vs corp)
+# Extract 'Return' values for each group
+group_bank <- bondreturn$Return[bondreturn$Bond == "Bank"]
+group_corp <- bondreturn$Return[bondreturn$Bond == "Corp"]
+
+# 3. Calculate Basic Statistics (n, Mean, Variance)
+n1 <- length(group_bank)        # Sample size of group 1
+n2 <- length(group_corp)        # Sample size of group 2
+
+mean1 <- mean(group_bank)       # Mean of group 1
+mean2 <- mean(group_corp)       # Mean of group 2
+
+var1 <- var(group_bank)         # Variance of group 1
+var2 <- var(group_corp)         # Variance of group 2
+
+# 4. Calculate Pooled Variance (Sp^2)
+# This is used when assuming equal variances
+sp2 <- ((n1 - 1) * var1 + (n2 - 1) * var2) / (n1 + n2 - 2)
+
+# 5. Calculate t-statistic
+# Formula: (Mean1 - Mean2) / sqrt(Sp^2 * (1/n1 + 1/n2))
+se_diff <- sqrt(sp2 * (1/n1 + 1/n2))
+t_val <- (mean1 - mean2) / se_diff
+
+# 6. Calculate Degrees of Freedom (df) and p-value
+df <- n1 + n2 - 2
+# Two-tailed p-value using the t-distribution
+p_val <- 2 * pt(abs(t_val), df, lower.tail = FALSE)
+
+# 7. Print Results
+cat("--- Manual t-test Results ---\n")
+cat("t-statistic:", t_val, "\n")
+cat("Degrees of Freedom:", df, "\n")
+cat("p-value:", p_val, "\n")
+
+# 8. Verification
+# Compare with the built-in t.test function
+t.test(Return ~ Bond, data = bondreturn, var.equal = TRUE)
+
+
+##1.1 - 4
+
+
+# 1. Load library and data
+library(sasLM)
+sasLM::bondreturn
+
+# 2. Check group levels and sample size
+# Verify that there are exactly two groups: 'bank' and 'corp'
+table(bondreturn$Bond)
+
+# 3. Check for Homogeneity of Variance (Levene's Test)
+# This determines whether to use a standard t-test or Welch's t-test
+var.test(Return ~ Bond, data = bondreturn) #p-value = 0.7939
+
+# 4. Perform Independent t-test
+t_result <- t.test(Return ~ Bond, 
+                   data = bondreturn, 
+                   var.equal = TRUE,              # Based on var.test p-value (0.7939)
+                   alternative = "greater")          # Testing if bank > corp (i.e., bank - corp > 0)
+print(t_result)
+
+
+##1.1 - 5
+
+
+# 1. Load library and data
+library(sasLM)
+sasLM::bondreturn
+
+# 2. Fit the ANOVA model
+# Dependent variable: Return, Independent variable: Bond
+# Null Hypothesis (H0): Mean returns of 'bank' and 'corp' are equal
+anova_model <- aov(Return ~ Bond, data = bondreturn)
+
+# 3. Display the ANOVA table
+# Check 'Pr(>F)' for statistical significance
+summary(anova_model)
+
+# 4. Check for Group Means
+# Provides mean values for each group to understand the direction of difference
+model.tables(anova_model, type = "means")
+
+t_result$statistic^2 #5.179293 
+
+
+
+##1.2, ##1.3
+
+
+# 1. Load data
+library(sasLM)
+sasLM::bondreturn
+
+# 2. Original ANOVA
+# Testing original Return values
+model_orig <- aov(Return ~ Bond, data = bondreturn)
+summary(model_orig)
+
+# 3. ANOVA with Constant Added (Return + 100)
+# Location shift: Means change, but variances stay the same
+model_add <- aov(I(Return + 100) ~ Bond, data = bondreturn)
+summary(model_add)
+
+# 4. ANOVA with Constant Multiplied (Return * 10)
+# Scaling: Both MS_between and MS_within are scaled by 10^2
+model_mul <- aov(I(Return * 10) ~ Bond, data = bondreturn)
+summary(model_mul)
+
+
+##1.5
+
+
+# 1. Load the required library and dataset
+library(sasLM)
+sasLM::bulblife
+# 2. Inspect the data structure
+# The dataset contains 'Product' (Group) and 'Duration' (Response variable)
+str(bulblife)
+table(bulblife$Product)
+
+# 3. Perform One-way ANOVA
+# Null Hypothesis (H0): There is no difference in the mean duration between Product A and B.
+# Alternative Hypothesis (H1): There is a significant difference in the mean duration.
+fit <- aov(Duration ~ Product, data = bulblife)
+
+# 4. Display the ANOVA table
+# Check the p-value (Pr(>F)) to determine statistical significance
+summary(fit)
+
+# 5. Calculate group means
+# This shows the average duration for each product type
+model.tables(fit, type = "means")
+
+
+# 6. Visualization without Warnings
+# We map colors specifically to 'A' and 'B' to match the 'Product' levels
+ggplot(bulblife, aes(x = Product, y = Duration, fill = Product)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = NA) +
+  geom_jitter(width = 0.1, color = "black", alpha = 0.5) +
+  scale_fill_manual(values = c("A" = "#69b3a2", "B" = "#404080")) +
+  theme_minimal() +
+  labs(
+    title = "Analysis of Bulb Duration",
+    subtitle = "p-value = 0.121 (Not Significant)",
+    x = "Product Type",
+    y = "Duration"
+  ) +
+  theme(legend.position = "none")
 
 
 
