@@ -1,7 +1,6 @@
-------------------------------------------------------------------------------------------------------------------------------------------------
-### part 1
-<p align="center">### part 1</p>
+##### part 1 -----------------------------------------------------------------------------------------------------------------------
 
+##t-test
 
 #Data Input
 male <- c(327, 291, 323, 284, 305)
@@ -10,12 +9,55 @@ female <- c(308, 324, 353, 344, 341)
 #H0: Variances are equal
 var.test(male, female) #p-value = 0.9154
 
-# Using Welch's t-test by default (var.equal = FALSE)
+#Using Welch's t-test by default (var.equal = FALSE)
 test_result <- t.test(male, female, var.equal = TRUE, alternative = "two.sided")
 test_result #p-value = 0.04329: reject H0
 
 
+##Anova - 2 variables
+# 1. Data Input
+male <- c(327, 291, 323, 284, 305)
+female <- c(308, 324, 353, 344, 341)
 
+# 2. Create Data Frame (Required for ANOVA)
+scores <- c(male, female)
+gender <- rep(c("Male", "Female"), each = 5)
+df <- data.frame(gender, scores)
+
+# 3. Perform ANOVA
+anova_result <- aov(scores ~ gender, data = df)
+
+# 4. View Results (Summary table)
+summary(anova_result)
+
+#verification
+total_mean <- mean(df$scores)
+group_mean <- aggregate(scores ~ gender, data = df, FUN = 'mean')
+group_mean_Female <- group_mean %>% 
+  filter(gender == 'Female') %>% 
+  select(scores) %>% 
+  as.numeric()
+group_mean_Male <- group_mean %>% 
+  filter(gender == 'Male') %>% 
+  select(scores) %>% 
+  as.numeric()
+
+n_male <- length(male)
+n_female <- length(female)
+
+SST <- sum( (df$scores - total_mean)^2 )
+
+SSR <- sum( n_female*(group_mean_Female - total_mean)^2 + 
+              n_male*(group_mean_Male - total_mean)^2 )
+SSE <- sum( (female - group_mean_Female)^2 ) + sum( (male - group_mean_Male)^2 )
+MSR <- SSR/(2-1)
+MSE <- SSE/(n_male - 1 + n_female - 1)
+
+F_value <- MSR/MSE
+pf(q = F_value, df1 = 1, df2 = 8, lower.tail = FALSE)
+
+
+##Anova - 3 variables
 
 
 
