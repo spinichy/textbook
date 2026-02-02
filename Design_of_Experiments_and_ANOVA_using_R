@@ -1,1 +1,17 @@
 
+---
+
+### part 1
+
+
+#Data Input
+male <- c(327, 291, 323, 284, 305)
+female <- c(308, 324, 353, 344, 341)
+
+#H0: Variances are equal
+var.test(male, female) #p-value = 0.9154
+
+# Using Welch's t-test by default (var.equal = FALSE)
+test_result <- t.test(male, female, var.equal = TRUE, alternative = "two.sided")
+test_result #p-value = 0.04329: reject H0
+
