@@ -497,3 +497,131 @@ combined_plot <- p1 + p2 +
   )
 
 print(combined_plot)
+
+
+
+
+##### part 2 -----------------------------------------------------------------------------------------------------------------------
+
+
+exercise 2.1
+
+library(survival)
+
+# 1. Dataset construction
+df <- data.frame(
+  age    = c(77, 72, 64, 54, 49, 74, 75, 65, 54, 44, 57),
+  sex    = c(1, 1, 1, 2, 2, 1, 1, 1, 1, 2, 1),
+  pstage = c(2, 0, 1, 3, 1, 3, 2, 2, 0, 1, 2),
+  death  = c(0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0),
+  OS     = c(40, 46, 58, 54, 60, 35, 51, 59, 57, 53, 55)
+)
+
+# 2. Calculate the median age for the legend
+med_age_val <- median(df$age)
+df$age_group <- ifelse(df$age >= med_age_val, "High Age", "Low Age")
+
+# 3. Create Survival Object
+surv_obj <- Surv(time = df$OS, event = df$death)
+
+# 4. Set up the 1x3 Plotting Layout
+# Adjusting margins (mar) to accommodate larger legends if necessary
+par(mfrow = c(1, 3), mar = c(5, 5, 4, 2))
+
+# --- Plot 1: Survival by Sex ---
+fit_sex <- survfit(surv_obj ~ sex, data = df)
+plot(fit_sex, col = c("blue", "red"), lwd = 2, lty = c(1, 2),
+     main = "Survival by Sex", xlab = "Months", ylab = "S(t)")
+# cex = 2 makes the legend text twice as large
+legend("bottomleft", legend = c("Male", "Female"), col = c("blue", "red"), 
+       lty = c(1, 2), lwd = 2, bty = "n", cex = 2)
+
+# --- Plot 2: Survival by Age Group ---
+fit_age <- survfit(surv_obj ~ age_group, data = df)
+plot(fit_age, col = c("darkgreen", "orange"), lwd = 2, lty = c(1, 3),
+     main = "Survival by Age Group", xlab = "Months", ylab = "S(t)")
+# Dynamic legend showing the exact median value
+legend("bottomleft", 
+       legend = c(paste("Age >=", med_age_val), paste("Age <", med_age_val)), 
+       col = c("darkgreen", "orange"), lty = c(1, 3), lwd = 2, bty = "n", cex = 2)
+
+# --- Plot 3: Survival by P-Stage ---
+fit_pstage <- survfit(surv_obj ~ pstage, data = df)
+plot(fit_pstage, col = c("black", "blue", "red", "purple"), 
+     lty = c(1, 2, 4, 5), lwd = 2, 
+     main = "Survival by P-Stage (0-3)", xlab = "Months", ylab = "S(t)")
+legend("bottomleft", legend = c("Stage 0", "Stage 1", "Stage 2", "Stage 3"), 
+       col = c("black", "blue", "red", "purple"), 
+       lty = c(1, 2, 4, 5), lwd = 2, bty = "n", cex = 2)
+
+# 5. Reset layout
+par(mfrow = c(1, 1))
+
+
+exercise 2.3
+
+# 1. Data Preparation
+# 'time' represents the duration
+# 'status' represents event occurrence: 1 = failure (no +), 0 = censored (+)
+# ---------------------------------------------------------
+
+fan_data <- data.frame(
+  time = c(
+    4.5, 4.6, 11.5, 11.5, 15.6, 16.0, 16.6, 18.5, 18.5, 18.5,
+    18.5, 18.5, 20.3, 20.3, 20.3, 20.7, 20.7, 20.8, 22.0, 30.0,
+    30.0, 30.0, 30.0, 31.0, 32.0, 34.5, 37.5, 37.5, 41.5, 41.5,
+    41.5, 41.5, 43.0, 43.0, 43.0, 43.0, 46.0, 48.5, 48.5, 48.5,
+    48.5, 50.0, 50.0, 50.0, 61.0, 61.0, 61.0, 61.0, 63.0, 64.5,
+    64.5, 67.0, 74.5, 78.0, 78.0, 81.0, 81.0, 82.0, 85.0, 85.0,
+    85.0, 87.5, 87.5, 87.5, 94.0, 99.0, 101.0, 101.0, 101.0, 115.0
+  ),
+  status = c(
+    1, 0, 1, 1, 0, 1, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 1, 1, 1, 0, 0,
+    0, 0, 0, 1, 0, 1, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 1, 0, 0, 0, 0, 0, 0, 0
+  )
+)
+
+# ---------------------------------------------------------
+# 2. Survival Object Creation
+# Surv(time, status) creates a survival object
+# ---------------------------------------------------------
+surv_obj <- Surv(time = fan_data$time, event = fan_data$status)
+
+# ---------------------------------------------------------
+# 3. Kaplan-Meier Estimation
+# ---------------------------------------------------------
+fit <- survfit(surv_obj ~ 1, data = fan_data)
+
+# Print the summary of the survival model
+print(summary(fit))
+
+# ---------------------------------------------------------
+# 4. Visualization
+# ---------------------------------------------------------
+ggsurvplot(
+  fit, 
+  data = fan_data,
+  conf.int = TRUE,           # Show confidence interval
+  surv.median.line = "hv",   # Mark median survival time
+  ggtheme = theme_minimal(),
+  title = "Kaplan-Meier Survival Curve for Diesel Engine Fans",
+  xlab = "Time (Hours/Units)",
+  ylab = "Survival Probability"
+)
+
+
+# 1. Check the exact survival probabilities at each time point
+# This helps you identify the exact drop at 85 hours
+summary_fit <- summary(fit)
+data.frame(time = summary_fit$time, survery_prob = summary_fit$surv)
+
+# 2. Plot Cumulative Hazard
+# If the slope becomes steeper, the risk of failure is increasing rapidly
+plot(fit, fun="cumhaz", main="Cumulative Hazard: When does risk accelerate?",
+     xlab="Time", ylab="Cumulative Hazard", col="blue", lwd=2)
+grid()
