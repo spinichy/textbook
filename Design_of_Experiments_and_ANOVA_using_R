@@ -326,3 +326,250 @@ ggplot(bulblife, aes(x = Product, y = Duration, fill = Product)) +
 ------------------------------------------------------------------------------------------------------------------------------------------------
 ### part 2
 
+#example
+
+#simple-linear regression
+library(tidyverse)
+library(sasLM)
+str(simxy1)
+
+lm_simxy1 <- lm(Y ~ X, data = simxy1)
+summary(lm_simxy1)
+
+windows()
+pB(Y ~ X, Data = simxy1)
+
+
+#simple-linear regression - visualization
+# 1. Check data and create a model
+library(sasLM)
+data <- simxy1
+lm_model <- lm(Y ~ X, data = data)
+
+# 2. Generate sorted X values for smooth interval lines
+new_x <- seq(min(data$X), max(data$X), length.out = 100)
+
+# 3. Calculate Confidence and Prediction intervals
+conf_interval <- predict(lm_model, newdata = data.frame(X = new_x), interval = "confidence")
+pred_interval <- predict(lm_model, newdata = data.frame(X = new_x), interval = "prediction")
+
+# 4. Draw basic scatter plot
+windows()
+plot(data$X, data$Y, 
+     pch = 16,               # Point character (filled circle)
+     col = "gray",           # Point color
+     main = "Simple Linear Regression (Base R Plot)",
+     xlab = "X", ylab = "Y",
+     ylim = c(-2, 10),       # Set y-axis limits from -2 to 10
+     yaxt = "n")             # Suppress default y-axis to customize ticks
+
+# Add custom y-axis with an interval of 2
+axis(2, at = seq(-2, 10, by = 2))
+
+# 5. Add regression line
+abline(lm_model, col = "blue", lwd = 2)
+
+# 6. Add Confidence Interval (Blue dashed lines)
+lines(new_x, conf_interval[, "lwr"], col = "blue", lty = 2)
+lines(new_x, conf_interval[, "upr"], col = "blue", lty = 2)
+
+# 7. Add Prediction Interval (Red dashed lines)
+lines(new_x, pred_interval[, "lwr"], col = "red", lty = 2)
+lines(new_x, pred_interval[, "upr"], col = "red", lty = 2)
+
+# 8. Add legend
+legend("bottomright", 
+       legend = c("Regression Line", "95% Conf. Int", "95% Pred. Int"),
+       col = c("blue", "blue", "red"), 
+       lty = c(1, 2, 2), 
+       lwd = c(2, 1, 1))
+
+
+#simple-linear regression - ANOVA
+anova(lm_simxy1)
+14.4/(14.4 + 2.1)
+
+
+## exercise
+
+##2.1 
+
+# Line 1: Points (2, 0) and (5, 5)
+x1 <- c(2, 5)
+y1 <- c(0, 5)
+
+# Line 2: Points (-2, 1) and (6, 6)
+x2 <- c(-2, 6)
+y2 <- c(1, 6)
+
+# Function to calculate slope and intercept
+get_line <- function(x, y) {
+  m <- (y[2] - y[1]) / (x[2] - x[1])
+  b <- y[1] - m * x[1]
+  return(c(m, b))
+}
+
+# Calculate parameters
+line1_res <- get_line(x1, y1)
+line2_res <- get_line(x2, y2)
+
+# Create label strings for the legend
+label1 <- paste0("Line 1: y = ", round(line1_res[1], 3), "x + ", round(line1_res[2], 3))
+label2 <- paste0("Line 2: y = ", round(line2_res[1], 3), "x + ", round(line2_res[2], 3))
+
+# Print equations to console (as requested)
+cat("Line 1 Equation: y =", round(line1_res[1], 3), "x +", round(line1_res[2], 3), "\n")
+cat("Line 2 Equation: y =", round(line2_res[1], 3), "x +", round(line2_res[2], 3), "\n")
+
+# Visualization
+plot(NULL, xlim = c(-3, 7), ylim = c(-2, 7), 
+     xlab = "X-axis", ylab = "Y-axis", main = "Lines with Equations in Legend")
+
+# Plot Line 1
+abline(a = line1_res[2], b = line1_res[1], col = "red", lwd = 2)
+points(x1, y1, col = "red", pch = 19)
+
+# Plot Line 2
+abline(a = line2_res[2], b = line2_res[1], col = "blue", lwd = 2, lty = 2)
+points(x2, y2, col = "blue", pch = 17)
+
+# Add Legend with Equations
+legend("topleft", legend = c(label1, label2),
+       col = c("red", "blue"), lty = c(1, 2), pch = c(19, 17), cex = 0.8)
+
+grid()
+
+
+##2.3
+
+
+# Create the data frame
+df <- data.frame(
+  X = c(0.5, 1.0, 1.5),
+  Y = c(2, 1, 3)
+)
+
+# Define parameters for Line A and B
+m_a <- -1; b_a <- 3
+m_b <- 3;  b_b <- -1
+
+# Calculate Sum of Squared Errors (SSE)
+pred_a <- m_a * df$X + b_a
+sse_a  <- sum((df$Y - pred_a)^2)
+
+pred_b <- m_b * df$X + b_b
+sse_b  <- sum((df$Y - pred_b)^2)
+
+# Linear Regression (Best fit line)
+fit <- lm(Y ~ X, data = df)
+sse_reg <- sum(residuals(fit)^2)
+
+# Visualization setup
+par(mar = c(5, 4, 4, 2))
+
+# Plot the points
+plot(df$X, df$Y, 
+     pch = 19, 
+     xlim = c(0, 2), 
+     ylim = c(-1, 5), 
+     xlab = "X Label", 
+     ylab = "Y Label", 
+     main = "Error Analysis and Regression Line")
+
+# Restrict line drawing to the plot area
+clip(0, 2, -1, 5)
+
+# 1. Plot Line A & B as solid lines (lty = 1)
+abline(a = b_a, b = m_a, col = "red", lwd = 2, lty = 1)
+abline(a = b_b, b = m_b, col = "blue", lwd = 2, lty = 1)
+
+# 2. Plot Regression Line as a dashed line (lty = 2)
+abline(fit, col = "darkgreen", lwd = 2, lty = 2)
+
+# Add Legend with adjusted spacing and line types
+legend("topleft", 
+       inset = c(0.05, 0.05), # Move further from the edge to prevent clipping
+       legend = c("Data Points", 
+                  paste("Line A (SSE:", sse_a, ")"), 
+                  paste("Line B (SSE:", sse_b, ")"),
+                  paste("Regression (SSE:", round(sse_reg, 2), ")")),
+       col = c("black", "red", "blue", "darkgreen"), 
+       pch = c(19, NA, NA, NA), 
+       lty = c(NA, 1, 1, 2),  # Match the line styles: Solid, Solid, Dashed
+       cex = 0.8,             # Font size
+       y.intersp = 1.5,       # Increase vertical space between legend items
+       bg = "white",          # White background to cover grid lines
+       box.col = "black")     # Clear border color
+
+# Add background grid
+grid()
+
+
+##2.4
+
+
+# 1. Data Frame Setup
+df <- data.frame(
+  Year = c(1980, 1982, 1985, 1987, 1989),
+  X = c(430, 395, 360, 270, 180),
+  Y = c(40, 60, 80, 88, 98)
+)
+
+# 2. Simple Linear Regression
+model <- lm(Y ~ X, data = df)
+
+# 3. Visualization Setup
+# Increase right margin slightly to ensure legend has enough space
+par(mar = c(5, 4, 4, 3))
+
+# Define axis limits for consistency
+x_min <- 150; x_max <- 450
+y_min <- 30;  y_max <- 110
+
+# Plot the scatter points
+plot(df$X, df$Y,
+     pch = 19,
+     col = "blue",
+     xlim = c(x_min, x_max),
+     ylim = c(y_min, y_max),
+     main = "Error Analysis and Regression Line",
+     xlab = "Independent Variable (X)",
+     ylab = "Dependent Variable (Y)")
+
+# Add background grid
+grid()
+
+# 4. Restrict Line Drawing to the Plot Area
+# Ensures abline does not leak outside the axes
+clip(x_min, x_max, y_min, y_max)
+
+# Add the regression line (Dashed)
+abline(model, col = "red", lwd = 2, lty = 2)
+
+# 5. Adjusted Legend to Prevent Clipping
+# Reset clip to allow drawing the legend properly if needed
+do.call(clip, as.list(par("usr"))) 
+
+legend("topright",
+       # inset: move legend away from the top-right corner edges
+       inset = c(0.05, 0.05), 
+       legend = c("Data Points", "Regression Line (Dashed)"),
+       col = c("blue", "red"),
+       pch = c(19, NA),
+       lty = c(NA, 2),
+       lwd = c(NA, 2),
+       cex = 0.8,           # Font size
+       y.intersp = 1.5,      # Vertical spacing between items
+       bg = "white",         # White background to prevent grid overlap
+       box.col = "black")    # Explicit border to see the legend clearly
+
+# 6. Statistical Outputs (Console)
+print("--- Linear Regression Summary ---")
+print(summary(model))
+
+print("--- ANOVA Table ---")
+print(anova(model))
+
+model_anova <- anova(model)
+model_anova$`Sum Sq`[1] #SSR
+model_anova$`Sum Sq`[2] #SSE
