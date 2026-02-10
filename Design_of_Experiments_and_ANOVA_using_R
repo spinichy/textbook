@@ -323,8 +323,7 @@ ggplot(bulblife, aes(x = Product, y = Duration, fill = Product)) +
 
 
 
-------------------------------------------------------------------------------------------------------------------------------------------------
-### part 2
+##### part 2 -----------------------------------------------------------------------------------------------------------------------
 
 #example
 
@@ -573,3 +572,68 @@ print(anova(model))
 model_anova <- anova(model)
 model_anova$`Sum Sq`[1] #SSR
 model_anova$`Sum Sq`[2] #SSE
+
+
+
+
+#exercise 3.4 (1)
+
+# 1. Data Input
+male <- c(327, 291, 323, 284, 305)
+female <- c(308, 324, 353, 344, 341)
+
+# Combine into a data frame
+# English Comment: Create a categorical variable for gender (0 for male, 1 for female)
+value <- c(male, female)
+gender <- factor(x = c(rep("Male", 5), rep("Female", 5)))
+gender <- ifelse(gender == "Male", -1, 1)
+df <- data.frame(gender, value)
+
+# 3. Simple Regression Analysis
+# English Comment: Fit a linear model. Female is usually the reference group by default (alphabetical).
+fit_lm <- lm(value ~ gender, data = df)
+cat("\n--- Regression Analysis Summary ---\n")
+print(summary(fit_lm))
+
+# 4. Analysis of Variance (ANOVA)
+# English Comment: Perform ANOVA to see the group differences.
+fit_aov <- aov(value ~ gender, data = df)
+cat("\n--- ANOVA Table ---\n")
+print(summary(fit_aov))
+
+
+
+##### part 1 -----------------------------------------------------------------------------------------------------------------------
+
+
+#exercise 3.4 (2)
+
+
+# Data Input
+male_val <- c(327, 291, 323, 284, 305)
+female_val <- c(308, 324, 353, 344, 341)
+
+# Case 1: If original x was -1 and 1
+m <- -1
+l <- 2
+x_orig <- c(-1, 1) # Male, Female
+x_star <- (x_orig - m) / l
+# Result will be 0, 1
+
+# Case 2: Mapping categorical data to 0 and 1 in a model
+# English Comment: Create a dummy variable where Male = 0 and Female = 1
+gender_factor <- factor(c(rep("Male", 5), rep("Female", 5)), levels = c("Male", "Female"))
+x_dummy <- as.numeric(gender_factor) - 1 
+
+# English Comment: This x_dummy will be 0 for Male and 1 for Female.
+print(x_dummy)
+
+
+#exercise 3.4 (3)
+df_2 <- data.frame(x_dummy, value)
+fit_lm_2 <- lm(value ~ x_dummy,, data = df_2)
+fit_aov_2 <- aov(value ~ x_dummy,, data = df_2)
+
+summary(fit_lm_2)
+summary(fit_aov_2)
+
