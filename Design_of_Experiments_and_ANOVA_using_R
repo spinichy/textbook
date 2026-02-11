@@ -762,5 +762,75 @@ cat("95% CI:", lower_ci, "to", upper_ci, "\n")
 #exercise 4.10
 
 
+#2.1
+library(sasLM)
+transfat
+
+aov_transfat <- aov(formula = Trans ~ Fat, data = transfat)
+summary(aov_transfat)
+
+library(car)
+Anova(aov_transfat, type = 3)
+
+#2.2
+library(emmeans)
+transfat_CI <- emmeans(object = aov_transfat, specs = "Fat")
+summary(transfat_CI)
+aggregate(Trans ~ Fat, data = transfat, FUN = "mean")
+
+#2.3
+transfat_CI_diff <- pairs(transfat_CI)
+confint(transfat_CI_diff )
+
+#2.4
+transfat <- transfat %>%
+  mutate(Source = case_when(
+    Fat %in% c(1, 2) ~ "Vegetable",
+    Fat %in% c(3, 4) ~ "Animal",
+    TRUE ~ NA_character_ # Handle unexpected levels
+  ))
+aov_transfat_2 <- aov(formula = Trans ~ Source, data = transfat)
+transfat_CI_2 <- emmeans(object = aov_transfat_2, specs = "Source") 
+pairs(transfat_CI_2)  %>% 
+  confint()
+
+
+#exercise 4.5
+
+#4.5
+library(sasLM)
+brandtar
+
+#1
+plot(brandtar)
+
+#2
+brandtar_mean <- aggregate(x = Tar ~ Brand, data = brandtar, FUN = "mean");brandtar_mean
+
+Carlton <- brandtar %>% 
+  filter(Brand == "Carlton") 
+t.test(x = Carlton$Tar, mu = 0.2, alternative = "less") #significant
+
+Now <- brandtar %>%
+  filter(Brand == "Now") 
+t.test(x = Now$Tar, mu = 0.2, alternative = "less") #non-significant
+
+Cambridge <- brandtar %>%
+  filter(Brand == "Cambridge") 
+t.test(x = Cambridge$Tar, mu = 0.2, alternative = "less") #non-significant
+
+#3
+brandtar_aov <- aov(formula = Tar ~ Brand, data = brandtar)
+summary(brandtar_aov)
+library(car)
+Anova(brandtar_aov)
+
+#4
+library(emmeans)
+brandtar_aov_CI <- emmeans(object = brandtar_aov, specs = "Brand")
+pairs(brandtar_aov_CI) %>% 
+  confint()
+
+
 
 
