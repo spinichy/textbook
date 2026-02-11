@@ -640,3 +640,127 @@ summary(fit_aov_2)
 ##### part 4 -----------------------------------------------------------------------------------------------------------------------
 
 
+#exercise 4.5
+
+
+library(sasLM)
+edupgm
+
+aov_edupgm <- aov(formula = Sales ~ Program , data = edupgm)
+summary(aov_edupgm)
+
+#Create the boxplot
+# Using formula Sales ~ Program to see distribution by group
+boxplot(Sales ~ Program, 
+        data = edupgm, 
+        main = "Sales Distribution by Education Program", # Title
+        xlab = "Education Program",                       # X-axis label
+        ylab = "Sales Amount",                           # Y-axis label
+        col = c("lightblue", "lightgreen", "lightpink"), # Box colors
+        border = "darkgray",                             # Border color
+        notch = FALSE)                                   # Add notch if needed
+
+GLM(Formula = Sales ~ Program , Data = edupgm)
+
+aov3(Formula = Sales ~ Program , Data = edupgm)
+
+summary(aov_edupgm)
+library(car)
+mean(edupgm$Sales)
+Anova(aov_edupgm, type = 3)
+
+
+#intercept - calculate
+library(sasLM)
+y <- edupgm$Sales
+X <- model.matrix(Sales ~ Program, data = edupgm)
+
+# 1. Estimate coefficients (Beta hat)
+# Beta_hat = (X'X)^-1 * X'Y
+XtX_inv <- solve(t(X) %*% X)
+beta_hat <- XtX_inv %*% t(X) %*% y
+
+# 2. Set Hypothesis Matrix L for Intercept
+# L picks the first coefficient (Intercept)
+L <- matrix(c(1, 0, 0, 0), nrow = 1)
+
+# 3. Apply the Quadratic Form for Type III SS
+# SS = (L*b)' * [L*(X'X)^-1*L']^-1 * (L*b)
+ss_intercept_direct <- t(L %*% beta_hat) %*% solve(L %*% XtX_inv %*% t(L)) %*% (L %*% beta_hat)
+
+# Verification
+cat("Direct Matrix Calculation Result:", as.numeric(ss_intercept_direct), "\n")
+# This will result in exactly 27676.8
+
+
+#estimate beta
+
+# Sample Data
+y <- c(10, 12, 20, 22)
+group <- factor(rep(c("A", "B"), each = 2))
+
+# 1. Treatment Coding (G1 방식)
+fit_treatment <- lm(y ~ group, contrasts = list(group = contr.treatment))
+model.matrix(fit_treatment)
+y_hat_1 <- predict(fit_treatment)
+fit_treatment
+# 2. Sum Coding (G2 방식)
+fit_sum <- lm(y ~ group, contrasts = list(group = contr.sum))
+model.matrix(fit_sum)
+y_hat_2 <- predict(fit_sum)
+fit_sum
+# Compare the results
+print("Predictions from Treatment Coding:")
+print(y_hat_1)
+
+print("Predictions from Sum Coding:")
+print(y_hat_2)
+
+# Check if they are exactly the same
+print(paste("Are the two shadows identical?", all.equal(y_hat_1, y_hat_2)))
+
+
+#confidence interval
+library(emmeans)
+pgm_means <- emmeans(aov_edupgm, "Program")
+summary(pgm_means, infer = TRUE)
+n <-nrow(model.matrix(aov_edupgm))
+pgm_diff <- pairs(pgm_means)
+confint(pgm_diff)
+
+# 1. Extract MSE and degrees of freedom for error from ANOVA summary
+res <- summary(aov_edupgm)[[1]]
+mse <- res["Residuals", "Mean Sq"]
+df_e <- res["Residuals", "Df"]
+
+# 2. Calculate t-critical value (Two-tailed, 95% confidence)
+alpha <- 0.05
+t_val <- qt(1 - alpha/2, df_e)
+
+# 3. Target Group Setup (e.g., Program 'A')
+# It is crucial to use the sample size of the specific group (ni), not the total N
+target_group <- 1
+mean_a <- mean(edupgm$Sales[edupgm$Program == target_group]) # Group Mean
+ni <- sum(edupgm$Program == target_group)                    # Group sample size
+
+# 4. Calculate Standard Error (SE) for the group mean
+# Logic: SE = sqrt( MSE / ni )
+se_a <- sqrt(mse / ni)
+
+# 5. Calculate Confidence Interval
+lower_ci <- mean_a - t_val * se_a
+upper_ci <- mean_a + t_val * se_a
+
+# Print results for verification
+cat("--- Manual Calculation Results ---\n")
+cat("Group:", target_group, "\n")
+cat("Mean:", mean_a, "\n")
+cat("n_i:", ni, "\n")
+cat("95% CI:", lower_ci, "to", upper_ci, "\n")
+
+
+#exercise 4.10
+
+
+
+
