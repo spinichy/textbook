@@ -560,6 +560,7 @@ par(mfrow = c(1, 1))
 
 exercise 2.3
 
+
 # 1. Data Preparation
 # 'time' represents the duration
 # 'status' represents event occurrence: 1 = failure (no +), 0 = censored (+)
@@ -625,3 +626,54 @@ data.frame(time = summary_fit$time, survery_prob = summary_fit$surv)
 plot(fit, fun="cumhaz", main="Cumulative Hazard: When does risk accelerate?",
      xlab="Time", ylab="Cumulative Hazard", col="blue", lwd=2)
 grid()
+
+
+exercise 2.7
+
+library(ggplot2)
+library(tidyverse)
+
+# 1. Setup parameters
+# Set lambda values from 0.5 to 2.0 with an interval of 0.5
+lambdas <- seq(0.5, 2.0, by = 0.5)
+t_seq <- seq(0, 10, length.out = 500)
+
+# 2. Create data for plotting
+plot_data <- data.frame(t = t_seq)
+plot_data
+# Loop through each lambda to calculate PDF and Survival function
+for (l in lambdas) {
+  # PDF: f(t) = lambda * exp(-lambda * t)
+  plot_data[[paste0("PDF_L", l)]] <- dexp(t_seq, rate = l)
+  # Survival Function: S(t) = exp(-lambda * t)
+  plot_data[[paste0("Surv_L", l)]] <- 1 - pexp(t_seq, rate = l)
+}
+plot_data
+# 3. Reshape data for ggplot (Long format)
+pdf_long <- plot_data %>%
+  pivot_longer(cols = starts_with("PDF"), names_to = "Lambda", values_to = "Density") %>%
+  mutate(Lambda = gsub("PDF_L", "lambda = ", Lambda))
+
+surv_long <- plot_data %>%
+  pivot_longer(cols = starts_with("Surv"), names_to = "Lambda", values_to = "Probability") %>%
+  mutate(Lambda = gsub("Surv_L", "lambda = ", Lambda))
+
+# 4. Plot Probability Density Function (f(t))
+p1 <- ggplot(pdf_long, aes(x = t, y = Density, color = Lambda)) +
+  geom_line(linewidth = 1) +
+  labs(title = "Exponential Probability Density Function (f(t))",
+       subtitle = "Higher lambda means earlier event occurrence",
+       x = "Time (t)", y = "f(t)") +
+  theme_minimal()
+
+# 5. Plot Survival Function (S(t))
+p2 <- ggplot(surv_long, aes(x = t, y = Probability, color = Lambda)) +
+  geom_line(linewidth = 1) +
+  labs(title = "Exponential Survival Function (S(t))",
+       subtitle = "S(t) = exp(-lambda * t)",
+       x = "Time (t)", y = "S(t)") +
+  theme_minimal()
+
+# Display plots
+library(gridExtra)
+grid.arrange(p1, p2, ncol = 2)
