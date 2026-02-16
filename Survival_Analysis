@@ -504,7 +504,7 @@ print(combined_plot)
 ##### part 2 -----------------------------------------------------------------------------------------------------------------------
 
 
-exercise 2.1
+example 2.1
 
 library(survival)
 
@@ -558,7 +558,7 @@ legend("bottomleft", legend = c("Stage 0", "Stage 1", "Stage 2", "Stage 3"),
 par(mfrow = c(1, 1))
 
 
-exercise 2.3
+example 2.3
 
 
 # 1. Data Preparation
@@ -628,7 +628,8 @@ plot(fit, fun="cumhaz", main="Cumulative Hazard: When does risk accelerate?",
 grid()
 
 
-exercise 2.7
+example 2.7
+
 
 library(ggplot2)
 library(tidyverse)
@@ -677,3 +678,83 @@ p2 <- ggplot(surv_long, aes(x = t, y = Probability, color = Lambda)) +
 # Display plots
 library(gridExtra)
 grid.arrange(p1, p2, ncol = 2)
+
+
+example 2.12
+
+library(ggplot2)
+library(tidyr)
+library(ggh4x) 
+
+# 1. Data Generation Function (Comments in English)
+get_weibull_data <- function(k_val, lambdas, x_max = 5) {
+  x <- seq(0.01, x_max, length.out = 200)
+  do.call(rbind, lapply(lambdas, function(l) {
+    # R uses scale = 1/lambda
+    scale_param <- 1/l
+    data.frame(
+      x = x,
+      lambda = as.factor(l),
+      k_label = paste0("k = ", k_val),
+      hazard = (k_val / scale_param) * (x / scale_param)^(k_val - 1),
+      cum_hazard = (x / scale_param)^k_val,
+      survival = pweibull(x, shape = k_val, scale = scale_param, lower.tail = FALSE)
+    )
+  }))
+}
+
+# 2. Prepare Data
+lambdas <- c(1, 1.5, 2)
+full_data <- rbind(get_weibull_data(1, lambdas), get_weibull_data(3, lambdas))
+
+# Reshape to long format
+full_data_long <- pivot_longer(
+  full_data, 
+  cols = c(hazard, cum_hazard, survival),
+  names_to = "metric", 
+  values_to = "value"
+)
+
+# Set Factor levels for Row order (Hazard -> Cum Hazard -> Survival)
+full_data_long$metric <- factor(
+  full_data_long$metric, 
+  levels = c("hazard", "cum_hazard", "survival"),
+  labels = c("Hazard h(x)", "Cum. Hazard H(x)", "Survival S(x)")
+)
+
+# 3. Plotting with specific Y-axis limits for Hazard and Cum. Hazard
+ggplot(full_data_long, aes(x = x, y = value, color = lambda)) +
+  geom_line(size = 1.1) +
+  # switch = "y" moves the row labels (metrics) to the left side
+  facet_grid(metric ~ k_label, scales = "free_y", switch = "y") +
+  # Use ggh4x to set specific limits for each row
+  facetted_pos_scales(
+    y = list(
+      metric == "Hazard h(x)" ~ scale_y_continuous(limits = c(0, 10)),
+      metric == "Cum. Hazard H(x)" ~ scale_y_continuous(limits = c(0, 10)),
+      metric == "Survival S(x)" ~ scale_y_continuous(limits = c(0, 1))
+    )
+  ) +
+  labs(
+    title = "Comparison of Weibull Characteristics",
+    subtitle = "Hazard and Cum. Hazard axes are fixed to 0-50 for direct comparison",
+    x = "Time (x)",
+    y = NULL,
+    color = "Lambda"
+  ) +
+  theme_minimal() +
+  theme(
+    # Styling for Top Strips (k values): Black background, White text
+    strip.background.x = element_rect(fill = "black"),
+    strip.text.x = element_text(color = "white", face = "bold", size = 12),
+    
+    # Styling for Left Strips (Metrics): No background, Black text
+    strip.background.y = element_blank(),
+    strip.text.y = element_text(color = "black", face = "bold", size = 12, angle = 180),
+    
+    # Position adjustments
+    strip.placement = "outside",
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 15),
+    plot.subtitle = element_text(hjust = 0.5, size = 11, color = "gray30"),
+    panel.spacing = unit(1.5, "lines")
+  )
