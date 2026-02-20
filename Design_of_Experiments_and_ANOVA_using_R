@@ -1160,4 +1160,39 @@ combined_plot
 
 
 
+##exercise
+
+##5.1
+
+library(sasLM)
+pigfeed
+str(pigfeed)
+pigfeed$Feed
+
+#1
+aov_pigfeed <- aov(formula = Gain ~ Feed, data = pigfeed)
+summary(aov_pigfeed)
+
+model.matrix(aov_pigfeed)
+aggregate(x = Gain ~ Feed, data = pigfeed, FUN = "mean")
+mean(pigfeed$Gain)
+coef(aov_pigfeed)
+
+#2
+library(car)
+Anova(mod = aov_pigfeed, type = 3)
+
+#3
+fit_full <- lm(Gain ~ Feed, data = pigfeed)
+fit_reduced <- lm(Gain ~ 1, data = pigfeed)
+comparison <- anova(fit_reduced, fit_full)
+print(comparison)
+
+#4
+library(agricolae)
+lsd_test <- LSD.test(aov_pigfeed, "Feed", p.adj="none", console=TRUE)
+
+plot(lsd_test, main = "LSD Test: Gain by Feed Type")
+
+
 
