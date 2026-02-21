@@ -1160,10 +1160,11 @@ combined_plot
 
 
 
-##exercise
+##exercise 
+
+
 
 ##5.1
-
 library(sasLM)
 pigfeed
 str(pigfeed)
@@ -1194,5 +1195,82 @@ lsd_test <- LSD.test(aov_pigfeed, "Feed", p.adj="none", console=TRUE)
 
 plot(lsd_test, main = "LSD Test: Gain by Feed Type")
 
+#5
+hsd_test <- HSD.test(aov_pigfeed, "Feed", group = TRUE, console=TRUE)
+plot(hsd_test, main = "Tukey's HSD Test: Gain by Feed Type")
+
+#6
+scheffe_test <- scheffe.test(aov_pigfeed, "Feed", group = TRUE, console=TRUE)
+plot(scheffe_test, main = "Scheffe's Test: Gain by Feed Type")
+
+#7
+levels(pigfeed$Feed)
+library(multcomp)
+dunnet_test <- glht(aov_pigfeed, linfct = mcp(Feed = "Dunnett"))
+summary(dunnet_test)
+plot(dunnet_test, main = "Control = 1")
 
 
+##5.2
+library(sasLM)
+hlpump
+str(hlpump)
+
+#1 one-way
+
+#2
+attach(hlpump)
+aov_hlpump <- aov(Blood ~ Speed, data = hlpump)
+summary(aov_hlpump)
+
+library(car)
+Anova(mod = aov_hlpump, type = "3")
+
+#3
+boxplot(Blood ~ Speed, data = hlpump)
+
+#4
+summary(aov_hlpump, 
+        split = list(Speed = list("Linear" = 1, 
+                                  "Quadratic" = 2, 
+                                  "Cubic" = 3,
+                                  "Quartic" = 4)))
+
+#5
+install.packages('emmeans')
+library(emmeans)
+aov_hlpump_CI <- emmeans(object = aov_hlpump, specs = "Speed")
+library(tidyverse)
+pairs(aov_hlpump_CI) %>% 
+  confint()
+
+#6
+aov_hlpump_CI
+aggregate(Blood ~ Speed, data = hlpump, FUN = "mean")
+
+
+##5.3
+
+#1 one-way
+
+#2
+library(sasLM)
+BP
+str(BP)
+
+aov_BP <- aov(DeltaBP ~ Method, data = BP)
+summary(aov_BP)
+
+#3 H0, H1
+
+#4
+BP_Exercise <- BP %>% 
+  filter(Method == "Exercise") 
+BP_Diet <- BP %>% 
+  filter(Method == "Diet") 
+t.test(BP_Exercise$DeltaBP,BP_Diet$DeltaBP)
+
+#5
+library(agricolae)
+lsd_test <- LSD.test(aov_BP, "Method", p.adj="none", console=TRUE)
+plot(lsd_test, main = "LSD Test: DeltaBP by Method Type")
