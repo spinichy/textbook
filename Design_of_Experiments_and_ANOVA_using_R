@@ -1274,3 +1274,36 @@ t.test(BP_Exercise$DeltaBP,BP_Diet$DeltaBP)
 library(agricolae)
 lsd_test <- LSD.test(aov_BP, "Method", p.adj="none", console=TRUE)
 plot(lsd_test, main = "LSD Test: DeltaBP by Method Type")
+
+
+
+
+##### part 6 -----------------------------------------------------------------------------------------------------------------------
+
+
+
+
+#example
+
+
+#F-test
+library(sasLM)
+score1
+var_gendr <- aggregate(Y ~ X, data = score1, FUN = "var")
+table(score1$X)
+pf(q = var_gendr[1,2]/var_gendr[2,2], df1 = 5-1, df2 = 5-1)
+
+
+#Bartlett's Test
+library(sasLM)
+edupgm
+str(edupgm)
+bartlett.test(formula = Sales ~ Program, data = edupgm)
+edupgm_var <- tapply(X = edupgm$Sales, INDEX = edupgm$Program, FUN = var)
+edupgm_length <- tapply(X = edupgm$Sales, INDEX = edupgm$Program, FUN = length)
+a <- length(edupgm_var)
+N <- sum(edupgm_length)
+
+sum( (edupgm_length - 1)*edupgm_var ) / (N-a)
+
+
