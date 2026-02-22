@@ -1286,12 +1286,15 @@ plot(lsd_test, main = "LSD Test: DeltaBP by Method Type")
 #example
 
 
+
 #F-test
 library(sasLM)
 score1
 var_gendr <- aggregate(Y ~ X, data = score1, FUN = "var")
 table(score1$X)
 pf(q = var_gendr[1,2]/var_gendr[2,2], df1 = 5-1, df2 = 5-1)
+
+
 
 
 #Bartlett's Test
@@ -1307,3 +1310,64 @@ N <- sum(edupgm_length)
 sum( (edupgm_length - 1)*edupgm_var ) / (N-a)
 
 
+
+
+#normality test
+library(sasLM)
+score1
+
+boxplot(score1)
+library(tidyverse)
+score1 %>% 
+  filter(X == -1) %>% 
+  .$Y %>% 
+  hist()
+library(tidyverse)
+score1 %>% 
+  filter(X == 1) %>% 
+  .$Y %>% 
+  hist()  
+
+# 1. existing code
+n <- length(score1$Y)
+# Calculating theoretical quantiles (qi)
+z <- qnorm((1:n - 0.5)/n)
+# Plotting: Observed (x) vs Theoretical (y)
+plot(x = sort(score1$Y), y = z, 
+     xlab = "Observed Values (Sorted Y)", 
+     ylab = "Theoretical Quantiles (z)",
+     main = "Manual QQ Plot with Reference Line")
+
+# 2. Adding the equivalent of 'qqline'
+# Step: Find Q1 and Q3 for both axes to draw a robust line
+y_q13 <- quantile(score1$Y, c(0.25, 0.75)) # Quantiles of observed data
+z_q13 <- qnorm(c(0.25, 0.75))             # Quantiles of theoretical normal
+
+# Calculate slope (a) and intercept (b) based on Q1 and Q3
+slope <- diff(z_q13) / diff(y_q13)
+intercept <- z_q13[1] - slope * y_q13[1]
+
+# Add the reference line (Red color)
+abline(intercept, slope, col = "red", lwd = 2)
+
+
+qqnorm(score1$Y, main = "Normal Q-Q Plot for score1$Y")
+qqline(score1$Y, col = "red", lwd = 2) # Add a reference line
+
+
+shapiro.test(score1$Y)
+library(nortest)
+# Assuming score1$Y is your data from the previous image
+data_to_test <- score1$Y
+# 1. Kolmogorov-Smirnov Test (Lilliefors correction for normality)
+# Standard ks.test requires mean and sd, but lillie.test is for normality
+ks_res <- lillie.test(data_to_test)
+# 2. Cramér-von Mises Normality Test
+cvm_res <- cvm.test(data_to_test)
+# 3. Anderson-Darling Normality Test
+ad_res <- ad.test(data_to_test)
+
+# Print results
+print(ks_res)
+print(cvm_res)
+print(ad_res)
