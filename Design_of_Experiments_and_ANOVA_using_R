@@ -1282,9 +1282,7 @@ plot(lsd_test, main = "LSD Test: DeltaBP by Method Type")
 
 
 
-
 #example
-
 
 
 #F-test
@@ -1295,21 +1293,18 @@ table(score1$X)
 pf(q = var_gendr[1,2]/var_gendr[2,2], df1 = 5-1, df2 = 5-1)
 
 
-
-
 #Bartlett's Test
 library(sasLM)
 edupgm
 str(edupgm)
 bartlett.test(formula = Sales ~ Program, data = edupgm)
+
 edupgm_var <- tapply(X = edupgm$Sales, INDEX = edupgm$Program, FUN = var)
 edupgm_length <- tapply(X = edupgm$Sales, INDEX = edupgm$Program, FUN = length)
 a <- length(edupgm_var)
 N <- sum(edupgm_length)
 
 sum( (edupgm_length - 1)*edupgm_var ) / (N-a)
-
-
 
 
 #normality test
@@ -1328,6 +1323,7 @@ score1 %>%
   .$Y %>% 
   hist()  
 
+par(mfrow = c(1,2))
 # 1. existing code
 n <- length(score1$Y)
 # Calculating theoretical quantiles (qi)
@@ -1342,14 +1338,12 @@ plot(x = sort(score1$Y), y = z,
 # Step: Find Q1 and Q3 for both axes to draw a robust line
 y_q13 <- quantile(score1$Y, c(0.25, 0.75)) # Quantiles of observed data
 z_q13 <- qnorm(c(0.25, 0.75))             # Quantiles of theoretical normal
-
 # Calculate slope (a) and intercept (b) based on Q1 and Q3
 slope <- diff(z_q13) / diff(y_q13)
 intercept <- z_q13[1] - slope * y_q13[1]
 
 # Add the reference line (Red color)
 abline(intercept, slope, col = "red", lwd = 2)
-
 
 qqnorm(score1$Y, main = "Normal Q-Q Plot for score1$Y")
 qqline(score1$Y, col = "red", lwd = 2) # Add a reference line
@@ -1371,3 +1365,185 @@ ad_res <- ad.test(data_to_test)
 print(ks_res)
 print(cvm_res)
 print(ad_res)
+
+#visualization
+library(ggplot2)
+library(nortest)
+library(patchwork)
+
+# 1. Compute all p-values
+p_sw <- shapiro.test(score1$Y)$p.value
+p_ad <- ad.test(score1$Y)$p.value
+p_cvm <- cvm.test(score1$Y)$p.value
+p_ks <- lillie.test(score1$Y)$p.value
+
+# 2. Labels for plots
+results_label <- paste0(
+  "Normality Test Results (p-values):\n",
+  "----------------------------------\n",
+  "Shapiro-Wilk:      ", sprintf("%.4f", p_sw), "\n",
+  "Anderson-Darling:  ", sprintf("%.4f", p_ad), "\n",
+  "Cramér-von Mises:  ", sprintf("%.4f", p_cvm), "\n",
+  "Lilliefors (KS):   ", sprintf("%.4f", p_ks)
+)
+
+# Annotation for the histogram plot
+hist_legend_label <- "Red line: Normal distribution\nBlue line: Histogram density"
+
+# 3. Create Histogram + Density Plot (p1)
+p1 <- ggplot(score1, aes(x = Y)) +
+  geom_histogram(aes(y = ..density..), bins = 15, fill = "skyblue", color = "white", alpha = 0.7) +
+  geom_density(color = "blue", size = 1) +
+  stat_function(fun = dnorm, args = list(mean = mean(score1$Y), sd = sd(score1$Y)), 
+                color = "red", linetype = "dashed", size = 1) +
+  # Added annotation for p1
+  annotate("label", x = -Inf, y = Inf, label = hist_legend_label,
+           hjust = 0, vjust = 1, size = 3.5, fill = "white", alpha = 0.8) +
+  labs(title = "Distribution of Y with Normal Curve", x = "Value", y = "Density") +
+  theme_minimal() +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.2))) # Give room for label
+
+# 4. Create Q-Q Plot (p2)
+p2 <- ggplot(score1, aes(sample = Y)) +
+  stat_qq(color = "darkblue") +
+  stat_qq_line(color = "red") +
+  annotate("label", x = -Inf, y = Inf, label = results_label, 
+           hjust = 0, vjust = 1, size = 3.5, family = "mono", fill = "white", alpha = 0.8) +
+  labs(title = "Normal Q-Q Plot", x = "Theoretical Quantiles", y = "Sample Quantiles") +
+  theme_minimal() +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.2)))
+
+# Combine plots
+p1 + p2
+
+
+
+#indepence test
+library(sasLM)
+hlpump
+hlpump_lm <- lm(Blood ~ Speed, data = hlpump)
+res <- hlpump_lm$residuals
+n <- length(res)
+acf(x = res, lag.max = 1, plot = FALSE)
+
+dw <- sum((res[2:n] - res[1:(n-1)])^2) / sum(res^2);dw
+
+library(lmtest)
+# H0: rho = 0 (No autocorrelation)
+# H1: rho > 0 (Positive autocorrelation) - default
+dw_result <- dwtest(hlpump_lm)
+print(dw_result)
+
+# 2. To check for both positive and negative autocorrelation
+dw_two_sided <- dwtest(hlpump_lm, alternative = "two.sided")
+print(dw_two_sided)
+
+
+
+#Box-cox
+par(mfrow = c(1,1))
+library(MASS)
+boxcox(hlpump_lm) #CI includes zero; recommend log transformation
+
+
+
+#exercise
+
+#1 D = 2(1-rho)
+
+#2
+
+#1)
+library(sasLM)
+brandtar
+
+brandtar_aov <- aov(Tar ~ Brand, data  = brandtar)
+summary(brandtar_aov)
+res <- brandtar_aov$residuals
+
+hist(res)
+
+#2)
+plot(x = brandtar$Brand, y = res)
+
+#3)
+bartlett.test(Tar ~ Brand, data  = brandtar)
+
+# 4) Normal Q-Q Plot (Corrected)
+res_sorted <- sort(res) # Sort residuals for the Y-axis
+n <- length(res)
+z <- qnorm((1:n - 0.5)/n) # Theoretical quantiles for the X-axis
+
+# Plot residuals vs. theoretical quantiles
+plot(x = z, y = res_sorted, 
+     main = "Normal Q-Q Plot", 
+     xlab = "Theoretical Quantiles", 
+     ylab = "Sample Residuals")
+
+# Calculate slope and intercept based on the 1st and 3rd quartiles
+z_quartile <- qnorm(c(0.25, 0.75))
+res_quartile <- quantile(res, c(0.25, 0.75))
+
+slope <- diff(res_quartile) / diff(z_quartile)
+intercept <- res_quartile[1] - slope * z_quartile[1]
+
+# Now the abline will match the scale of the plot
+abline(a = intercept, b = slope, col = "red", lwd = 2)
+
+library(nortest)
+ad.test(res)
+
+
+#3 ∑∑e=0
+
+#4
+sum(res)
+
+#5 box-cox
+
+#6
+set.seed(123)
+treat <- c(rep(-1,20), rep(1,20))
+y <- exp(3 + 1*rnorm(40) + treat)
+library(tidyverse)
+df <- cbind(treat, y) %>% 
+  as.data.frame()
+df$treat <- as.factor(df$treat)
+plot(y ~ treat, data = df)
+
+df_lm <- lm(y ~ treat, data = df)
+res <- df_lm$residuals
+
+hist(res)
+
+qqnorm(res)
+qqline(res)
+
+shapiro.test(res)
+library(nortest)
+ad.test(res)
+
+boxcox(df_lm, data = df)
+
+
+df_lm_2 <- lm(log(y) ~ treat, data = df)
+res.2 <- df_lm_2$residuals
+
+hist(res.2)
+
+qqnorm(res.2)
+qqline(res.2)
+
+shapiro.test(res.2)
+library(nortest)
+ad.test(res.2)
+
+#7 Var(et) = Var(et-1)
+
+
+
+##### part 7 -----------------------------------------------------------------------------------------------------------------------
+
+
+
+
