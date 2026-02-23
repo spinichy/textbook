@@ -1546,4 +1546,80 @@ ad.test(res.2)
 
 
 
+#example
+
+
+#interaction plot
+
+library(sasLM)
+fertpest2
+
+library(tidyverse)
+library(magrittr)
+A1_means <- fertpest2 %>% 
+  filter(A == 1)%$%
+  tapply(X = Y, INDEX = B, FUN = mean)
+A2_means <- fertpest2 %>% 
+  filter(A == 2)%$%
+  tapply(X = Y, INDEX = B, FUN = mean)
+A1_means;A2_means
+
+library(ggplot2)
+library(dplyr)
+
+# Summary table for plotting
+inter_df <- fertpest2 %>%
+  group_by(A, B) %>%
+  summarise(mean_Y = mean(Y), .groups = 'drop')
+
+# ggplot Interaction Plot (X-axis: A, Group: B)
+ggplot(inter_df, aes(x = factor(A), y = mean_Y, color = factor(B), group = factor(B))) +
+  geom_line(size = 1.2) +
+  geom_point(size = 4) +
+  labs(title = "Interaction Effect of A and B",
+       subtitle = "X-axis represents Factor A",
+       x = "Factor A (Fertilizer)",
+       y = "Mean of Y",
+       color = "Factor B (Pest)") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+
+#two-way anova
+
+library(sasLM)
+defect1
+
+defect1_aov <- aov(Defects ~ Machine + Employee + Machine:Employee, data = defect1);
+summary(defect1_aov)
+library(car)
+Anova(mod = defect1_aov, type = 3)
+Anova(mod = defect1_aov, type = 2)
+
+library(emmeans)
+joint_means <- emmeans(object = defect1_aov, specs = ~ Machine | Employee)
+print(joint_means)
+pairs(joint_means)
+
+library(sasLM)
+library(tidyverse)
+
+# 1. Calculate means for plotting
+plot_data <- defect1 %>%
+  group_by(Machine, Employee) %>%
+  summarise(mean_defects = mean(Defects), .groups = 'drop')
+
+# 2. Create the Interaction Plot
+ggplot(plot_data, aes(x = factor(Machine), y = mean_defects, 
+                      color = factor(Employee), group = factor(Employee))) +
+  geom_line(size = 1.2) + 
+  geom_point(size = 4) +
+  labs(title = "Interaction Plot: Machine vs Employee",
+       subtitle = "Checking for non-parallel lines (Interaction)",
+       x = "Machine Type",
+       y = "Mean of Defects",
+       color = "Employee ID") +
+  theme_minimal()
+
+
 
