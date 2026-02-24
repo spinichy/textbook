@@ -1590,7 +1590,7 @@ ggplot(inter_df, aes(x = factor(A), y = mean_Y, color = factor(B), group = facto
 library(sasLM)
 defect1
 
-defect1_aov <- aov(Defects ~ Machine + Employee + Machine:Employee, data = defect1);
+defect1_aov <- aov(Defects ~ Machine + Employee + Machine:Employee, data = defect1)
 summary(defect1_aov)
 library(car)
 Anova(mod = defect1_aov, type = 3)
@@ -1621,5 +1621,120 @@ ggplot(plot_data, aes(x = factor(Machine), y = mean_defects,
        color = "Employee ID") +
   theme_minimal()
 
+
+#two-way mixed(fixed + random)
+library(sasLM)
+defect1
+
+
+library(lmerTest)
+aov_mixed <- lmer(formula = Defects ~ Machine + (1 | Employee) + (1 | Machine:Employee), 
+                  data = defect1)
+summary(aov_mixed)
+
+
+library(GAD)
+Machine_f  <- as.fixed(defect1$Machine)
+Employee_r <- as.random(defect1$Employee)
+GAD_1 <- lm(Defects ~ Machine_f * Employee_r, data = defect1)
+gad(GAD_1)
+
+Machine_r  <- as.random(defect1$Machine)
+Employee_f <- as.fixed(defect1$Employee)
+GAD_2 <- lm(Defects ~ Machine_r * Employee_f, data = defect1)
+gad(GAD_2)
+
+
+#post-hoc test
+library(emmeans)
+library(multcomp)
+library(multcompView)
+
+int_means <- emmeans(GAD_1, ~ Machine_f * Employee_r)
+
+cld_result <- cld(int_means, Letters = letters, adjust = "sidak", reversed = TRUE)
+
+print(cld_result)
+
+plot_data <- as.data.frame(cld_result)
+ggplot(data = plot_data, 
+       mapping = aes(x = reorder(interaction(Machine_f, Employee_r), emmean), 
+                     y = emmean)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.2) +
+  geom_text(aes(label = .group), vjust = -1.5, size = 5) + # Add group letters (A, B, C)
+  labs(title = "Machine:Employee Interaction Effect",
+       x = "Machine:Employee",
+       y = "Defects") +
+  theme_bw()
+
+
+
+#exercise 
+
+
+#7.7
+library(sasLM)
+defect1
+
+RanTest(Formula = Defects ~ Machine*Employee, 
+        Data = defect1,
+        Random = c("Machine", "Employee"))
+
+
+library(lmerTest)
+aov_random <- lmer(formula = Defects ~ (1 | Machine) + (1 | Employee) + (1 | Machine:Employee), 
+                  data = defect1)
+summary(aov_random)
+
+library(GAD)
+Machine_r  <- as.random(defect1$Machine)
+Employee_r <- as.random(defect1$Employee)
+GAD_3 <- lm(Defects ~ Machine_r * Employee_r, data = defect1)
+gad(GAD_3)
+
+
+#7.8
+library(sasLM)
+toollife
+toollife_aov <- aov(formula = Lifetime ~ A + B + C, data = toollife)
+summary(toollife_aov)
+library(car)
+Anova(mod = toollife_aov, type = 3)
+
+
+toollife_aov_2 <- aov(formula = Lifetime ~ A + B + C + A:C, data = toollife)
+summary(toollife_aov_2)
+Anova(mod = toollife_aov_2, type = 3)
+
+
+toollife_aov_3 <- aov(formula = Lifetime ~ A*B*C, data = toollife)
+summary(toollife_aov_3)
+Anova(mod = toollife_aov_3, type = 3)
+
+
+#visualization
+
+# 1. Calculate CLD for the full ABC interaction
+# Ensure we use the ABC means to compare all combinations
+ls_means_ABC <- emmeans(toollife_aov_3, ~ A * B * C)
+cld_ABC_result <- multcomp::cld(ls_means_ABC, alpha = 0.05, Letters = letters, adjust = "tukey")
+
+# 2. Convert to data frame for ggplot
+cld_df <- as.data.frame(cld_ABC_result)
+
+# 3. Create a comprehensive comparison plot
+library(ggplot2)
+
+ggplot(cld_df, aes(x = interaction(A, B, C), y = emmean, fill = B)) +
+  geom_bar(stat = "identity", position = position_dodge(), alpha = 0.7) +
+  geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.2) +
+  geom_text(aes(label = .group, y = upper.CL), vjust = -0.5, size = 5, fontface = "bold") +
+  labs(title = "Multi-Comparison of Tool Life (A*B*C Interaction)",
+       subtitle = "Groups sharing the same letter are not significantly different (Sidak adjustment)",
+       x = "Combination of A.B.C",
+       y = "Estimated Marginal Mean of Lifetime") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
