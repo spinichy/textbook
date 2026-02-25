@@ -1738,3 +1738,8 @@ ggplot(cld_df, aes(x = interaction(A, B, C), y = emmean, fill = B)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
+
+part 8 -----------------------------------------------------------------------------------------------------------------------
+
+
+
