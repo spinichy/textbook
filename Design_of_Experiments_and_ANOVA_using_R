@@ -1743,3 +1743,224 @@ part 8 -------------------------------------------------------------------------
 
 
 
+#example
+
+#Nested Factor
+library(sasLM)
+score2
+str(score2)
+library(tidyverse)
+score2 %>% 
+  group_by(School, Class) %>% 
+  summarise(n = n())
+
+
+
+# Both factors are fixed
+model_fix_fix <- aov(Y ~ School  + School:Class, data = score2) 
+summary(model_fix_fix)
+
+
+
+# upper factor: fixed, lower factor: random
+library(lme4)
+library(lmerTest)
+
+model_fix_ran <- lmer(Y ~  School + (1|School:Class), data = score2)
+anova(model_fix_ran)
+summary(model_fix_ran) 
+
+model_fix_ran_2 <- aov(Y ~ School + Error(School/Class), data = score2)
+summary(model_fix_ran_2)
+
+library(broom)
+model_fix_ran_2_df <- tidy(model_fix_ran_2)
+model_fix_ran_2_df
+
+# Use double brackets [[ ]] to extract the numeric value from the tibble
+# 1. School F-statistic and p-value
+model_fix_ran_2_df[1, "statistic"] <- model_fix_ran_2_df[[1, "meansq"]] / model_fix_ran_2_df[[2, "meansq"]]
+
+model_fix_ran_2_df[1, "p.value"] <- pf(as.numeric(model_fix_ran_2_df[[1, "statistic"]]), 
+                                       df1 = model_fix_ran_2_df[[1, "df"]], 
+                                       df2 = model_fix_ran_2_df[[2, "df"]], 
+                                       lower.tail = FALSE)
+
+# 2. Class F-statistic and p-value
+model_fix_ran_2_df[2, "statistic"] <- model_fix_ran_2_df[[2, "meansq"]] / model_fix_ran_2_df[[3, "meansq"]]
+
+model_fix_ran_2_df[2, "p.value"] <- pf(as.numeric(model_fix_ran_2_df[[2, "statistic"]]), 
+                                       df1 = model_fix_ran_2_df[[2, "df"]], 
+                                       df2 = model_fix_ran_2_df[[3, "df"]], 
+                                       lower.tail = FALSE)
+
+# Check the final table
+print(model_fix_ran_2_df)
+
+
+
+# upper factor: random , lower factor: fixed
+
+model_ran_fix <- lmer(Y ~ (1|School) + Class, data = score2)
+summary(model_ran_fix)
+
+ranova(model_ran_fix)
+
+
+
+# upper factor: random , lower factor: random
+
+model_ran_ran <- lmer(Y ~ (1|School) + (1|School:Class), data = score2)
+model_ran_ran_alt <- aov(Y ~ Error(School / Class), data = score2) 
+summary(model_ran_ran_alt)
+
+
+
+#interaction post hoc
+library(ggplot2)
+
+results_summary$Group <- reorder(results_summary$Group, results_summary$emmean)
+
+ggplot(results_summary, aes(x = Group, y = emmean)) +
+  
+  geom_point(size = 4, color = "royalblue") + 
+  
+  geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.2, size = 0.8, color = "gray30") +  labs(
+    title = "Comparison of Nested Group Means",
+    subtitle = "Sorted by Mean Value with 95% Confidence Intervals",
+    x = "School:Class Groups",
+    y = "Predicted Score (Y)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_text(size = 12, face = "bold"),
+    panel.grid.minor = element_blank()
+  )
+
+
+
+
+#subsample - twoway
+
+
+
+#alpha: fix , beta: fix
+
+
+library(sasLM)
+rosemite
+str(rosemite)
+
+rosemite_aov <- aov(Mite ~ Tree*Pos + Leaf %in% Tree:Pos, data = rosemite)
+summary(rosemite_aov)
+
+
+#alpha: fix , beta: random
+
+
+library(lme4)
+library(lmerTest)
+rosemite_mixed <- lmer(Mite ~ Tree + (1|Pos) + (1|Tree:Pos) + (1|Tree:Pos:Leaf), 
+                       data = rosemite)
+summary(rosemite_mixed)
+
+rosemite_aov_2 <- aov(Mite ~ Tree + Error(Pos + Tree:Pos + Tree:Pos:Leaf), data = rosemite)
+rosemite_aov_2
+summary(rosemite_aov_2)
+library(broom)
+tidy(rosemite_aov_2)
+
+library(broom)
+library(dplyr)
+
+# 1. Convert aov object to a tidy tibble
+# This makes the result a light, manipulatable data frame
+res_tidy <- tidy(rosemite_aov_2)
+
+# 2. Extract Mean Squares (MS) for manual calculation
+# Using indexing on the tidy object is much cleaner
+ms_a    <- res_tidy$meansq[1] # Pos
+ms_b    <- res_tidy$meansq[2] # Tree
+ms_ab   <- res_tidy$meansq[3] # Pos:Tree
+ms_exp  <- res_tidy$meansq[4] # Pos:Tree:Leaf
+ms_sub  <- res_tidy$meansq[5] # Within
+
+# 3. Apply F-ratio formulas from Image 1
+# Update 'statistic' (F-value) and 'p.value' columns directly
+res_tidy <- res_tidy %>%
+  mutate(
+    statistic = case_when(
+      term == "Residuals" & stratum == "Pos" ~ ms_a / ms_ab,
+      term == "Tree"      ~ ms_b / ms_ab,
+      term == "Residuals" & stratum == "Pos:Tree" ~ ms_ab / ms_exp,
+      term == "Residuals" & stratum == "Pos:Tree:Leaf" ~ ms_exp / ms_sub,
+      TRUE ~ statistic
+    ),
+    # Calculate p-values using proper denominator degrees of freedom
+    p.value = case_when(
+      term == "Residuals" & stratum == "Pos" ~ pf(statistic, df, res_tidy$df[3], lower.tail = FALSE),
+      term == "Tree"      ~ pf(statistic, df, res_tidy$df[3], lower.tail = FALSE),
+      term == "Residuals" & stratum == "Pos:Tree" ~ pf(statistic, df, res_tidy$df[4], lower.tail = FALSE),
+      term == "Residuals" & stratum == "Pos:Tree:Leaf" ~ pf(statistic, df, res_tidy$df[5], lower.tail = FALSE),
+      TRUE ~ p.value
+    )
+  )
+
+# 4. View the finalized tidy table
+print(res_tidy)
+
+
+
+#alpha: random , beta: random
+
+
+rosemite_random <- lmer(Mite ~ (1|Tree) + (1|Pos) + (1|Tree:Pos) + (1|Tree:Pos:Leaf), 
+                       data = rosemite)
+summary(rosemite_mixed)
+
+rosemite_aov_random <- aov(Mite ~ Error(Tree + Pos + Tree:Pos + Tree:Pos:Leaf), 
+                           data = rosemite)
+summary(rosemite_aov_random)
+library(broom)
+res_tidy_random <- tidy(rosemite_aov_random)
+res_tidy_random
+
+# Load necessary libraries
+library(broom)
+library(dplyr)
+
+# 1. Prepare the tidy object (based on your third image: res_tidy_random)
+# This assumes you have already run: 
+# rosemite_aov_random <- aov(Mite ~ Error(Tree + Pos + Tree:Pos + Tree:Pos:Leaf), data = rosemite)
+# res_tidy_random <- tidy(rosemite_aov_random)
+
+# 2. Extract Mean Squares (MS) for calculation
+ms_tree <- res_tidy_random$meansq[1] # MS_A (Tree)
+ms_pos  <- res_tidy_random$meansq[2] # MS_B (Pos)
+ms_ia   <- res_tidy_random$meansq[3] # MS_AB (Tree:Pos)
+ms_exp  <- res_tidy_random$meansq[4] # MS_Exp (Tree:Pos:Leaf)
+ms_sub  <- res_tidy_random$meansq[5] # MS_Sub (Within)
+
+# 3. Update F-statistics and P-values using formulas from Image 4
+# For Random Effects: Both Tree and Pos are tested against Interaction (MS_AB)
+res_final_random <- res_tidy_random %>%
+  mutate(
+    statistic = case_when(
+      stratum == "Tree" ~ ms_tree / ms_ia,
+      stratum == "Pos"  ~ ms_pos / ms_ia,
+      stratum == "Tree:Pos" ~ ms_ia / ms_exp,
+      stratum == "Tree:Pos:Leaf" ~ ms_exp / ms_sub,
+      TRUE ~ NA_real_
+    ),
+    p.value = case_when(
+      stratum == "Tree" ~ pf(statistic, df, res_tidy_random$df[3], lower.tail = FALSE),
+      stratum == "Pos"  ~ pf(statistic, df, res_tidy_random$df[3], lower.tail = FALSE),
+      stratum == "Tree:Pos" ~ pf(statistic, df, res_tidy_random$df[4], lower.tail = FALSE),
+      stratum == "Tree:Pos:Leaf" ~ pf(statistic, df, res_tidy_random$df[5], lower.tail = FALSE),
+      TRUE ~ NA_real_
+    )
+  )
+
+# 4. View the results
+print(res_final_random)
+
