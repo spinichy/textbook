@@ -1983,3 +1983,69 @@ summary(fit_aov)
 
 summary(fit_aov_full, split = list(School = list("School 2 vs 1&3" = 1, 
                                                  "School 1 vs 3" = 2)))
+
+
+
+##Linear Mixed-Effects Models
+
+library(sasLM)
+score2
+str(score2)
+
+# 1. Prepare Data based on your score2 structure
+y <- score2$Y
+X <- model.matrix(~ School, data = score2) # Fixed Effect matrix
+Z <- model.matrix(~ School:Class - 1, data = score2) # Random Effect (Nested) matrix (-1 remove intercept)
+n <- length(y)
+p <- ncol(X)
+q <- ncol(Z)
+
+
+
+# 2. REML Log-Likelihood Function definition
+# This function calculates the REML log-likelihood for a given variance theta
+reml_log_lik <- function(sigma_sq_error, sigma_sq_random) {
+  # Total Variance-Covariance Matrix: V = ZGZ' + R
+  G <- diag(sigma_sq_random, q)
+  V <- Z %*% G %*% t(Z) + (sigma_sq_error * diag(n))
+  V_inv <- solve(V)
+  
+  # Estimate Fixed Effects (beta) using Weighted Least Squares (WLS)
+  beta_hat <- solve(t(X) %*% V_inv %*% X) %*% t(X) %*% V_inv %*% y
+  res <- y - X %*% beta_hat  
+  #res = [I - X(X^T V^{-1} X)^{-1} X^T V^{-1}] y, 
+  #P =  #$res = [I - X(X^T V^{-1} X)^{-1} X^T V^{-1}] y$
+  #P = $K(K^T V K)^{-1} K^T$
+  
+ 
+  
+  # REML Log-Likelihood Formula from your image
+  # Term 1: Modified ML Term
+  ml_term <- -0.5 * (log(det(V)) + t(res) %*% V_inv %*% res)
+  # Term 2: Degrees of Freedom Correction Term (자유도 교정항)
+  adj_term <- -0.5 * log(det(t(X) %*% V_inv %*% X))
+  
+  return(as.numeric(ml_term + adj_term))
+}
+
+# 3. Iterative Optimization (Using R's 'optim' instead of manual loops for stability)
+# Start with initial guesses for variances (sigma_error, sigma_random)
+initial_values <- c(error = 5, random = 40)
+
+# The 'optim' function searches for the variance values that MAXIMIZE the log-likelihood
+fit_reml <- optim(par = initial_values, 
+                  fn = function(par) -reml_log_lik(par[1], par[2]), # Minimize negative LL
+                  method = "L-BFGS-B", 
+                  lower = c(1e-5, 1e-5))
+
+# 4. Results: Estimated Variance Components
+cat("REML Estimated Error Variance (실험오차):", fit_reml$par[1], "\n")
+cat("REML Estimated Random Effect Variance (학급 간 변동):", fit_reml$par[2], "\n")
+
+
+library(tidyverse)
+library(lmerTest)
+lmer(formula = Y ~ School + (1|School:Class), data = score2) %>% 
+  summary()
+
+
