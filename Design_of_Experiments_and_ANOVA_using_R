@@ -1964,3 +1964,22 @@ res_final_random <- res_tidy_random %>%
 # 4. View the results
 print(res_final_random)
 
+
+#Contrast in Nested Model
+
+ library(sasLM)
+score2
+
+score2$School <- as.factor(score2$School)
+score2$Class  <- as.factor(score2$Class)
+
+c1 <- c(-1/2, 1, -1/2) 
+c2 <- c(1, 0, -1)      
+combined_contrasts <- cbind(c1, c2)
+contrasts(score2$School) <- combined_contrasts
+
+fit_aov <- aov(Y ~ School + School:Class, data = score2)
+summary(fit_aov)
+
+summary(fit_aov_full, split = list(School = list("School 2 vs 1&3" = 1, 
+                                                 "School 1 vs 3" = 2)))
