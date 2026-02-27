@@ -1916,7 +1916,7 @@ print(res_tidy)
 
 rosemite_random <- lmer(Mite ~ (1|Tree) + (1|Pos) + (1|Tree:Pos) + (1|Tree:Pos:Leaf), 
                        data = rosemite)
-summary(rosemite_mixed)
+summary(rosemite_random)
 
 rosemite_aov_random <- aov(Mite ~ Error(Tree + Pos + Tree:Pos + Tree:Pos:Leaf), 
                            data = rosemite)
