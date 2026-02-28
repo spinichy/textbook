@@ -1081,3 +1081,158 @@ p2 <- ggplot(plot_data, aes(x = time, y = M_t)) +
 
 # Combine plots
 (p1 / p2)
+
+
+
+##### part 5 -----------------------------------------------------------------------------------------------------------------------
+
+
+#example
+
+#1
+# Load necessary libraries
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+
+# 1. Input Data
+intervals <- 0:9
+n_alive <- c(146, 116, 88, 57, 45, 41, 28, 20, 11, 8)
+n_dying <- c(27, 18, 21, 9, 1, 2, 3, 1, 2, 2)
+n_censored <- c(3, 10, 10, 3, 3, 11, 5, 8, 1, 6)
+
+# 2. Calculation Function
+calc_survival <- function(alive, dying, censored, method = "half") {
+  n <- length(alive)
+  surv_prob <- numeric(n + 1)
+  surv_prob[1] <- 1.0
+  for (i in 1:n) {
+    if (method == "end") {
+      y_effective <- alive[i]
+    } else if (method == "beginning") {
+      y_effective <- alive[i] - censored[i]
+    } else { 
+      y_effective <- alive[i] - (0.5 * censored[i])
+    }
+    p_i <- 1 - (dying[i] / y_effective)
+    surv_prob[i+1] <- surv_prob[i] * p_i
+  }
+  return(surv_prob)
+}
+
+# 3. Generate Scenario Data
+s_begin <- calc_survival(n_alive, n_dying, n_censored, "beginning")
+s_half  <- calc_survival(n_alive, n_dying, n_censored, "half")
+s_end   <- calc_survival(n_alive, n_dying, n_censored, "end")
+
+# 4. Prepare Data Frame
+plot_df <- data.frame(
+  Time = rep(0:10, 3),
+  Survival = c(s_begin, s_half, s_end),
+  Method = rep(c("Beginning (Red)", "Half-Censored (Green)", "End (Blue)"), each = 11)
+)
+
+# 5. Enhanced Visualization
+# Line Chart
+p1 <- ggplot(plot_df, aes(x = Time, y = Survival, color = Method)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("Beginning (Red)" = "red", 
+                                "Half-Censored (Green)" = "green", 
+                                "End (Blue)" = "blue")) +
+  labs(title = "Survival Curves by Censoring Assumptions",
+       y = "Survival Probability S(t)", x = "Year") +
+  theme_minimal()
+
+# Bar Chart with Centered Labels
+final_vals <- plot_df %>% filter(Time == 10)
+p2 <- ggplot(final_vals, aes(x = Method, y = Survival, fill = Method)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  # Place labels in the middle of the bars using vjust = 0.5 and position_stack
+  geom_text(aes(label = round(Survival, 4)), 
+            position = position_stack(vjust = 0.5), 
+            color = "white", # Set text color to white for better contrast
+            fontface = "bold") + 
+  scale_fill_manual(values = c("Beginning (Red)" = "red", 
+                               "Half-Censored (Green)" = "green", 
+                               "End (Blue)" = "blue")) +
+  labs(title = "Final Survival Probability at Year 10", y = "S(10)") +
+  theme_minimal() + 
+  theme(legend.position = "none")
+
+# Combine using patchwork
+combined_plot <- p1 / p2 + plot_layout(heights = c(2, 1))
+print(combined_plot)
+
+#2
+# Load necessary libraries
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+
+# 1. Input Data from image_821434.jpg
+# Using the start of each interval as the time index
+intervals <- c(0, 2, 3, 5, 7, 11, 17, 25, 37, 53)
+n_alive <- c(927, 848, 774, 649, 565, 449, 296, 186, 112, 27)
+n_dying <- c(77, 71, 119, 75, 109, 148, 107, 74, 85, 27)
+n_censored <- c(2, 3, 6, 9, 7, 5, 3, 0, 0, 0)
+
+# 2. Calculate Survival and Hazard Functions
+# Assumption: Censoring occurs at the BEGINNING of the interval
+calculate_lifetable <- function(intervals, alive, dying, censored) {
+  n <- length(dying)
+  dt <- diff(c(intervals, 60)) # Interval width (approx 60 for the last one)
+  
+  # Effective Number at Risk (Yi) = Initial Alive - Censored
+  y_effective <- alive - censored
+  
+  # Conditional probability of death (qi)
+  q_i <- dying / y_effective
+  
+  # Conditional probability of survival (pi)
+  p_i <- 1 - q_i
+  
+  # Survival Function S(t)
+  surv_prob <- cumprod(c(1, p_i))
+  
+  # Hazard Function h(t) = qi / (dt * (1 - 0.5 * qi)) 
+  # Using the actuarial hazard approximation
+  hazard <- q_i / (dt * (1 - 0.5 * q_i))
+  
+  return(data.frame(
+    Time = intervals,
+    Survival = surv_prob[1:n],
+    Hazard = hazard
+  ))
+}
+
+
+results <- calculate_lifetable(intervals, n_alive, n_dying, n_censored)
+
+# 3. Visualization
+# Plot 1: Survival Function S(t)
+p1 <- ggplot(results, aes(x = Time, y = Survival)) +
+  geom_step(size = 1, color = "red") +
+  geom_point(color = "red") +
+  scale_y_continuous(limits = c(0, 1)) +
+  labs(title = "Survival Function S(t)",
+       subtitle = "Assumption: Censoring at the Beginning",
+       y = "S(t)", x = "Time") +
+  theme_minimal()
+
+# Plot 2: Hazard Function h(t)
+p2 <- ggplot(results, aes(x = Time, y = Hazard)) +
+  geom_bar(stat = "identity", fill = "darkred", alpha = 0.7) +
+  labs(title = "Hazard Function h(t)",
+       subtitle = "Estimated rate of death per unit time",
+       y = "h(t)", x = "Time") +
+  theme_minimal()
+
+# Combine plots using patchwork
+combined_plot <- p1 / p2
+print(combined_plot)
+
+# 4. Display numerical results in console
+print(results)
+
+
