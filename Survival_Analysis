@@ -928,5 +928,156 @@ legend("topleft",
 ##### part 3 -----------------------------------------------------------------------------------------------------------------------
 
 
+##### part 4 -----------------------------------------------------------------------------------------------------------------------
 
 
+#1
+
+library(ggplot2)
+library(patchwork) 
+
+t1 <- 1.5; status1 <- 0
+t2 <- 2.0; status2 <- 1
+
+
+time_seq <- seq(0, 3, by = 0.01)
+
+get_processes <- function(time_val, status, t_seq) {
+  ni <- ifelse(t_seq >= time_val & status == 1, 1, 0)
+  yi <- ifelse(t_seq <= time_val, 1, 0)
+  return(data.frame(time = t_seq, ni = ni, yi = yi))
+}
+
+data1 <- get_processes(t1, status1, time_seq)
+data2 <- get_processes(t2, status2, time_seq)
+
+p1 <- ggplot() +
+  geom_step(data = data1, aes(x = time, y = ni, color = "Subject 1 (Censored)")) +
+  geom_step(data = data2, aes(x = time, y = ni, color = "Subject 2 (Event)")) +
+  labs(title = "Counting Process Ni(t)", y = "Ni(t)", x = "Time") +
+  theme_minimal() +
+  scale_color_manual(values = c("Subject 1 (Censored)" = "blue", 
+                                "Subject 2 (Event)" = "red"))
+
+# 4. Plotting Yi(t) - At-risk Process
+p2 <- ggplot() +
+  geom_step(data = data1, aes(x = time, y = yi, color = "Subject 1 (Censored)")) +
+  geom_step(data = data2, aes(x = time, y = yi, color = "Subject 2 (Event)")) +
+  labs(title = "At-risk Process Yi(t)", y = "Yi(t)", x = "Time") +
+  theme_minimal() +
+  scale_color_manual(values = c("Subject 1 (Censored)" = "blue",
+                                "Subject 2 (Event)" = "red"))
+
+
+p1 / p2
+
+
+
+#2
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(patchwork)
+
+df <- data.frame(
+  id = c("Nail-deung", "Gise-deung", "Kim-kkotbong"),
+  time = c(2, 8, 6),
+  event = c(1, 0, 1) # 1 for Event, 0 for Censoring
+)
+
+
+t_seq <- seq(0, 10, by = 0.05)
+
+calc_individual <- function(t, data) {
+  ni <- ifelse(t >= data$time & data$event == 1, 1, 0)
+  yi <- ifelse(t <= data$time, 1, 0)
+  return(data.frame(time = t, ni = ni, yi = yi, id = data$id))
+}
+
+
+plot_data_indiv <- bind_rows(lapply(1:nrow(df), 
+                                    function(i) calc_individual(t_seq, df[i,])))
+
+plot_data_total <- plot_data_indiv %>%
+  group_by(time) %>%
+  summarise(N_t = sum(ni), Y_t = sum(yi))
+
+p1 <- ggplot(plot_data_indiv, aes(x = time, y = ni, color = id)) +
+  geom_step(size = 1) +
+  labs(title = "Individual Ni(t)", subtitle = "Counting Process per Subject", y = "Ni(t)", x = "Time") +
+  theme_minimal()
+
+p2 <- ggplot(plot_data_indiv, aes(x = time, y = yi, color = id)) +
+  geom_step(size = 1) +
+  labs(title = "Individual Yi(t)", subtitle = "At-risk Process per Subject", y = "Yi(t)", x = "Time") +
+  theme_minimal()
+
+p3 <- ggplot(plot_data_total, aes(x = time, y = N_t)) +
+  geom_step(size = 1.2, color = "black") +
+  labs(title = "Total N(t)", subtitle = "Aggregated Events", y = "N(t)", x = "Time") +
+  theme_minimal()
+
+p4 <- ggplot(plot_data_total, aes(x = time, y = Y_t)) +
+  geom_step(size = 1.2, color = "darkblue") +
+  labs(title = "Total Y(t)", subtitle = "Aggregated Risk Set", y = "Y(t)", x = "Time") +
+  theme_minimal()
+
+
+combined_plot <- (p1 | p2) / (p3 | p4) + 
+  plot_annotation(title = "Visualization of Counting Processes")
+
+print(combined_plot)
+
+
+#3
+
+
+# Load library for visualization
+library(ggplot2)
+library(patchwork)
+
+# Set parameters
+lambda <- 2
+t_max <- 10
+set.seed(123)
+
+# 1. Simulate Poisson Process N(t)
+# Inter-arrival times follow Exponential(lambda)
+inter_arrivals <- rexp(20, rate = lambda)
+arrival_times <- cumsum(inter_arrivals)
+arrival_times <- arrival_times[arrival_times <= t_max]
+
+# Create step function data for N(t)
+t_seq <- seq(0, t_max, by = 0.01)
+n_t <- sapply(t_seq, function(x) sum(arrival_times <= x))
+
+# 2. Calculate Compensator (lambda * t) and Martingale M(t)
+compensator <- lambda * t_seq
+m_t <- n_t - compensator
+
+# Prepare data frame for plotting
+plot_data <- data.frame(
+  time = t_seq,
+  N_t = n_t,
+  Compensator = compensator,
+  M_t = m_t
+)
+
+# Plot N(t) and its Compensator
+p1 <- ggplot(plot_data, aes(x = time)) +
+  geom_step(aes(y = N_t, color = "N(t) (Poisson)")) +
+  geom_line(aes(y = Compensator, color = "lambda * t (Compensator)"), linetype = "dashed") +
+  labs(title = "Poisson Process and Compensator", y = "Value", x = "Time") +
+  scale_color_manual(values = c("red", "blue")) +
+  theme_minimal()
+
+# Plot Martingale M(t)
+p2 <- ggplot(plot_data, aes(x = time, y = M_t)) +
+  geom_line(color = "darkgreen") +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  labs(title = "Martingale M(t) = N(t) - lambda * t", y = "M(t)", x = "Time") +
+  theme_minimal()
+
+# Combine plots
+(p1 / p2)
