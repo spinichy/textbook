@@ -1236,3 +1236,197 @@ print(combined_plot)
 print(results)
 
 
+
+#3 KM,NA
+
+
+# Load necessary libraries
+library(ggplot2)
+library(patchwork)
+
+# ---------------------------------------------------------
+# 1. Data Entry
+# ---------------------------------------------------------
+# Group 1 (Treatment): 21 patients, includes censoring (+)
+g1_time <-   c(6,6,6,6,7,9,10,10,11,13,16,17,19,20,22,23,25,25,32,32,34)
+g1_status <- c(1,1,1,0,1,0, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0)
+
+# Group 2 (Placebo): 21 patients, all events (no censoring)
+g2_time <-   c(1,1,2,2,3,4,4,5,5,8,8,8,8,11,11,12,12,15,17,22,23)
+g2_status <- rep(1, 21)
+
+# ---------------------------------------------------------
+# 2. Function for Manual Calculation
+# ---------------------------------------------------------
+calc_survival <- function(times, status, group_name) {
+  unique_t <- sort(unique(times))
+  n_risk <- sapply(unique_t, function(t) sum(times >= t))
+  d_event <- sapply(unique_t, function(t) sum(times == t & status == 1))
+  
+  # KM Calculation
+  km_surv <- cumprod(1 - (d_event / n_risk))
+  km_haz <- -log(km_surv)
+  
+  # Nelson-Aalen Calculation
+  na_haz <- cumsum(d_event / n_risk)
+  na_surv <- exp(-na_haz)
+  
+  # Return data frame
+  # Add starting point (time=0, surv=1, haz=0) for cleaner step plots
+  data.frame(
+    time = c(0, unique_t),
+    surv_km = c(1, km_surv),
+    haz_km = c(0, km_haz),
+    surv_na = c(1, na_surv),
+    haz_na = c(0, na_haz),
+    group = group_name
+  )
+}
+
+# Apply function to both groups
+res_g1 <- calc_survival(g1_time, g1_status, "Group 1 (Treatment)")
+res_g2 <- calc_survival(g2_time, g2_status, "Group 2 (Placebo)")
+
+# Combine results
+final_df <- rbind(res_g1, res_g2)
+
+# ---------------------------------------------------------
+# 3. Visualization using ggplot2 & patchwork
+# ---------------------------------------------------------
+# Common color scale: Group 1 = Red, Group 2 = Black
+color_scale <- scale_color_manual(values = c("Group 1 (Treatment)" = "red", 
+                                             "Group 2 (Placebo)" = "black"))
+theme_set(theme_minimal())
+
+# Plot 1: KM Survival
+p1 <- ggplot(final_df, aes(x = time, y = surv_km, color = group)) +
+  geom_step(size = 1) + ylim(0, 1) + color_scale +
+  labs(title = "KM: Survival Function", x = "Weeks", y = "S(t)")
+
+# Plot 2: KM Cumulative Hazard
+p2 <- ggplot(final_df, aes(x = time, y = haz_km, color = group)) +
+  geom_step(size = 1) + color_scale +
+  labs(title = "KM: Cumulative Hazard", x = "Weeks", y = "H(t)")
+
+# Plot 3: Nelson-Aalen Cumulative Hazard
+p3 <- ggplot(final_df, aes(x = time, y = haz_na, color = group)) +
+  geom_step(size = 1) + color_scale +
+  labs(title = "Nelson-Aalen: Cumulative Hazard", x = "Weeks", y = "H(t)")
+
+# Plot 4: Nelson-Aalen Survival Function
+p4 <- ggplot(final_df, aes(x = time, y = surv_na, color = group)) +
+  geom_step(size = 1) + ylim(0, 1) + color_scale +
+  labs(title = "Nelson-Aalen: Survival Function", x = "Weeks", y = "S(t)")
+
+# Arrange with patchwork
+combined_layout <- (p1 + p2) / (p4 + p3) + 
+  plot_layout(guides = "collect") +
+  plot_annotation(title = "Comparison of Survival Analysis: Group 1 vs Group 2",
+                  caption = "Red: Group 1 (Treatment) | Black: Group 2 (Placebo)")
+
+print(combined_layout)
+
+
+#3 KM,NA,Confint,+
+
+
+# Load necessary libraries
+library(ggplot2)
+library(patchwork)
+
+# ---------------------------------------------------------
+# 1. Data Entry
+# ---------------------------------------------------------
+g1_time   <- c(6, 6, 6, 6, 7, 9, 10, 10, 11, 13, 16, 17, 19, 20, 22, 23, 25, 25, 32, 32, 34)
+g1_status <- c(1, 1, 1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0)
+g2_time   <- c(1, 1, 2, 2, 3, 4, 4, 5, 5, 8, 8, 8, 8, 11, 11, 12, 12, 15, 17, 22, 23)
+g2_status <- rep(1, 21)
+
+# ---------------------------------------------------------
+# 2. Manual Calculation Function
+# ---------------------------------------------------------
+calc_survival_ci <- function(times, status, group_name) {
+  unique_t <- sort(unique(times))
+  n_risk <- sapply(unique_t, function(t) sum(times >= t))
+  d_event <- sapply(unique_t, function(t) sum(times == t & status == 1))
+  z <- 1.96
+  
+  # KM Calculations
+  km_surv <- cumprod(1 - (d_event / n_risk))
+  km_var_s <- (km_surv^2) * cumsum(d_event / (n_risk * (n_risk - d_event)))
+  km_haz <- -log(km_surv)
+  km_se_h <- sqrt(km_var_s / (km_surv^2))
+  
+  # Nelson-Aalen Calculations
+  na_haz <- cumsum(d_event / n_risk)
+  na_se_h <- sqrt(cumsum(d_event / (n_risk^2)))
+  na_surv <- exp(-na_haz)
+  na_se_s <- na_surv * na_se_h
+  
+  # Main calculation table
+  res <- data.frame(
+    time = c(0, unique_t),
+    surv_km = c(1, km_surv), km_s_low = c(1, pmax(0, km_surv - z * sqrt(km_var_s))), km_s_up = c(1, pmin(1, km_surv + z * sqrt(km_var_s))),
+    haz_km = c(0, km_haz), km_h_low = c(0, pmax(0, km_haz - z * km_se_h)), km_h_up = c(0, km_haz + z * km_se_h),
+    haz_na = c(0, na_haz), na_h_low = c(0, pmax(0, na_haz - z * na_se_h)), na_h_up = c(0, na_haz + z * na_se_h),
+    surv_na = c(1, na_surv), na_s_low = c(1, pmax(0, na_surv - z * na_se_s)), na_s_up = c(1, pmin(1, na_surv + z * na_se_s)),
+    group = group_name
+  )
+  return(res)
+}
+
+res_g1 <- calc_survival_ci(g1_time, g1_status, "Group 1 (Treatment)")
+res_g2 <- calc_survival_ci(g2_time, g2_status, "Group 2 (Placebo)")
+final_df <- rbind(res_g1, res_g2)
+
+# ---------------------------------------------------------
+# 3. Censoring Data for Plotting (+) marks
+# ---------------------------------------------------------
+# We need to map the survival/hazard value at each censoring time to place the '+' correctly
+get_censored_points <- function(times, status, calc_res, group_name) {
+  censored_times <- times[status == 0]
+  if(length(censored_times) == 0) return(NULL)
+  
+  # Find the survival/hazard value just before or at the censoring time
+  merged <- data.frame(time = censored_times, group = group_name)
+  # Simple join-like approach to find the corresponding Y values from calc_res
+  merged$surv_km <- sapply(merged$time, function(t) calc_res$surv_km[max(which(calc_res$time <= t))])
+  merged$haz_km  <- sapply(merged$time, function(t) calc_res$haz_km[max(which(calc_res$time <= t))])
+  merged$surv_na <- sapply(merged$time, function(t) calc_res$surv_na[max(which(calc_res$time <= t))])
+  merged$haz_na  <- sapply(merged$time, function(t) calc_res$haz_na[max(which(calc_res$time <= t))])
+  return(merged)
+}
+
+censor_g1 <- get_censored_points(g1_time, g1_status, res_g1, "Group 1 (Treatment)")
+censor_g2 <- get_censored_points(g2_time, g2_status, res_g2, "Group 2 (Placebo)")
+all_censor <- rbind(censor_g1, censor_g2)
+
+# ---------------------------------------------------------
+# 4. Visualization
+# ---------------------------------------------------------
+color_scale <- scale_color_manual(values = c("Group 1 (Treatment)" = "red", "Group 2 (Placebo)" = "black"))
+fill_scale <- scale_fill_manual(values = c("Group 1 (Treatment)" = "lightcoral", "Group 2 (Placebo)" = "gray80"))
+my_theme <- theme_minimal() + theme(legend.position = "bottom", legend.title = element_blank())
+
+# Modified plot function to include '+' for censoring
+make_plot_with_censor <- function(df, censor_df, y, ymin, ymax, title, ylab) {
+  p <- ggplot(df, aes_string(x = "time", y = y, color = "group")) +
+    geom_ribbon(aes_string(ymin = ymin, ymax = ymax, fill = "group"), alpha = 0.4, color = NA) +
+    geom_step(size = 0.8) +
+    color_scale + fill_scale + my_theme +
+    labs(title = title, x = "Weeks", y = ylab)
+  
+  if(!is.null(censor_df)) {
+    p <- p + geom_point(data = censor_df, aes_string(x = "time", y = y), 
+                        shape = 3, size = 2, show.legend = FALSE) # shape 3 is '+'
+  }
+  return(p)
+}
+
+p1 <- make_plot_with_censor(final_df, all_censor, "surv_km", "km_s_low", "km_s_up", "KM: Survival Function", "S(t)") + ylim(0, 1)
+p2 <- make_plot_with_censor(final_df, all_censor, "haz_km", "km_h_low", "km_h_up", "KM: Cumulative Hazard", "H(t)")
+p3 <- make_plot_with_censor(final_df, all_censor, "haz_na", "na_h_low", "na_h_up", "NA: Cumulative Hazard", "H(t)")
+p4 <- make_plot_with_censor(final_df, all_censor, "surv_na", "na_s_low", "na_s_up", "NA: Survival Function", "S(t)") + ylim(0, 1)
+
+# Combined layout
+(p1 + p2) / (p4 + p3) + plot_layout(guides = "collect") & theme(legend.position = "bottom")
