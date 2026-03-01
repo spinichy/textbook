@@ -1430,3 +1430,382 @@ p4 <- make_plot_with_censor(final_df, all_censor, "surv_na", "na_s_low", "na_s_u
 
 # Combined layout
 (p1 + p2) / (p4 + p3) + plot_layout(guides = "collect") & theme(legend.position = "bottom")
+
+
+
+#exercise
+
+
+
+#1 - censor: end of interval
+
+
+# 1. Input Data 
+# year_of_entry: intervals [0,1), [1,2), ...
+intervals <- c("0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10")
+n_alive   <- c(146, 116, 88, 57, 45, 41, 28, 20, 11, 8) # Number of alive at start
+n_dying   <- c(27, 18, 21, 9, 1, 2, 3, 1, 2, 2)         # Number of dying (events)
+n_censored <- c(3, 10, 10, 3, 3, 11, 5, 8, 1, 6)        # Number of censored
+
+# 2. Life Table Calculations
+# Assumption: Censoring occurs at the end of the interval.
+# Therefore, n_prime (effective n) = n_alive (no adjustment needed for censoring)
+n_prime <- n_alive 
+
+# Conditional Probability of Death (치사율): q_i = d_i / n_prime
+q_i <- n_dying / n_prime
+
+# Conditional Probability of Survival (생존율): p_i = 1 - q_i
+p_i <- 1 - q_i
+
+# Survival Function (생존함수): S(t) = Cumulative product of p_i
+# We start with 1.0 at time 0
+s_t <- cumprod(p_i)
+
+# 3. Create the Summary Table
+life_table <- data.frame(
+  Interval = intervals,
+  N_at_Risk = n_alive,
+  Deaths = n_dying,
+  Censored = n_censored,
+  Death_Rate = round(q_i, 4),      # 치사율
+  Survival_Rate = round(p_i, 4),   # 생존율
+  Survival_Func = round(s_t, 4)    # 생존함수
+)
+
+# Display the table
+
+library(knitr)
+
+# Create a clean, formatted table for console or markdown
+kable(life_table, 
+      col.names = c("Interval", "At Risk (Y)", "Deaths (D)", "Censored (C)", "Death Rate (di)", "Surv Rate (pi)", "Surv Func (S)"),
+      align = "c", 
+      digits = 4, 
+      caption = "Life Table Summary")
+
+
+
+#2 - censor: initial of interval
+
+
+# 1. Input Data 
+# year_of_entry: intervals [0,1), [1,2), ...
+intervals <- c("0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10")
+n_alive   <- c(146, 116, 88, 57, 45, 41, 28, 20, 11, 8) # Number of alive at start
+n_dying   <- c(27, 18, 21, 9, 1, 2, 3, 1, 2, 2)         # Number of dying (events)
+n_censored <- c(3, 10, 10, 3, 3, 11, 5, 8, 1, 6)        # Number of censored
+
+# 2. Life Table Calculations
+# Assumption: Censoring occurs at the end of the interval.
+# Therefore, n_prime (effective n) = n_alive (no adjustment needed for censoring)
+n_prime <- n_alive - n_censored
+
+# Conditional Probability of Death (치사율): q_i = d_i / n_prime
+q_i <- n_dying / n_prime
+
+# Conditional Probability of Survival (생존율): p_i = 1 - q_i
+p_i <- 1 - q_i
+
+# Survival Function (생존함수): S(t) = Cumulative product of p_i
+# We start with 1.0 at time 0
+s_t <- cumprod(p_i)
+
+# 3. Create the Summary Table
+life_table <- data.frame(
+  Interval = intervals,
+  N_at_Risk = n_alive,
+  Deaths = n_dying,
+  Censored = n_censored,
+  Death_Rate = round(q_i, 4),      # 치사율
+  Survival_Rate = round(p_i, 4),   # 생존율
+  Survival_Func = round(s_t, 4)    # 생존함수
+)
+
+# Display the table
+
+library(knitr)
+
+# Create a clean, formatted table for console or markdown
+kable(life_table, 
+      col.names = c("Interval", "At Risk (Y)", "Deaths (D)", "Censored (C)", "Death Rate (di)", "Surv Rate (pi)", "Surv Func (S)"),
+      align = "c", 
+      digits = 4, 
+      caption = "Life Table Summary")
+
+
+
+#3 - censor: medium of interval
+
+
+# 1. Input Data 
+# year_of_entry: intervals [0,1), [1,2), ...
+intervals <- c("0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10")
+n_alive   <- c(146, 116, 88, 57, 45, 41, 28, 20, 11, 8) # Number of alive at start
+n_dying   <- c(27, 18, 21, 9, 1, 2, 3, 1, 2, 2)         # Number of dying (events)
+n_censored <- c(3, 10, 10, 3, 3, 11, 5, 8, 1, 6)        # Number of censored
+
+# 2. Life Table Calculations
+# Assumption: Censoring occurs at the end of the interval.
+# Therefore, n_prime (effective n) = n_alive (no adjustment needed for censoring)
+n_prime <- n_alive - n_censored/2
+
+# Conditional Probability of Death (치사율): q_i = d_i / n_prime
+q_i <- n_dying / n_prime
+
+# Conditional Probability of Survival (생존율): p_i = 1 - q_i
+p_i <- 1 - q_i
+
+# Survival Function (생존함수): S(t) = Cumulative product of p_i
+# We start with 1.0 at time 0
+s_t <- cumprod(p_i)
+
+# 3. Create the Summary Table
+life_table <- data.frame(
+  Interval = intervals,
+  N_at_Risk = n_alive,
+  Deaths = n_dying,
+  Censored = n_censored,
+  Death_Rate = round(q_i, 4),      # 치사율
+  Survival_Rate = round(p_i, 4),   # 생존율
+  Survival_Func = round(s_t, 4)    # 생존함수
+)
+
+# Display the table
+
+library(knitr)
+
+# Create a clean, formatted table for console or markdown
+kable(life_table, 
+      col.names = c("Interval", "At Risk (Y)", "Deaths (D)", "Censored (C)", "Death Rate (di)", "Surv Rate (pi)", "Surv Func (S)"),
+      align = "c", 
+      digits = 4, 
+      caption = "Life Table Summary")
+
+
+
+#4 - survival function graph - KM, NA
+
+# ---------------------------------------------------------
+# 1. Data Entry 
+# ---------------------------------------------------------
+# Intervals: [0,6), [6,12), [12,18), [18,24), [24,30), [30,36)
+intervals <- c(0, 6, 12, 18, 24, 30, 36)
+y_i <- c(21, 21, 12, 9, 5, 4) # Number at risk at start of interval
+d_i <- c(0, 9, 3, 4, 1, 4)    # Number of events (deaths)
+
+# ---------------------------------------------------------
+# 2. Survival Estimation Calculations
+# ---------------------------------------------------------
+
+# --- Kaplan-Meier (KM) Method ---
+# S(t) = product of (1 - di/Yi)
+p_km <- 1 - (d_i / y_i)
+surv_km <- cumprod(p_km)
+
+# --- Nelson-Aalen (NA) Method ---
+# H(t) = sum of (di/Yi)
+# S(t) = exp(-H(t))
+haz_na <- d_i / y_i
+cum_haz_na <- cumsum(haz_na)
+surv_na <- exp(-cum_haz_na)
+
+# Create a data frame for plotting (adding time 0 for the start)
+plot_df <- data.frame(
+  time = rep(intervals, 2),
+  survival = c(1, surv_km, 1, surv_na),
+  method = rep(c("Kaplan-Meier", "Nelson-Aalen"), each = length(intervals))
+)
+
+# ---------------------------------------------------------
+# 3. Visualization using ggplot2
+# ---------------------------------------------------------
+library(ggplot2)
+
+ggplot(plot_df, aes(x = time, y = survival, color = method, linetype = method)) +
+  geom_step(linewidth = 1) + # Step function for survival curves
+  scale_color_manual(values = c("Kaplan-Meier" = "blue", "Nelson-Aalen" = "red")) +
+  theme_minimal() +
+  labs(title = "Comparison of Survival Functions: KM vs Nelson-Aalen",
+       subtitle = "Based on Leukemia Patient Interval Data",
+       x = "Months",
+       y = "Survival Probability S(t)",
+       color = "Method",
+       linetype = "Method") +
+  theme(legend.position = "bottom") +
+  scale_x_continuous(breaks = intervals) +
+  ylim(0, 1)
+
+
+
+#5 - survival function graph - KM, NA including censored data
+
+
+# ---------------------------------------------------------
+# 1. Data Input 
+# ---------------------------------------------------------
+# Interval starts from 0 to 5
+times <- c(0, 1, 2, 3, 4, 5)
+Y_i   <- c(50, 41, 34, 28, 22, 17) # Number at risk
+d_i   <- c(9, 6, 2, 1, 2, 0)      # Deaths
+c_i   <- c(0, 1, 4, 5, 3, 17)     # Censored
+
+# ---------------------------------------------------------
+# 2. Survival Calculations (Beginning of Interval)
+# ---------------------------------------------------------
+n_prime <- Y_i - c_i # Effective N at risk
+
+# KM Calculation
+p_km <- 1 - (d_i / n_prime)
+p_km[is.nan(p_km)] <- 1 # Handle division by zero
+surv_km <- cumprod(p_km)
+
+# NA Calculation
+haz_na <- d_i / n_prime
+haz_na[is.nan(haz_na)] <- 0
+surv_na <- exp(-cumsum(haz_na))
+
+# ---------------------------------------------------------
+# 3. Visualization with Labels
+# ---------------------------------------------------------
+# X-axis points (0 to 6 years)
+x_axis <- c(0, 1, 2, 3, 4, 5, 6)
+y_km   <- c(1, surv_km)
+y_na   <- c(1, surv_na)
+
+# Set up the plot area
+plot(x_axis, y_km, type = "s", col = "blue", lwd = 2,
+     main = "Survival Curves with Labels and Censoring (+)",
+     xlab = "Years", ylab = "Survival Probability S(t)", 
+     ylim = c(0, 1.1), xaxs = "i") # Extra space for labels
+lines(x_axis, y_na, type = "s", col = "red", lwd = 2, lty = 2)
+
+# A. Add Censoring Marks (+) at the beginning of each interval
+censor_idx <- which(c_i > 0)
+points(times[censor_idx], y_km[censor_idx], pch = 3, col = "blue", cex = 1.2)
+points(times[censor_idx], y_na[censor_idx], pch = 3, col = "red", cex = 1.2)
+
+# B. Add Survival Probability Numbers at the end of each interval
+# pos = 3 (above), pos = 1 (below)
+text(x_axis[-1], y_km[-1], labels = round(y_km[-1], 3), 
+     pos = 3, cex = 0.8, col = "blue") # KM values above the step
+text(x_axis[-1], y_na[-1], labels = round(y_na[-1], 3), 
+     pos = 1, cex = 0.8, col = "red")  # NA values below the step
+
+legend("bottomleft", legend = c("Kaplan-Meier", "Nelson-Aalen", "+ Censored"),
+       col = c("blue", "red", "black"), lwd = c(2, 2, NA), 
+       lty = c(1, 2, NA), pch = c(NA, NA, 3))
+grid()
+
+
+
+#6 - survival function graph - KM, NA, Confint including censored data
+
+
+# 1. Data Input (Bone Marrow Transplant)
+df_raw <- data.frame(
+  time = c(9, 13, 13, 18, 23, 28, 31, 34, 45, 50),
+  status = c(1, 1, 0, 1, 1, 0, 1, 1, 0, 0)
+)
+
+# 2. Survival Calculations (Manual Formulas)
+# Find event times (relapse)
+event_t <- sort(unique(df_raw$time[df_raw$status == 1]))
+res <- data.frame(Time = event_t)
+
+# n_i: Number at risk, d_i: Number of deaths
+res$n_i <- sapply(res$Time, function(t) sum(df_raw$time >= t))
+res$d_i <- sapply(res$Time, function(t) sum(df_raw$time == t & df_raw$status == 1))
+
+# --- [Core Probability Metrics] ---
+# Death Rate (di) and Survival Rate (pi) per interval
+res$di <- res$d_i / res$n_i  # 치사율
+res$pi <- 1 - res$di         # 생존율
+
+# --- [Kaplan-Meier (KM) Estimates] ---
+res$km_S <- cumprod(res$pi)
+res$km_H <- -log(res$km_S)
+se_km <- res$km_S * sqrt(cumsum(res$d_i / (res$n_i * (res$n_i - res$d_i))))
+res$km_lower <- pmax(0, res$km_S - 1.96 * se_km)
+res$km_upper <- pmin(1, res$km_S + 1.96 * se_km)
+
+# --- [Nelson-Aalen (NA) Estimates] ---
+res$NA_H <- cumsum(res$di)
+res$NA_S <- exp(-res$NA_H)
+se_na_h <- sqrt(cumsum(res$d_i / (res$n_i^2)))
+res$NA_lower <- exp(-(res$NA_H + 1.96 * se_na_h))
+res$NA_upper <- exp(-(res$NA_H - 1.96 * se_na_h))
+
+# 3. Final Table Organization (Requested Order)
+final_res <- res[, c("Time", "di", "pi", "km_S", "km_H", "km_lower", "km_upper", 
+                     "NA_S", "NA_H", "NA_lower", "NA_upper")]
+
+# 4. Display Result
+library(knitr)
+kable(final_res, digits = 4, align = "c", 
+      caption = "BMT Survival Data: Interval Rates and Cumulative Estimates")
+
+
+
+# Load necessary libraries
+library(ggplot2)
+library(tidyr)
+
+# 1. Prepare data for ggplot
+# We need to add a starting point (Time 0, Survival 1) for both methods
+plot_km <- data.frame(
+  Time = c(0, final_res$Time),
+  Survival = c(1, final_res$km_S),
+  Lower = c(1, final_res$km_lower),
+  Upper = c(1, final_res$km_upper),
+  Method = "Kaplan-Meier"
+)
+
+plot_na <- data.frame(
+  Time = c(0, final_res$Time),
+  Survival = c(1, final_res$NA_S),
+  Lower = c(1, final_res$NA_lower),
+  Upper = c(1, final_res$NA_upper),
+  Method = "Nelson-Aalen"
+)
+
+# Combine datasets
+plot_total <- rbind(plot_km, plot_na)
+
+# 2. Identify censoring points for '+' marks
+# We map the censoring time to the KM survival height at that moment
+censored_data <- subset(df_raw, status == 0)
+censored_data$surv_height <- sapply(censored_data$time, function(t) {
+  # Find the survival value at or just before the censoring time
+  idx <- which(plot_km$Time <= t)
+  plot_km$Survival[max(idx)]
+})
+
+# 3. Create the ggplot
+ggplot(plot_total, aes(x = Time, y = Survival, color = Method, group = Method)) +
+  # Step functions for survival curves
+  geom_step(linewidth = 1) +
+  # Dotted lines for Confidence Intervals
+  geom_step(aes(y = Lower), linetype = "dotted", alpha = 0.6) +
+  geom_step(aes(y = Upper), linetype = "dotted", alpha = 0.6) +
+  # Add Censoring marks (+)
+  geom_point(data = censored_data, aes(x = time, y = surv_height), 
+             shape = 3, size = 3, color = "black", inherit.aes = FALSE) +
+  # Formatting labels and theme
+  scale_color_manual(values = c("Kaplan-Meier" = "#0072B2", "Nelson-Aalen" = "#D55E00")) +
+  theme_minimal() +
+  labs(
+    title = "Survival Function Comparison: KM vs NA",
+    subtitle = "Data: Bone Marrow Transplant (Dotted lines indicate 95% CI)",
+    x = "Weeks (Time)",
+    y = "Survival Probability S(t)",
+    color = "Estimation Method"
+  ) +
+  # --- Legend at the Bottom ---
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(face = "bold", size = 14),
+    panel.grid.minor = element_blank()
+  ) +
+  scale_y_continuous(limits = c(0, 1.05), breaks = seq(0, 1, 0.1)) +
+  scale_x_continuous(breaks = seq(0, 50, 5))
