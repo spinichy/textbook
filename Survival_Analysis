@@ -1809,3 +1809,242 @@ ggplot(plot_total, aes(x = Time, y = Survival, color = Method, group = Method)) 
   ) +
   scale_y_continuous(limits = c(0, 1.05), breaks = seq(0, 1, 0.1)) +
   scale_x_continuous(breaks = seq(0, 50, 5))
+
+
+
+#7
+
+
+library(survival)
+library(ggplot2)
+library(dplyr)
+
+# ---------------------------------------------------------
+# 1. Data Preparation & Model Fitting
+# ---------------------------------------------------------
+# Define event as Death (2) or Transplant (1)
+pbc_analysis <- pbc %>%
+  mutate(event = ifelse(status == 0, 0, 1)) %>%
+  filter(!is.na(time))
+
+# Fit the survival model
+fit_pbc <- survfit(Surv(time, event) ~ 1, data = pbc_analysis)
+
+# ---------------------------------------------------------
+# 2. Extract Key Statistics (Using base survival functions)
+# ---------------------------------------------------------
+# Extract Median Survival Time using quantile function
+# This replaces the 'surv_median' function from survminer
+median_info <- quantile(fit_pbc, probs = 0.5)
+median_val <- median_info$quantile
+
+# Extract values at t = 51
+surv_at_51 <- summary(fit_pbc, times = 51)
+t51_val <- round(surv_at_51$surv, 4)
+t51_lower <- round(surv_at_51$lower, 4)
+t51_upper <- round(surv_at_51$upper, 4)
+
+# ---------------------------------------------------------
+# 3. Data Wrangling for ggplot2
+# ---------------------------------------------------------
+df_plot <- data.frame(
+  time  = fit_pbc$time,
+  surv  = fit_pbc$surv,
+  lower = fit_pbc$lower,
+  upper = fit_pbc$upper
+)
+df_plot <- rbind(data.frame(time=0, surv=1, lower=1, upper=1), df_plot)
+
+# ---------------------------------------------------------
+# 4. Visualization
+# ---------------------------------------------------------
+ggplot(df_plot, aes(x = time, y = surv)) +
+  geom_step(color = "darkgreen", linewidth = 1) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), fill = "darkgreen", alpha = 0.15) +
+  
+  # Point and text for t = 51
+  annotate("point", x = 51, y = t51_val, color = "red", size = 3) +
+  annotate("text", x = 100, y = t51_val, 
+           label = paste0("t=51: ", t51_val, "\n(95% CI: ", t51_lower, "-", t51_upper, ")"),
+           color = "red", hjust = 0, size = 3.5, fontface = "bold") +
+  
+  # Vertical line for median survival time
+  geom_vline(xintercept = median_val, linetype = "dashed", color = "blue", linewidth = 0.8) +
+  
+  theme_minimal() +
+  labs(
+    title = "Mayo Clinic PBC Transplant-Free Survival",
+    subtitle = paste0("Median Survival Time: ", median_val, " days"),
+    x = "Observation Time (Days)",
+    y = "Survival Probability"
+  ) +
+  theme(legend.position = "bottom")
+
+
+
+#8
+
+
+library(MASS)
+library(survival)
+library(ggplot2)
+library(dplyr)
+library(patchwork)
+
+# ---------------------------------------------------------
+# 1. Data Preparation
+# ---------------------------------------------------------
+# gehan dataset: time (weeks), cens (0=censored, 1=event), treat (control/6-MP)
+data_gehan <- gehan
+
+# ---------------------------------------------------------
+# 2. Survival Model Fitting
+# ---------------------------------------------------------
+# Fit for all patients (Total)
+fit_total <- survfit(Surv(time, cens) ~ 1, data = data_gehan)
+
+# Fit by treatment group (Control vs 6-MP)
+fit_group <- survfit(Surv(time, cens) ~ treat, data = data_gehan)
+
+# ---------------------------------------------------------
+# 3. Helper Function for Visualization
+# ---------------------------------------------------------
+# Function to convert survfit object to ggplot-friendly dataframe
+# Using custom extraction for manual plotting
+get_surv_df <- function(fit, group_name = "Total") {
+  df <- data.frame(
+    time = fit$time,
+    surv = fit$surv,
+    lower = fit$lower,
+    upper = fit$upper
+  )
+  # Add baseline (Time 0)
+  df <- rbind(data.frame(time = 0, surv = 1, lower = 1, upper = 1), df)
+  return(df)
+}
+
+# ---------------------------------------------------------
+# 4. Create Individual Plots
+# ---------------------------------------------------------
+
+# Plot A: Total Patient Survival
+df_total <- get_surv_df(fit_total)
+p1 <- ggplot(df_total, aes(x = time, y = surv)) +
+  geom_step(color = "black", linewidth = 1) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1, fill = "black") +
+  theme_minimal() +
+  labs(title = "Total Patients", x = "Weeks", y = "Survival Prob")
+
+# Plot B: Survival by Treatment Group
+# Note: For groups, we use the standard fortify/tidy approach or manual splitting
+# Here, we utilize simple autoplot logic or manual mapping
+p2 <- ggplot(data.frame(
+  time = fit_group$time,
+  surv = fit_group$surv,
+  group = rep(names(fit_group$strata), fit_group$strata)
+), aes(x = time, y = surv, color = group)) +
+  geom_step(linewidth = 1) +
+  scale_color_manual(values = c("control" = "#E41A1C", "6-MP" = "#377EB8")) +
+  theme_minimal() +
+  theme(legend.position = "top") +
+  labs(title = "Comparison: Control vs 6-MP", x = "Weeks", y = "Survival Prob")
+
+# ---------------------------------------------------------
+# 5. Combine Plots using Patchwork (1:3 Ratio)
+# ---------------------------------------------------------
+# Use widths argument in plot_layout to set 1:3 ratio
+combined_plot <- p1 + p2 + 
+  plot_layout(widths = c(1, 3)) +
+  plot_annotation(
+    title = "Survival Analysis of Gehan Leukemia Data",
+    subtitle = "Comparing Total Population vs. Treatment Groups",
+    theme = theme(plot.title = element_text(size = 16, face = "bold"))
+  )
+
+# Display the plot
+print(combined_plot)
+
+
+
+#9
+
+
+library(survival)
+library(ggplot2)
+library(dplyr)
+library(patchwork)
+library(knitr)
+
+# ---------------------------------------------------------
+# 1. Data Input (From Image)
+# ---------------------------------------------------------
+# + indicates censoring (status=0)
+df_raw <- data.frame(
+  id = 1:10,
+  time = c(11, 12, 15, 44, 45, 28, 16, 17, 19, 30),
+  status = c(1, 1, 1, 0, 1, 0, 0, 0, 0, 0)
+)
+
+# ---------------------------------------------------------
+# 2. Survival Calculations
+# ---------------------------------------------------------
+event_times <- sort(unique(df_raw$time[df_raw$status == 1]))
+res <- data.frame(Time = event_times)
+
+# n_i: Number at risk, d_i: Number of events
+res$n_i <- sapply(res$Time, function(t) sum(df_raw$time >= t))
+res$d_i <- sapply(res$Time, function(t) sum(df_raw$time == t & df_raw$status == 1))
+
+# c_i: Censoring count between events
+event_times_ext <- c(0, event_times)
+res$c_i <- sapply(1:(length(event_times_ext)-1), function(i) {
+  sum(df_raw$time > event_times_ext[i] & df_raw$time < event_times_ext[i+1] & df_raw$status == 0)
+})
+
+# Basic Rates
+res$di <- res$d_i / res$n_i
+res$pi <- 1 - res$di
+
+# --- Kaplan-Meier (KM) ---
+res$km_S <- cumprod(res$pi)
+res$km_H <- -log(res$km_S)
+se_km <- res$km_S * sqrt(cumsum(res$d_i / (res$n_i * (res$n_i - res$d_i))))
+res$km_L <- pmax(0, res$km_S - 1.96 * se_km)
+res$km_U <- pmin(1, res$km_S + 1.96 * se_km)
+
+# --- Nelson-Aalen (NA) ---
+res$NA_H <- cumsum(res$di)
+res$NA_S <- exp(-res$NA_H)
+# Variance of NA Hazard (Tsiatis formula)
+se_na_h <- sqrt(cumsum(res$d_i / (res$n_i^2)))
+# Log-transformed CI for Survival (ensures range 0 to 1)
+res$NA_L <- exp(-(res$NA_H + 1.96 * se_na_h))
+res$NA_U <- exp(-(res$NA_H - 1.96 * se_na_h))
+
+# ---------------------------------------------------------
+# 3. Final Table Display
+# ---------------------------------------------------------
+# Select requested columns
+final_table <- res[, c("Time", "n_i", "d_i", "c_i", "di", "pi", 
+                       "km_S", "km_H", "km_L", "km_U", 
+                       "NA_S", "NA_H", "NA_L", "NA_U")]
+
+kable(final_table, digits = 4, align = "c", 
+      caption = "Comprehensive Survival Analysis: KM vs NA (Including Hazard & CI)")
+
+# ---------------------------------------------------------
+# 4. Patchwork Visualization
+# ---------------------------------------------------------
+p1 <- ggplot(res, aes(x = Time)) +
+  geom_step(aes(y = km_S, color = "KM"), linewidth = 1) +
+  geom_step(aes(y = NA_S, color = "NA"), linewidth = 1) +
+  geom_step(aes(y = km_L), color = "blue", linetype = "dotted", alpha = 0.5) +
+  geom_step(aes(y = NA_L), color = "red", linetype = "dotted", alpha = 0.5) +
+  theme_minimal() + labs(title = "Survival S(t) with Lower CI", y = "Probability")
+
+p2 <- ggplot(res, aes(x = Time)) +
+  geom_step(aes(y = km_H, color = "KM"), linewidth = 1) +
+  geom_step(aes(y = NA_H, color = "NA"), linewidth = 1) +
+  theme_minimal() + labs(title = "Cumulative Hazard H(t)", y = "Hazard")
+
+p1 + p2 + plot_layout(guides = "collect") & theme(legend.position = "bottom")
