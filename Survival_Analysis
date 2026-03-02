@@ -2206,3 +2206,150 @@ legend("topleft", legend = c("Observed", "Reference (0.045)"), col = c("blue", "
 # Plot 2: Survival Function
 plot(fit_na, main = "Survival Function", 
      xlab = "Months", ylab = "S(t)", col = "darkgreen", lwd = 2)
+
+
+
+#two-sample log-rank test
+
+
+# 1. Load Required Libraries
+library(survival)
+library(ggplot2)
+library(patchwork) # Essential for combining plots
+
+# 2. Data Preparation
+time_g1 <- c(6, 6, 6, 6, 7, 9, 10, 10, 11, 13, 16, 17, 19, 20, 22, 23, 25, 25, 32, 32, 34)
+status_g1 <- c(1, 1, 1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0)
+time_g2 <- c(1, 1, 2, 2, 3, 4, 4, 5, 5, 8, 8, 8, 8, 11, 11, 12, 12, 15, 17, 22, 23)
+status_g2 <- rep(1, 21)
+
+leukemia_data <- data.frame(
+  time = c(time_g1, time_g2),
+  status = c(status_g1, status_g2),
+  group = factor(c(rep("Group1", 21), rep("Group2", 21)))
+)
+
+survdiff(Surv(time, status) ~ group, data = leukemia_data)
+# 3. Fit Nelson-Aalen Model
+# Fleming-Harrington (type='fh') is the standard for NA estimation
+na_fit <- survfit(Surv(time, status) ~ group, data = leukemia_data, type = "fh")
+
+
+# 4. Extract and Tidy Data for ggplot
+# Fixed: Referencing 'leukemia_data' instead of undefined 'df'
+plot_data <- data.frame(
+  time = na_fit$time,
+  surv = na_fit$surv,
+  cumhaz = na_fit$cumhaz,
+  group = rep(levels(leukemia_data$group), na_fit$strata)
+)
+
+# 5. Create Plot Objects
+# Left Plot: Survival Function
+p_surv <- ggplot(plot_data, aes(x = time, y = surv, color = group)) +
+  geom_step(linewidth = 1.2) + # 'size' is deprecated, use 'linewidth'
+  scale_y_continuous(limits = c(0, 1)) +
+  labs(title = "NA-based Survival Function",
+       subtitle = "S(t) = exp(-H_NA(t))",
+       x = "Weeks", y = "Survival Probability",
+       color = "Group") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+# Right Plot: Cumulative Hazard Function
+p_haz <- ggplot(plot_data, aes(x = time, y = cumhaz, color = group)) +
+  geom_step(linewidth = 1.2) +
+  labs(title = "NA Cumulative Hazard Function",
+       subtitle = "H_NA(t) = sum(di / ni)",
+       x = "Weeks", y = "Cumulative Hazard",
+       color = "Group") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+# 6. Combine Plots using patchwork
+final_plot <- p_surv + p_haz + 
+  plot_annotation(title = "Nelson-Aalen Estimator Analysis (Leukemia Data)",
+                  theme = theme(plot.title = element_text(size = 18, face = "bold", hjust = 0.5)))
+
+# 7. Print Result
+print(final_plot)
+
+
+
+#Stratified Log-rank Test
+
+
+# 1. Load Required Libraries
+library(survival)
+library(ggplot2)
+library(patchwork)
+
+# 2. Data Preparation (using 'lung' dataset)
+# We will use 'sex' as a stratification variable 
+# and 'ph.ecog' (performance status) as the main group to compare.
+# Filtering ph.ecog to compare only 0 and 1 for clarity.
+data_lung <- na.omit(lung[lung$ph.ecog %in% c(0, 1), ])
+data_lung$ph.ecog <- factor(data_lung$ph.ecog, labels = c("ECOG 0", "ECOG 1"))
+data_lung$sex <- factor(data_lung$sex, labels = c("Male", "Female"))
+
+# 3. Stratified Log-rank Test
+# Comparing ph.ecog groups while stratifying by sex
+
+
+strat_test <- survdiff(Surv(time, status) ~ ph.ecog + strata(sex),
+                       data = data_lung)
+print(strat_test)
+
+# 4. Fit Nelson-Aalen Model with Stratification
+# type = "fh" for Nelson-Aalen / Fleming-Harrington estimator
+na_strat_fit <- survfit(Surv(time, status) ~ ph.ecog + sex, data = data_lung, type = "fh")
+
+
+# 5. Extract Data for ggplot
+plot_data <- data.frame(
+  time = na_strat_fit$time,
+  surv = na_strat_fit$surv,
+  cumhaz = na_strat_fit$cumhaz,
+  # Grouping string: "Group, Sex"
+  strata = rep(names(na_strat_fit$strata), na_strat_fit$strata)
+)
+
+# 5. Create ggplot Objects
+# Left Plot: Survival Function
+p_surv <- ggplot(plot_data, aes(x = time, y = surv, color = strata)) +
+  geom_step(linewidth = 0.8) +
+  scale_y_continuous(limits = c(0, 1)) +
+  labs(title = "NA Survival Function",
+       subtitle = "S(t) = exp(-H_NA(t))",
+       x = "Days", y = "Survival Probability", color = "Groups (ECOG, Sex)") +
+  theme_minimal()
+
+# Right Plot: Cumulative Hazard Function
+p_haz <- ggplot(plot_data, aes(x = time, y = cumhaz, color = strata)) +
+  geom_step(linewidth = 0.8) +
+  labs(title = "NA Cumulative Hazard",
+       subtitle = "H_NA(t) = sum(di / ni)",
+       x = "Days", y = "Cumulative Hazard", color = "Groups (ECOG, Sex)") +
+  theme_minimal()
+
+# 6. Combine with patchwork (Optimizing Layout)
+# 'guides = "collect"' moves all legends to a single side
+final_strat_plot <- p_surv + p_haz + 
+  plot_layout(guides = "collect") & 
+  theme(legend.position = "right", 
+        legend.title = element_text(face = "bold", size = 10),
+        legend.text = element_text(size = 9))
+
+# 7. Add Annotations
+final_strat_plot <- final_strat_plot + 
+  plot_annotation(
+    title = "Stratified Analysis using Nelson-Aalen Estimator",
+    caption = "Note: Strata are defined by the combination of ECOG performance status (0, 1) and Gender (Male, Female).",
+    theme = theme(
+      plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+      plot.caption = element_text(hjust = 0, face = "italic", size = 10)
+    )
+  )
+
+# 8. Display Result
+print(final_strat_plot)
