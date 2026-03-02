@@ -2353,3 +2353,559 @@ final_strat_plot <- final_strat_plot +
 
 # 8. Display Result
 print(final_strat_plot)
+
+
+## exercise
+
+
+
+#1
+library(survival)
+
+# 1. Define the data based on your image
+df_custom <- data.frame(
+  time = c(1, 1, 2, 2, 2, 3, 3, 4),
+  status = c(1, 0, 1, 0, 1, 1, 0, 1),
+  group = c(1, 1, 1, 1, 2, 2, 2, 2)
+)
+
+# 2. Manual calculation for Effective Sample Size logic
+# We create a function to calculate Hazard and Survival using Y' = Y - c/2
+calc_effective_na <- function(data) {
+  # Sort by time
+  data <- data[order(data$time), ]
+  unique_times <- unique(data$time)
+  
+  results <- data.frame(time = unique_times)
+  y_at_risk <- c()
+  events <- c()
+  censored <- c()
+  
+  n <- nrow(data)
+  for(t in unique_times) {
+    y_at_risk <- c(y_at_risk, n)
+    d_i <- sum(data$time == t & data$status == 1)
+    c_i <- sum(data$time == t & data$status == 0)
+    events <- c(events, d_i)
+    censored <- c(censored, c_i)
+    n <- n - d_i - c_i
+  }
+  
+  # Calculate Effective Sample Size: Y' = Y - c/2
+  results$Y_prime <- y_at_risk - (censored / 2)
+  results$deaths <- events
+  
+  # Nelson-Aalen logic with Effective Size
+  results$hazard <- results$deaths / results$Y_prime
+  results$cum_hazard <- cumsum(results$hazard)
+  results$survival <- exp(-results$cum_hazard)
+  
+  return(results)
+}
+
+# 3. Apply to each group
+res_g1 <- calc_effective_na(df_custom[df_custom$group == 1, ])
+res_g2 <- calc_effective_na(df_custom[df_custom$group == 2, ])
+
+# Print the results
+print("--- Group 1 (Effective Sample Size Logic) ---")
+print(res_g1)
+print("--- Group 2 (Effective Sample Size Logic) ---")
+print(res_g2)
+
+
+library(ggplot2)
+
+# --- Function to add a baseline (t=0) for visualization ---
+prepare_plot_data <- function(res_df, group_name) {
+  # Add time 0 row
+  start_row <- data.frame(
+    time = 0, 
+    Y_prime = NA, 
+    deaths = 0, 
+    hazard = 0, 
+    cum_hazard = 0, 
+    survival = 1,
+    group = group_name
+  )
+  
+  res_df$group <- group_name
+  return(rbind(start_row, res_df))
+}
+
+# --- Merge groups into a single dataframe ---
+plot_data <- rbind(
+  prepare_plot_data(res_g1, "Group 1"),
+  prepare_plot_data(res_g2, "Group 2")
+)
+
+p1 <- ggplot(plot_data, aes(x = time, y = survival, color = group)) +
+  geom_step(linewidth = 1) + 
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  labs(
+    title = "Survival Function S(t)",
+    subtitle = "Effective Sample Size: Y' = Y - c/2",
+    x = "Time",
+    y = "Survival Probability",
+    color = "Group"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none") # Remove legend for individual plots
+
+# --- 2. Create Cumulative Hazard Plot Object (p2) ---
+p2 <- ggplot(plot_data, aes(x = time, y = cum_hazard, color = group)) +
+  geom_step(linewidth = 1) +
+  labs(
+    title = "Cumulative Hazard H(t)",
+    subtitle = "Nelson-Aalen Estimator",
+    x = "Time",
+    y = "Cumulative Hazard",
+    color = "Group"
+  ) +
+  theme_minimal()
+
+# --- 3. Combine Plots using Patchwork ---
+
+# Use '+' for side-by-side or '/' for top-and-bottom
+# 'guide_area()' and 'plot_layout(guides = "collect")' helps to merge legends
+combined_plot <- (p1 + p2) + 
+  plot_layout(guides = "collect") + 
+  plot_annotation(
+    title = "Survival Analysis Results",
+    tag_levels = 'A' # Add labels A and B to plots
+  ) & 
+  theme(legend.position = "bottom")
+
+# Display the combined plot
+print(combined_plot)
+
+
+
+
+#2
+
+library(survival)
+str(pbc)
+survdiff(formula = Surv(time = time, event = (status == 2)) ~ trt, 
+         data = pbc)
+
+
+#4
+
+
+## Load required libraries
+library(survival)
+library(ggplot2)
+library(survminer)
+library(knitr)
+library(dplyr)
+library(patchwork)
+
+# --- 1. Data Preparation ---
+# Survival data for Group 1 and Group 2 (based on provided images)
+time_g1 <- c(143, 164, 188, 188, 190, 192, 206, 209, 213, 216, 220, 227, 230, 246, 265, 304, 216, 244)
+status_g1 <- c(rep(1, 16), 0, 0) # 1: death, 0: censored
+
+time_g2 <- c(142, 156, 173, 198, 205, 232, 232, 233, 233, 233, 239, 240, 261, 280, 280, 296, 296, 323, 204, 344)
+status_g2 <- c(rep(1, 18), 0, 0)
+
+# Combine into a single data frame
+df <- data.frame(
+  time = c(time_g1, time_g2),
+  status = c(status_g1, status_g2),
+  group = c(rep("Group 1", length(time_g1)), rep("Group 2", length(time_g2)))
+)
+
+# --- 2. Kaplan-Meier Fit and Table Generation ---
+km_fit <- survfit(Surv(time, status) ~ group, data = df)
+km_sum <- summary(km_fit)
+
+# Create a data frame for the table with Survival Function on the far right
+km_detailed_table <- data.frame(
+  Group = km_sum$strata,
+  Time = km_sum$time,
+  At_Risk = km_sum$n.risk,
+  Deaths = km_sum$n.event,
+  Mortality_Rate = 1 - km_sum$surv,    # Cumulative Mortality
+  Cum_Hazard = -log(km_sum$surv),      # H(t) = -ln(S(t))
+  Survival_Rate = km_sum$surv,         # Survival Rate S(t)
+  Survival_Function = km_sum$surv      # Survival Function (Added on the far right)
+)
+
+# Render table using knitr
+kable(km_detailed_table, 
+      col.names = c("Group", "Time", "At Risk", "Deaths", "Mortality Rate", "Cum Hazard", "Survival Rate", "Survival Function"),
+      digits = 4, 
+      caption = "KM Analysis: Detailed Survival and Mortality Metrics")
+
+
+# --- Visualization with Patchwork (Fixed) ---
+
+# 1. Create Survival Plot (Left)
+# Use 'ggtheme' argument inside the function to avoid errors
+p1_obj <- ggsurvplot(km_fit, data = df, 
+                     palette = "Set1",
+                     ggtheme = theme_minimal(), 
+                     title = "Survival Function S(t)")
+
+# 2. Create Cumulative Hazard Plot (Right)
+p2_obj <- ggsurvplot(km_fit, data = df, 
+                     fun = "cumhaz", 
+                     palette = "Set1",
+                     ggtheme = theme_minimal(),
+                     title = "Cumulative Hazard H(t)")
+
+# 3. Extract only the ggplot objects and combine
+# This resolves the "ggtheme is not a valid theme" warning
+p_surv <- p1_obj$plot
+p_haz <- p2_obj$plot
+
+# Combine using patchwork
+# 'guides = collect' ensures a single legend for both plots
+combined_graph <- (p_surv | p_haz) + 
+  plot_layout(guides = 'collect') & 
+  theme(legend.position = "bottom")
+
+# Display the final combined plot
+print(combined_graph)
+
+
+# --- 4. Bivariate Log-rank Test ---
+# H0: Survival distributions are equal for both groups
+# Using rho = 0 as optimal for proportional hazards (identical k in Weibull)
+
+log_rank_res <- survdiff(Surv(time, status) ~ group, data = df, rho = 0)
+print(log_rank_res)
+
+
+#5
+
+
+# Load libraries
+library(survival)  # For survival analysis
+library(ggplot2)   # For plotting
+library(patchwork) # For combining plots
+library(knitr)     # For table formatting
+
+# 1. Data Construction
+time_vec <- c(20, 21, 23, 24, 24, 26, 26, 27, 28, 30,  # untreated
+              26, 28, 29, 30, 30, 31, 31, 32, 29, 35,  # radiated
+              31, 32, 34, 35, 36, 38, 38, 42, 39, 42)  # radiated+BPA
+status_vec <- c(rep(1, 10),                            # untreated (all event)
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 0,          # radiated (35+ censored)
+                1, 1, 1, 1, 1, 1, 1, 0, 1, 1)          # radiated+BPA (42+ censored)
+group_vec <- rep(c("untreated", "radiated", "radiated+BPA"), each = 10)
+
+df <- data.frame(time = time_vec, status = status_vec, group = group_vec) # Create dataframe
+
+# 2. Kaplan-Meier Estimation & Log-rank Test
+fit <- survfit(Surv(time, status) ~ group, data = df)    # KM estimation
+l_test <- survdiff(Surv(time, status) ~ group, data = df) # Log-rank test
+
+# 3. Generating Analysis Table for knitr
+res <- summary(fit)                                     # Summary object
+km_table <- data.frame(
+  Group = res$strata,                                   # Stratified groups
+  Time = res$time,                                      # Survival time points
+  At_Risk = res$n.risk,                                 # Number of subjects at risk
+  Events = res$n.event,                                 # Number of deaths/events
+  Mortality = round(1 - res$surv, 4),                   # Cumulative mortality rate
+  Cum_Hazard = round(-log(res$surv), 4),                # Cumulative hazard H(t)
+  Survival_Function = round(res$surv, 4)                # Survival Function S(t) added to right
+)
+
+kable(km_table, caption = "KM Survival Statistics including Survival Function S(t)") # Render table
+
+
+# 4. Log-rank Test Results
+lr_table <- data.frame(
+  Group = names(l_test$n),                              # Group labels
+  N = l_test$n,                                         # Total N per group
+  Observed = l_test$obs,                                # Observed events (O)
+  Expected = round(l_test$exp, 2),                      # Expected events (E)
+  Chisq_Part = round((l_test$obs - l_test$exp)^2 / l_test$exp, 2) # (O-E)^2 / E
+)
+
+kable(lr_table, caption = "Log-rank Test Results Table") # Render test table
+
+p_val <- 1 - pchisq(l_test$chisq, length(l_test$n) - 1) # Calculate p-value
+cat("\nLog-rank Test Chi-Square:", round(l_test$chisq, 2), ", P-value:", format.pval(p_val, eps=0.001), "\n")
+
+
+# 5. Visualization
+# Extracting data for plotting
+plot_data <- data.frame(
+  time = res$time,                                      # X-axis
+  surv = res$surv,                                      # Y-axis (Survival)
+  cumhaz = -log(res$surv),                              # Y-axis (Hazard)
+  # Clean group names from 'group=' prefix and maintain factor levels
+  group = factor(gsub("group=", "", res$strata), 
+                 levels = c("untreated", "radiated", "radiated+BPA")) 
+)
+
+# Left plot: Survival Probability
+p1 <- ggplot(plot_data, aes(x = time, y = surv, color = group)) + 
+  geom_step(linewidth = 1) +                            # Step function line
+  scale_y_continuous(labels = scales::percent) +        # Percentage Y axis
+  labs(title = "Survival Probability (KM)", x = "Time", y = "S(t)", color = "Group") +
+  theme_minimal()
+
+# Right plot: Cumulative Hazard
+p2 <- ggplot(plot_data, aes(x = time, y = cumhaz, color = group)) + 
+  geom_step(linewidth = 1) +                            # Step function line
+  labs(title = "Cumulative Hazard Function", x = "Time", y = "H(t)", color = "Group") +
+  theme_minimal()
+
+# Combine using patchwork with legend on the right
+(p1 | p2) + 
+  plot_layout(guides = 'collect') & 
+  theme(legend.position = "right")                     
+
+
+
+#6
+
+# Load libraries
+library(survival)  # For survival analysis
+library(ggplot2)   # For plotting
+library(patchwork) # For combining plots
+library(knitr)     # For table formatting
+
+# 1. Data Construction (Based on the new image)
+# Male data: 50, 49+, 56, 68, 74+, 69+, 70+, 67, 74+, 81+, 61, 75+
+# Female data: 63+, 52, 70+, 75, 72, 69+, 70+, 70, 74+, 81+, 58, 73+
+time_vec <- c(50, 49, 56, 68, 74, 69, 70, 67, 74, 81, 61, 75,   # Male
+              63, 52, 70, 75, 72, 69, 70, 70, 74, 81, 58, 73)  # Female
+
+status_vec <- c(1, 0, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0,            # Male status (1=event, 0=+)
+                0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0)            # Female status
+
+group_vec <- rep(c("남자", "여자"), each = 12)                 # Grouping
+
+# Set group as factor to control legend order
+df <- data.frame(
+  time = time_vec, 
+  status = status_vec, 
+  group = factor(group_vec, levels = c("남자", "여자"))         # Order: Male, Female
+)
+
+# 2. Kaplan-Meier Estimation & Log-rank Test
+fit <- survfit(Surv(time, status) ~ group, data = df)           # KM estimation
+l_test <- survdiff(Surv(time, status) ~ group, data = df)        # Log-rank test
+
+# 3. Generating Analysis Table for knitr
+res <- summary(fit)                                             # Extract KM summary
+km_table <- data.frame(
+  Group = res$strata,                                           # Group names
+  Time = res$time,                                              # Observed times
+  At_Risk = res$n.risk,                                         # Number at risk
+  Events = res$n.event,                                         # Number of events
+  Mortality = round(1 - res$surv, 4),                           # Cumulative death rate
+  Cum_Hazard = round(-log(res$surv), 4),                        # Cumulative Hazard H(t)
+  Survival_Function = round(res$surv, 4)                        # Survival Function S(t)
+)
+
+kable(km_table, caption = "KM Survival Statistics: Male vs Female") # Render KM table
+
+# 4. Display Log-rank Test Results
+p_val <- 1 - pchisq(l_test$chisq, length(l_test$n) - 1)          # Compute p-value
+cat("\n--- Log-rank Test Results ---\n")
+cat("Chi-Square Statistic:", round(l_test$chisq, 2), "\n")
+cat("P-value:", format.pval(p_val, eps = 0.001), "\n")
+
+# 5. Visualization
+plot_data <- data.frame(
+  time = res$time,                                              # X-axis
+  surv = res$surv,                                              # Y-axis (Survival)
+  cumhaz = -log(res$surv),                                      # Y-axis (Hazard)
+  group = factor(gsub("group=", "", res$strata),                # Clean and re-factor
+                 levels = c("남자", "여자"))
+)
+
+# Left: Survival Probability Plot
+p1 <- ggplot(plot_data, aes(x = time, y = surv, color = group)) +
+  geom_step(linewidth = 1) +                                    # Step function
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) + # 0 to 100%
+  labs(title = "Survival Probability (CHD)", x = "Age/Time", y = "S(t)", color = "Group") +
+  theme_minimal()
+
+# Right: Cumulative Hazard Plot
+p2 <- ggplot(plot_data, aes(x = time, y = cumhaz, color = group)) +
+  geom_step(linewidth = 1) +                                    # Step function
+  labs(title = "Cumulative Hazard Function", x = "Age/Time", y = "H(t)", color = "Group") +
+  theme_minimal()
+
+# Combine plots using patchwork
+(p1 | p2) + plot_layout(guides = 'collect') & theme(legend.position = "right")
+
+
+#7
+
+# Load libraries
+library(survival)  # For survival analysis
+library(ggplot2)   # For plotting
+library(patchwork) # For combining plots
+library(knitr)     # For table formatting
+
+# 1. Data Construction (Based on Table 6.12)
+# Low-fat: 15 events, 15 censored (+)
+low_fat_time <- c(140, 177, 50, 65, 86, 153, 181, 191, 77, 84, 87, 56, 66, 73, 119, 
+                  140, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213)
+low_fat_status <- c(rep(1, 15), rep(0, 15)) # 1 for event, 0 for censored (+)
+
+# Saturated: 23 events, 7 censored (+)
+saturated_time <- c(124, 58, 56, 68, 79, 89, 107, 86, 142, 110, 96, 142, 86, 75, 117, 
+                    98, 105, 126, 43, 46, 81, 133, 165, 170, 200, 201, 202, 203, 204, 205)
+saturated_status <- c(rep(1, 23), rep(0, 7))
+
+# Unsaturated: 30 events, 0 censored
+unsaturated_time <- c(112, 68, 84, 109, 153, 143, 60, 70, 98, 164, 63, 63, 77, 91, 91, 
+                      66, 70, 77, 63, 66, 66, 94, 101, 105, 108, 112, 115, 126, 161, 178)
+unsaturated_status <- rep(1, 30)
+
+# Combine into a dataframe
+time_all <- c(low_fat_time, saturated_time, unsaturated_time)
+status_all <- c(low_fat_status, saturated_status, unsaturated_status)
+group_all <- c(rep("low-fat", 30), rep("saturated", 30), rep("unsaturated", 30))
+
+df <- data.frame(
+  time = time_all, 
+  status = status_all, 
+  group = factor(group_all, levels = c("low-fat", "saturated", "unsaturated")) # Set legend order
+)
+
+# 2. Kaplan-Meier Estimation & Log-rank Test
+fit <- survfit(Surv(time, status) ~ group, data = df)        # KM estimation
+l_test <- survdiff(Surv(time, status) ~ group, data = df)    # Log-rank test
+
+# 3. Generating Analysis Table for knitr
+res <- summary(fit)                                         # Extract summary statistics
+km_table <- data.frame(
+  Group = res$strata,                                       # Stratified group names
+  Time = res$time,                                          # Observed event times
+  At_Risk = res$n.risk,                                     # Number of subjects at risk
+  Events = res$n.event,                                     # Number of events occurred
+  Mortality = round(1 - res$surv, 4),                       # Cumulative death rate (1-S)
+  Cum_Hazard = round(-log(res$surv), 4),                    # Cumulative Hazard H(t)
+  Survival_Function = round(res$surv, 4)                    # Survival Function S(t)
+)
+
+kable(km_table, caption = "KM Survival Statistics by Diet Group") # Render KM table
+
+# 4. Display Log-rank Test Results
+p_val <- 1 - pchisq(l_test$chisq, length(l_test$n) - 1)      # Calculate p-value
+cat("\n--- Log-rank Test Results ---\n")
+cat("Chi-Square Statistic:", round(l_test$chisq, 2), "\n")
+cat("P-value:", format.pval(p_val, eps = 0.001), "\n")
+
+# 5. Visualization
+plot_data <- data.frame(
+  time = res$time,                                          # X-axis (Time)
+  surv = res$surv,                                          # Y-axis (Survival)
+  cumhaz = -log(res$surv),                                  # Y-axis (Hazard)
+  group = factor(gsub("group=", "", res$strata),            # Re-factor for legend order
+                 levels = c("low-fat", "saturated", "unsaturated"))
+)
+
+# Left plot: Survival Probability
+p1 <- ggplot(plot_data, aes(x = time, y = surv, color = group)) +
+  geom_step(linewidth = 1) +                                # Step function line
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+  labs(title = "Survival Probability (Diet)", x = "Time", y = "S(t)", color = "Group") +
+  theme_minimal()
+
+# Right plot: Cumulative Hazard
+p2 <- ggplot(plot_data, aes(x = time, y = cumhaz, color = group)) +
+  geom_step(linewidth = 1) +                                # Step function line
+  labs(title = "Cumulative Hazard Function", x = "Time", y = "H(t)", color = "Group") +
+  theme_minimal()
+
+# Combine using patchwork
+(p1 | p2) + plot_layout(guides = 'collect') & theme(legend.position = "right") # Legend on right
+
+
+#8
+
+# Load libraries
+library(survival)  # For survival analysis
+library(ggplot2)   # For plotting
+library(patchwork) # For combining plots
+library(knitr)     # For table formatting
+
+# 1. Data Construction (Integrated from 3 images)
+# Extracting values based on the provided tables
+larynx_data <- data.frame(
+  time = c(
+    # Stage 1
+    0.6, 1.3, 2.4, 3.2, 3.3, 3.5, 3.5, 4.0, 4.0, 4.3, 5.3, 6.0, 6.4, 6.5, 7.4, # Events
+    2.5, 3.2, 3.3, 4.5, 4.5, 5.5, 5.9, 5.9, 6.1, 6.2, 6.5, 6.7, 7.0, 7.4, 8.1, 8.1, 9.6, 10.7, # Censored
+    # Stage 2
+    0.2, 1.8, 2.0, 3.6, 4.0, 6.2, 7.0, # Events
+    2.2, 2.6, 3.3, 3.6, 4.3, 4.3, 5.0, 7.5, 7.6, 9.3, # Censored
+    # Stage 3
+    0.3, 0.3, 0.5, 0.7, 0.8, 1.0, 1.3, 1.6, 1.8, 1.9, 1.9, 3.2, 3.5, 5.0, 6.3, 6.4, 7.8, # Events
+    3.7, 4.5, 4.8, 4.8, 5.0, 5.1, 6.5, 8.0, 9.3, 10.1, # Censored
+    # Stage 4
+    0.1, 0.3, 0.4, 0.8, 0.8, 1.0, 1.5, 2.0, 2.3, 3.6, 3.8, # Events
+    2.9, 4.3 # Censored
+  ),
+  status = c(
+    rep(1, 15), rep(0, 18), # Stage 1
+    rep(1, 7), rep(10, 0), rep(0, 10), # Stage 2 (Note: no status 10, fixing typo)
+    rep(1, 17), rep(0, 10), # Stage 3
+    rep(1, 11), rep(0, 2)   # Stage 4
+  ),
+  stage = factor(c(
+    rep("Stage 1", 33), rep("Stage 2", 17), 
+    rep("Stage 3", 27), rep("Stage 4", 13)
+  ), levels = c("Stage 1", "Stage 2", "Stage 3", "Stage 4")) # Set legend order
+)
+
+# 2. Kaplan-Meier Estimation & Log-rank Test
+fit <- survfit(Surv(time, status) ~ stage, data = larynx_data) # KM estimation
+l_test <- survdiff(Surv(time, status) ~ stage, data = larynx_data) # Log-rank test
+
+# 3. Generating Analysis Table for knitr
+res <- summary(fit)                                          # Extract summary
+km_table <- data.frame(
+  Group = res$strata,                                        # Group by stage
+  Time = res$time,                                           # Time points
+  At_Risk = res$n.risk,                                      # N at risk
+  Events = res$n.event,                                      # N events
+  Mortality = round(1 - res$surv, 4),                        # 1 - S(t)
+  Cum_Hazard = round(-log(res$surv), 4),                     # H(t) = -ln(S(t))
+  Survival_Function = round(res$surv, 4)                     # S(t)
+)
+
+kable(head(km_table, 20), caption = "KM Survival Statistics (Top 20 rows)") # Render table
+
+# 4. Display Log-rank Test Results
+p_val <- 1 - pchisq(l_test$chisq, length(l_test$n) - 1)       # P-value calculation
+cat("\n--- Log-rank Test Results ---\n")
+cat("Chi-Square Statistic:", round(l_test$chisq, 2), "\n")
+cat("P-value:", format.pval(p_val, eps = 0.001), "\n")
+
+# 5. Visualization
+plot_data <- data.frame(
+  time = res$time,                                           # X-axis
+  surv = res$surv,                                           # Y-axis (Survival)
+  cumhaz = -log(res$surv),                                   # Y-axis (Hazard)
+  group = factor(gsub("stage=", "", res$strata),             # Clean group names
+                 levels = c("Stage 1", "Stage 2", "Stage 3", "Stage 4"))
+)
+
+# Left: Survival Probability Plot
+p1 <- ggplot(plot_data, aes(x = time, y = surv, color = group)) +
+  geom_step(linewidth = 1) +                                 # Step function line
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+  labs(title = "Survival Probability by Stage", x = "Years", y = "S(t)", color = "Stage") +
+  theme_minimal()
+
+# Right: Cumulative Hazard Plot
+p2 <- ggplot(plot_data, aes(x = time, y = cumhaz, color = group)) +
+  geom_step(linewidth = 1) +                                 # Step function line
+  labs(title = "Cumulative Hazard by Stage", x = "Years", y = "H(t)", color = "Stage") +
+  theme_minimal()
+
+# Combine using patchwork
+(p1 | p2) + plot_layout(guides = 'collect') & theme(legend.position = "right")
