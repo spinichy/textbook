@@ -2049,3 +2049,37 @@ lmer(formula = Y ~ School + (1|School:Class), data = score2) %>%
   summary()
 
 
+
+
+#example
+library(tidyverse)
+
+library(sasLM)
+str(twoway)
+aov(Y ~ A * B + Error(B + A:B), data = twoway) %>% 
+  summary()
+
+library(lmerTest)
+lmer(Y ~ A + (1|B) + (1|A:B), data = twoway) %>% 
+  summary()
+
+
+part 9 -----------------------------------------------------------------------------------------------------------------------
+
+
+
+#exercise
+
+
+#2
+library(sasLM)
+dstrength
+str(dstrength)
+boxplot(Y ~ Machine, data = dstrength)
+
+
+aov_dstrength <-  aov(Y ~ Machine, data = dstrength)
+summary(aov_dstrength)
+
+RanTest(Formula = Y ~ Machine, Data = dstrength, Random = "B")
+
