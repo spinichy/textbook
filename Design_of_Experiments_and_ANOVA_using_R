@@ -2301,3 +2301,119 @@ lmm_fit_with_p <- lmer(Yield ~ Fertilizer * Temp + (1|Block) + (1|Block:Fertiliz
                        data = df_split_fixed)
 anova(lmm_fit_with_p, type = "3")
 
+
+#exercise
+
+#3
+library(sasLM)
+tirewear3
+
+par(mfrow = c(1,2))
+boxplot(Wear ~ Brand, data = tirewear3, ylim = c(8,14))
+boxplot(Wear ~ Type, data = tirewear3, ylim = c(8,14))
+
+
+
+#4
+library(sasLM)
+str(keyspeed)
+keyspeed[,1:2] %>% 
+  table() #balanced
+
+keyspeed_aov <- aov(Speed ~ Secretary + Keyboard, data = keyspeed) #type 1
+summary(keyspeed_aov)
+
+
+
+library(emmeans)
+keyspeed_emm <- emmeans(object = keyspeed_aov, specs = "Keyboard") 
+keyspeed_emm
+
+emm_df <- as.data.frame(keyspeed_emm)
+
+
+library(dplyr)
+target_data <- emm_df %>% filter(Keyboard %in% c("C", "D"))
+
+ggplot(target_data, aes(x = Keyboard, y = emmean)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.2) +
+  labs(title = "95% CI for Keyboard C and D",
+       y = "Speed (Adjusted Mean)",
+       x = "Keyboard Type") +
+  theme_minimal() 
+
+
+
+
+cd_comparison <- contrast(keyspeed_emm, 
+                          method = "pairwise", 
+                          infer = c(TRUE, TRUE)) # infer = TRUE returns SE and CI
+cd_comparison
+cd_ci <- as.data.frame(cd_comparison) %>% 
+  subset(contrast == "C - D" | contrast == "D - C")
+print(cd_ci)
+
+
+keyspeed_tukey <- emmeans(keyspeed_aov, 
+                          specs = pairwise ~ Keyboard, 
+                          adjust = "tukey")
+keyspeed_tukey 
+summary(keyspeed_tukey$contrasts, infer = c(TRUE, TRUE))
+
+
+tukey_ci_df <- as.data.frame(confint(keyspeed_tukey$contrasts))
+
+ggplot(tukey_ci_df, aes(x = contrast, y = estimate)) +
+  geom_point(size = 3, color = "royalblue") +
+  geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.2, color = "royalblue") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") + 
+  coord_flip() + 
+  labs(title = "Pairwise Comparisons (Tukey HSD)",
+       subtitle = "95% Confidence Intervals of Differences",
+       y = "Difference in Speed",
+       x = "Keyboard Pair") +
+  theme_minimal()
+
+
+
+#5
+library(sasLM)
+tirewear3
+
+tire_aov_rand <- aov(Wear ~ Error(Car + Brand + Type + Brand:Type), 
+                     data = tirewear3)
+summary(tire_aov_rand)
+
+# 1. Store the summary as an object
+res_sum <- summary(tire_aov_rand)
+
+# 2. Extract Mean Square (MS) values directly from the list object
+# Each element in res_sum corresponds to an Error stratum
+ms_brand      <- res_sum$`Error: Brand`[[1]]["Residuals", "Mean Sq"]
+ms_type       <- res_sum$`Error: Type`[[1]]["Residuals", "Mean Sq"]
+ms_brand_type <- res_sum$`Error: Brand:Type`[[1]]["Residuals", "Mean Sq"]
+ms_within     <- res_sum$`Error: Within`[[1]]["Residuals", "Mean Sq"]
+
+# 3. Define constants (a=Brand, b=Type, n=Car)
+a <- 2; b <- 2; n <- 4
+
+# 4. Calculate Pure Variance Components (EMS Method)
+# Using max(0, ...) to handle negative estimates
+var_error       <- ms_within
+var_interaction <- max(0, (ms_brand_type - ms_within) / n)
+var_brand       <- (ms_brand - ms_brand_type) / (b * n)
+var_type        <- (ms_type - ms_brand_type) / (a * n)
+
+# 5. Organize into a clean result table
+result_table <- data.frame(
+  Source = c("Brand", "Type", "Brand:Type", "Residual"),
+  Variance = c(var_brand, var_type, var_interaction, var_error)
+)
+
+print(result_table)
+
+library(lme4)
+tire_random_mod <- lmer(Wear ~ (1|Car) + (1|Brand) + (1|Type) + (1|Brand:Type), 
+                        data = tirewear3)
+summary(tire_random_mod )
