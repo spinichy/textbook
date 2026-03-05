@@ -2083,3 +2083,182 @@ summary(aov_dstrength)
 
 RanTest(Formula = Y ~ Machine, Data = dstrength, Random = "B")
 
+
+
+
+part 10 -----------------------------------------------------------------------------------------------------------------------
+
+#example
+
+#t-test independent
+library(sasLM)
+tirewear1
+str(tirewear1)
+
+t.test(x = tirewear1[tirewear1$Tire == "A","Wear"], 
+       y = tirewear1[tirewear1$Tire == "B","Wear"], 
+       var.equal = TRUE)
+
+#t-test pair
+pair <- tirewear1[tirewear1$Tire == "A","Wear"] - 
+  tirewear1[tirewear1$Tire == "B","Wear"]
+t.test(x = pair, mu = 0)
+
+
+#RCBD - oneway
+library(sasLM)
+str(tirewear2)
+replications(Wear ~ Car + Tire, data = tirewear2)
+
+rcbd_fit <- aov(Wear ~ Car + Tire, data = tirewear2) #type I
+summary(rcbd_fit)
+
+TukeyHSD(rcbd_fit, "Tire") %>% 
+  plot()
+
+
+#RCBD - twoway
+library(sasLM)
+str(tirewear3)
+replications(Wear ~ Car + Brand*Type, data = tirewear3)
+
+rcbd_fit.2 <- aov(Wear ~ Car + Brand*Type, data = tirewear3) #type I
+summary(rcbd_fit.2)
+
+TukeyHSD(x = rcbd_fit.2, which = "Brand:Type") %>% 
+  plot()
+
+boxplot(Wear ~ Brand + Type, data = tirewear3)
+
+
+#RCBD - oneway + time
+library(sasLM)
+str(defect2)
+aov_defect2 <- aov(Defect ~ Line + Time, data = defect2)
+summary(aov_defect2)
+
+
+#Split-Plot Design
+
+set.seed(123)
+df_split_fixed <- data.frame(
+  Block = factor(rep(1:3, each = 6)),
+  Fertilizer = factor(rep(c("A", "B"), each = 3, times = 3)),
+  Temp = factor(rep(c("Low", "Med", "High"), times = 6)),
+  Yield = c(15, 18, 22, 12, 14, 19,  # Block 1
+            16, 19, 23, 13, 15, 20,  # Block 2
+            14, 17, 21, 11, 13, 18)  # Block 3
+  + rnorm(18, sd = 0.5)      # Add some random noise
+)
+df_split_fixed
+
+fit_split_fixed <- aov(Yield ~ Fertilizer * Temp + Error(Block/Fertilizer), 
+                       data = df_split_fixed)
+
+summary(fit_split_fixed)
+
+
+library(emmeans)
+library(multcomp)
+library(ggplot2)
+
+
+fert_emm <- emmeans(fit_split_fixed, ~ Fertilizer)
+fert_pairs <- pairs(fert_emm)
+fert_cld <- cld(fert_emm, Letters = letters)
+
+print(fert_pairs)
+print(fert_cld)
+
+
+temp_emm <- emmeans(fit_split_fixed, ~ Temp)
+temp_pairs <- pairs(temp_emm)
+temp_cld <- cld(temp_emm, Letters = letters)
+
+print(temp_pairs)
+print(temp_cld)
+
+
+#generalized estimating equation: GEE 
+
+set.seed(123)
+df_split_fixed <- data.frame(
+  Block = factor(rep(1:3, each = 6)),
+  Fertilizer = factor(rep(c("A", "B"), each = 3, times = 3)),
+  Temp = factor(rep(c("Low", "Med", "High"), times = 6)),
+  Yield = c(15, 18, 22, 12, 14, 19,  # Block 1
+            16, 19, 23, 13, 15, 20,  # Block 2
+            14, 17, 21, 11, 13, 18)  # Block 3
+  + rnorm(18, sd = 0.5)      # Add some random noise
+)
+df_split_fixed
+
+# 1. Prepare data (Assuming 3 Blocks, 2 Fertilizers, 3 Temps)
+y <- df_split_fixed$Yield
+X <- model.matrix(Yield ~ Fertilizer * Temp, data = df_split_fixed)
+block_id <- df_split_fixed$Block
+n_total <- length(y)
+n_blocks <- length(unique(block_id))
+n_within <- n_total / n_blocks
+block_id 
+
+# 2. Initial Estimation (Starting with OLS)
+# Beta = (X'X)^-1 * X'y
+beta <- solve(t(X) %*% X) %*% t(X) %*% y
+
+# 3. Iterative Estimation Loop (GEE Algorithm)
+for(i in 1:10) { # Usually converges within 5-10 iterations
+  # Step A: Calculate Residuals
+  residuals <- y - X %*% beta
+  
+  # Step B: Estimate Correlation (Alpha) - Exchangeable case
+  # Alpha = Sum of (res_j * res_k) / (scaled variance)
+  phi <- sum(residuals^2) / (n_total - ncol(X)) # Scale parameter
+  
+  alpha_sum <- 0
+  for(b in unique(block_id)) {
+    res_b <- residuals[block_id == b]
+    alpha_sum <- alpha_sum + (sum(res_b)^2 - sum(res_b^2)) #(a + b + c)^2 -  (a^2 + b^2 + c^2)  =  2(ab + bc + ca)
+  }
+  alpha <- alpha_sum / (n_blocks * n_within * (n_within - 1) * phi)
+  
+  # Step C: Construct Working Correlation Matrix (R)
+  # R is an n_within x n_within matrix with 1s on diagonal and alpha elsewhere
+  R_block <- matrix(data = alpha, nrow = n_within, ncol = n_within)
+  diag(R_block) <- 1
+  
+  # Step D: Update Beta using Generalized Least Squares (GLS) formula
+  # Beta_new = (Sum X_b' V_b^-1 X_b)^-1 * (Sum X_b' V_b^-1 y_b)
+  term1 <- matrix(data = 0, nrow = ncol(X),ncol =  ncol(X))
+  term2 <- matrix(data = 0, nrow = ncol(X), ncol = 1)
+  
+  V_inv_block <- solve(phi * R_block) # Inverse of covariance matrix
+  
+  for(b in unique(block_id)) {
+    X_b <- X[block_id == b, ]
+    y_b <- y[block_id == b]
+    term1 <- term1 + t(X_b) %*% V_inv_block %*% X_b
+    term2 <- term2 + t(X_b) %*% V_inv_block %*% y_b
+  }
+  
+  beta <- solve(term1) %*% term2
+}
+
+# 4. Final Results
+print("Estimated Coefficients (Beta):")
+print(beta)
+print(paste("Estimated Intra-block Correlation (Alpha):", round(alpha, 4)))
+
+
+
+#linear mixed model
+library(lme4)
+lmm_fit <- lmer(Yield ~ Fertilizer * Temp + (1|Block) + (1|Block:Fertilizer), 
+                data = df_split_fixed)
+summary(lmm_fit)
+
+library(lmerTest)
+lmm_fit_with_p <- lmer(Yield ~ Fertilizer * Temp + (1|Block) + (1|Block:Fertilizer), 
+                       data = df_split_fixed)
+anova(lmm_fit_with_p, type = "3")
+
