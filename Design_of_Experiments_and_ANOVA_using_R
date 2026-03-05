@@ -2249,6 +2249,45 @@ print("Estimated Coefficients (Beta):")
 print(beta)
 print(paste("Estimated Intra-block Correlation (Alpha):", round(alpha, 4)))
 
+#if using package for GEE
+
+if(!require(geepack)) install.packages("geepack")
+library(geepack)
+
+# 1. Create the dataset (based on your provided data)
+set.seed(123)
+df_split_fixed <- data.frame(
+  Block = factor(rep(1:3, each = 6)),
+  Fertilizer = factor(rep(c("A", "B"), each = 3, times = 3)),
+  Temp = factor(rep(c("Low", "Med", "High"), times = 6)),
+  Yield = c(15, 18, 22, 12, 14, 19,  # Block 1
+            16, 19, 23, 13, 15, 20,  # Block 2
+            14, 17, 21, 11, 13, 18)  # Block 3
+  + rnorm(18, sd = 0.5)
+)
+
+# 2. Fit the GEE model
+# id = Block: grouping factor for correlation
+# corstr = "exchangeable": assumes constant correlation within blocks (Alpha)
+gee_fit <- geeglm(Yield ~ Fertilizer * Temp, 
+                  data = df_split_fixed, 
+                  id = Block, 
+                  family = gaussian, 
+                  corstr = "exchangeable")
+
+# 3. View the results
+# Coefficients (Beta)
+print("--- Estimated Coefficients (Beta) ---")
+summary(gee_fit)$coefficients
+
+# Correlation parameter (Alpha)
+print("--- Estimated Intra-block Correlation (Alpha) ---")
+summary(gee_fit)$corr
+
+# 4. ANOVA-style table for GEE
+print("--- ANOVA for GEE model ---")
+anova(gee_fit)
+
 
 
 #linear mixed model
