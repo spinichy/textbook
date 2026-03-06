@@ -2084,9 +2084,9 @@ summary(aov_dstrength)
 RanTest(Formula = Y ~ Machine, Data = dstrength, Random = "B")
 
 
-
-
 part 10 -----------------------------------------------------------------------------------------------------------------------
+
+
 
 #example
 
@@ -2417,3 +2417,175 @@ library(lme4)
 tire_random_mod <- lmer(Wear ~ (1|Car) + (1|Brand) + (1|Type) + (1|Brand:Type), 
                         data = tirewear3)
 summary(tire_random_mod )
+
+
+
+part 11 -----------------------------------------------------------------------------------------------------------------------
+
+
+#example
+
+#latin square 
+library(sasLM)
+dynamite
+str(dynamite)
+
+aov_dynamite <- aov(Power ~ Company + Worker + Method, data = dynamite)
+summary(aov_dynamite)
+
+library(tidyverse)
+TukeyHSD(x = aov_dynamite, which = "Method") %>% 
+  plot()
+
+library(emmeans)
+emmeans(object = aov_dynamite , specs = "Method") 
+
+
+
+library(ggplot2)
+
+emm_data <- emmeans(aov_dynamite, specs = "Method") %>% 
+  as.data.frame()
+
+ggplot() +
+  geom_boxplot(data = dynamite, 
+               aes(x = reorder(Method, Power), y = Power, fill = Method), 
+               alpha = 0.2, color = "grey", outlier.shape = NA) +
+  
+  geom_jitter(data = dynamite, 
+              aes(x = reorder(Method, Power), y = Power, color = Method), 
+              width = 0.1, alpha = 0.5) +
+  geom_point(data = emm_data, 
+             aes(x = reorder(Method, emmean), y = emmean), 
+             size = 4, color = "black") +
+  geom_errorbar(data = emm_data, 
+                aes(x = reorder(Method, emmean), ymin = lower.CL, ymax = upper.CL), 
+                width = 0.2, size = 1, color = "black") +
+  theme_minimal() +
+  labs(title = "Method Performance (Sorted by Average Power)",
+       subtitle = "From lowest (B) to highest (D) estimated power",
+       x = "Method (Sorted by Mean)",
+       y = "Power",
+       caption = "Black points and error bars represent EMMeans and 95% Confidence Intervals.") +
+  theme(legend.position = "none")
+
+
+#latin square  - repeated
+
+dynamite_rep2 <- dynamite
+dynamite_rep2$Power <- dynamite_rep2$Power + rnorm(25, 0, 2) # Adding some noise for example
+
+dynamite$Rep <- "1"
+dynamite_rep2$Rep <- "2"
+
+df_rep <- rbind(dynamite, dynamite_rep2)
+df_rep$Rep <- as.factor(df_rep$Rep)
+
+df_rep
+
+
+#all fixed
+
+aov_method_1 <- aov(Power ~ Rep + Company + Worker + Method,
+                   data = df_rep)
+summary(aov_method_1)
+
+#random - company
+
+aov_method_2 <- aov(Power ~ Rep + Worker + Rep:Company + Method, 
+                   data = df_rep)
+summary(aov_method_2)
+
+#random - worker
+
+aov_method_2.1 <- aov(Power ~ Rep + Rep:Worker + Company + Method, 
+                   data = df_rep)
+summary(aov_method_2.1)
+
+#random - company, worker, method
+
+aov_method_3 <- aov(Power ~ Rep + Rep:Company + Rep:Worker + Method, 
+                   data = df_rep)
+summary(aov_method_3)
+
+
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# 1. Function to extract p-values from each model
+get_pvals <- function(model, model_name) {
+  df <- as.data.frame(summary(model)[[1]])
+  df$Variable <- trimws(rownames(df))
+  df$Model <- model_name
+  # Keep only rows with p-values (exclude Residuals)
+  df <- df[!is.na(df$`Pr(>F)`), c("Model", "Variable", "Pr(>F)")]
+  return(df)
+}
+
+# 2. Combine results from all 4 models
+p_summary <- rbind(
+  get_pvals(aov_method_1, "1. All Fixed"),
+  get_pvals(aov_method_2, "2. Random-Company"),
+  get_pvals(aov_method_2.1, "2.1 Random-Worker"),
+  get_pvals(aov_method_3, "3. Random-All")
+)
+
+# 3. Create a flag for significant values (p < 0.05)
+p_summary <- p_summary %>%
+  mutate(is_sig = ifelse(`Pr(>F)` < 0.05, "Significant", "Non-Significant"),
+         p_label = sprintf("%.4f", `Pr(>F)`)) # Format p-values to 4 decimal places
+
+# 4. Final Plotting
+ggplot(p_summary, aes(x = Model, y = Variable)) +
+  # Background tiles for structure
+  geom_tile(fill = "white", color = "grey90") +
+  
+  # Add p-value text labels
+  geom_text(aes(label = p_label), vjust = 0, size = 3.5) +
+  
+  # Highlight significant results with a RED CIRCLE
+  geom_point(data = subset(p_summary, is_sig == "Significant"),
+             aes(x = Model, y = Variable),
+             color = "red", size = 12, shape = 1, stroke = 1.5) +
+  
+  # Professional styling
+  theme_minimal() +
+  labs(title = "P-value Summary Across Latin Square Models",
+       subtitle = "Red circles indicate statistically significant variables (p < 0.05)",
+       x = "Experimental Design Scenario",
+       y = "Variables",
+       caption = "Data based on dynamite replication analysis") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10, face = "bold"),
+        panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 14))
+
+
+#exercise
+
+#5
+library(sasLM)
+str(feedmice1)
+
+aov_feedmice1 <- aov(Y ~ Mom + Birth + Diet,
+                     data = feedmice1)
+summary(aov_feedmice1)
+
+#6
+
+str(feedmice2)
+
+feedmice1$Rep <- 1
+feedmice2$Rep <- 2
+
+df <- rbind(feedmice1, feedmice2)
+
+aov_feedmice_repeat <- aov(Y ~ Rep + Rep:Mom + Rep:Birth + Diet,
+                           data = df)
+summary(aov_feedmice_repeat)
+
+aov_feedmice_repeat_2 <- aov(Y ~ Rep + Mom +Birth + Diet,
+                           data = df)
+summary(aov_feedmice_repeat_2)
+
