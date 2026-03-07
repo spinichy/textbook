@@ -3138,3 +3138,384 @@ print(kable(final_table,
             digits = 4, 
             format = "markdown"))
 cat("Total Likelihood (beta=MLE):", prod(final_table$Contribution), "\n")
+
+
+#exercise
+
+#1
+
+
+#specific likelihood
+df <- data.frame(
+  id = 1:4,
+  t = c(9, 8, 6, 10),
+  delta = c(1, 0, 1, 1),
+  z = c(4, 5, 7, 3)
+)
+
+# Function to calculate Partial Log-Likelihood
+calc_partial_loglik <- function(beta, data) {
+  # Sort data by time to identify Risk Sets easily
+  # Log-likelihood starts at 0
+  data <- data[order(data$t), ]
+  loglik <- 0
+  
+  # Loop through each observation where an event occurred (delta == 1)
+  for (i in 1:nrow(data)) {
+    if (data$delta[i] == 1) {
+      current_t <- data$t[i]
+      
+      # Define Risk Set: people whose survival time is >= current event time
+      risk_set <- data[data$t >= current_t, ]
+      
+      # Log(numerator) - Log(denominator)
+      term <- (data$z[i] * beta) - log(sum(exp(risk_set$z * beta)))
+      loglik <- loglik + term
+    }
+  }
+  return(loglik)
+}
+calc_partial_loglik(0.5, df) # Example: Calculate log-likelihood for beta = 0.5
+
+
+#MLE  
+# Negative Log-Likelihood function (to use with 'optim' which minimizes)
+neg_loglik <- function(beta, data) {
+  loglik <- 0
+  for (i in 1:nrow(data)) {
+    if (data$delta[i] == 1) {
+      risk_set <- data[data$t >= data$t[i], ]
+      loglik <- loglik + (data$z[i] * beta) - log(sum(exp(risk_set$z * beta)))
+    }
+  }
+  return(-loglik) # Return negative for minimization
+}
+
+# Find the Maximum Likelihood Estimate (MLE)
+# Starting at beta = 0
+mle_result <- optim(par = 0.1, fn = neg_loglik, data = df, method = "BFGS")
+
+# The estimated beta (Maximum Likelihood Estimate)
+print(mle_result$par)
+
+
+
+#partial likelihood 
+
+
+# Analyze partial likelihood contributions for all time points
+# beta = 0.1 as an example
+analyze_likelihood <- function(beta, data) {
+  data <- data[order(data$t), ]
+  results <- list()
+  
+  for (i in 1:nrow(data)) {
+    current_t <- data$t[i]
+    is_event <- data$delta[i] == 1
+    
+    # Risk Set: Subjects with survival time >= current time
+    risk_set <- data[data$t >= current_t, ]
+    risk_ids <- paste(risk_set$id, collapse = ", ")
+    
+    if (is_event) {
+      # Partial Likelihood Contribution: exp(Zi*beta) / Sum(exp(Zj*beta))
+      num <- exp(data$z[i] * beta)
+      den <- sum(exp(risk_set$z * beta))
+      contribution <- num / den
+      log_lik <- log(contribution)
+    } else {
+      # Censored subjects do not contribute to the partial likelihood product
+      contribution <- NA
+      log_lik <- 0 # Log(1) = 0, so no change to the sum
+    }
+    
+    results[[i]] <- data.frame(
+      Time = current_t,
+      ID = data$id[i],
+      Status = ifelse(is_event, "Event", "Censored"),
+      Z = data$z[i],
+      Risk_Set = risk_ids,
+      Contribution = contribution,
+      Log_Lik = log_lik
+    )
+  }
+  return(do.call(rbind, results))
+}
+
+final_table <- analyze_likelihood(0.1, df)
+print(final_table)
+
+event_contributions <- final_table$Contribution[!is.na(final_table$Contribution)]
+partial_likelihood_product <- prod(event_contributions)
+log_partial_likelihood_sum <- sum(log(event_contributions))
+
+# Output the results
+# The product of contributions is the Partial Likelihood itself.
+
+cat("--- Likelihood Results ---\n")
+cat("Partial Likelihood (Product):", partial_likelihood_product, "\n")
+cat("Log-Partial Likelihood (Sum of Logs):", log_partial_likelihood_sum, "\n")
+
+
+
+
+
+# Dataset from your image
+df <- data.frame(
+  t = c(6, 8, 9, 10),
+  delta = c(1, 0, 1, 1),
+  z = c(7, 5, 4, 3)
+)
+
+# Function to calculate Log-Partial Likelihood for a given beta
+calc_loglik <- function(beta, data) {
+  data <- data[order(data$t), ]
+  loglik <- 0
+  for (i in 1:nrow(data)) {
+    if (data$delta[i] == 1) {
+      risk_set <- data[data$t >= data$t[i], ]
+      # Log-contribution = (Z_i * beta) - log(sum(exp(Z_j * beta)))
+      term <- (data$z[i] * beta) - log(sum(exp(risk_set$z * beta)))
+      loglik <- loglik + term
+    }
+  }
+  return(loglik)
+}
+
+# 1. Generate a range of beta values (e.g., from -2 to 2)
+beta_values <- seq(-20, 20, length.out = 100)
+
+# 2. Calculate Log-Likelihood for each beta
+loglik_values <- sapply(beta_values, calc_loglik, data = df)
+
+# 3. Find the Beta that maximizes the Likelihood (MLE)
+mle_beta <- beta_values[which.max(loglik_values)]
+
+# 4. Plot the Log-Partial Likelihood Curve
+plot(beta_values, loglik_values, type = "l", col = "blue", lwd = 2,
+     main = "Log-Partial Likelihood Curve",
+     xlab = expression(beta), ylab = "Log-Partial Likelihood")
+
+# Add a vertical line at the MLE point
+abline(v = mle_beta, col = "red", lty = 2)
+text(mle_beta, min(loglik_values), labels = paste("MLE beta =", round(mle_beta, 3)), 
+     pos = 4, col = "red")
+
+# Add a horizontal line for the maximum value
+abline(h = max(loglik_values), col = "gray", lty = 3)
+
+
+
+#2
+
+library(survival)
+str(pbc)
+pbc
+
+# ---------------------------------------------------------
+# (1) Fit Cox Proportional Hazards Model
+# ---------------------------------------------------------
+# Covariates: age, log(bili), log(protime), albumin, edema
+# Using 'survival::coxph' to fit the model
+cox_fit <- coxph(Surv(time, status == 2) ~ age + log(bili) + 
+                   log(protime) + albumin + edema, data = pbc)
+
+# Display the summary of the model
+summary(cox_fit)
+
+# ---------------------------------------------------------
+# (2) Interpretation of Hazard Ratios
+# ---------------------------------------------------------
+# Extracting Hazard Ratios (exp(coef))
+# A hazard ratio > 1 means the risk increases as the covariate increases.
+# A hazard ratio < 1 means the risk decreases as the covariate increases.
+exp(coef(cox_fit))
+
+# ---------------------------------------------------------
+# (3) Stratified Cox Model
+# ---------------------------------------------------------
+# Stratifying by 'ascites' status
+# Including edema, log(bili), log(protime), and log(albumin)
+stratified_fit <- coxph(Surv(time, status == 2) ~ edema + log(bili) + 
+                          log(protime) + log(albumin) + strata(ascites), data = pbc)
+
+# Display the summary of the stratified model
+summary(stratified_fit)
+
+
+
+
+#3
+
+
+# Raw data from the images
+untreated <- c(20, 21, 23, 24, 24, 26, 26, 27, 28, 30)
+radiated <- c(26, 28, 29, 30, 30, 31, 31, 32, 29, 35)
+radiated_bpa <- c(31, 32, 34, 35, 36, 38, 38, 42, 39, 42)
+
+
+status_u <- rep(1, 10)
+status_r <- c(1, 1, 1, 1, 1, 1, 1, 1, 1, 0) # 35+ is censored
+status_rb <- c(1, 1, 1, 1, 1, 1, 1, 0, 1, 1) # 42+ (one of them) is censored
+
+# Constructing the data frame
+glioma_data <- data.frame(
+  time = c(untreated, radiated, radiated_bpa),
+  status = c(status_u, status_r, status_rb),
+  z1 = c(rep(0, 10), rep(1, 10), rep(0, 10)), # radiated only
+  z2 = c(rep(0, 10), rep(0, 10), rep(1, 10))  # radiated + BPA
+)
+
+glioma_data
+
+
+library(survival)
+
+# ---------------------------------------------------------
+# (2) Fit Cox model with Z1 as the covariate
+# ---------------------------------------------------------
+# Compares 'radiated' group vs (untreated + radiated_bpa)
+fit_z1 <- coxph(Surv(time, status) ~ z1, data = glioma_data)
+summary(fit_z1)
+
+# ---------------------------------------------------------
+# (3) Fit Cox model with Z2 as the covariate
+# ---------------------------------------------------------
+# Compares 'radiated + BPA' group vs (untreated + radiated)
+fit_z2 <- coxph(Surv(time, status) ~ z2, data = glioma_data)
+summary(fit_z2)
+
+# ---------------------------------------------------------
+# (4) Fit Cox model with both Z1 and Z2 as covariates
+# ---------------------------------------------------------
+# Reference group is 'untreated'
+fit_both <- coxph(Surv(time, status) ~ z1 + z2, data = glioma_data)
+summary(fit_both)
+
+# ---------------------------------------------------------
+# (5) Test for group effect at significance level 0.05
+# ---------------------------------------------------------
+# Using Likelihood Ratio Test from summary(fit_both)
+# or conducting an ANOVA between null model and fit_both
+fit_null <- coxph(Surv(time, status) ~ 1, data = glioma_data)
+anova_result <- anova(fit_null, fit_both)
+print(anova_result)
+
+anova_result.1 <- anova(fit_null, fit_z1)
+print(anova_result.1)
+
+anova_result.2 <- anova(fit_z1, fit_both)
+print(anova_result.2)
+
+
+
+#4
+
+
+# Final corrected Myeloma dataset (n=48)
+# Corrected the alignment issue starting from patient 15.
+# All comments are in English as requested.
+myeloma_data <- data.frame(
+  id = 1:48,
+  # Survival time in months
+  time = c(13, 52, 6, 40, 10, 7, 66, 10, 10, 14, 16, 4, 65, 5, 11, 10, 15, 5, 75, 56, 88, 24, 51, 4, 40, 8,
+           18, 5, 16, 50, 40, 1, 36, 5, 10, 91, 18, 1, 18, 6, 1, 23, 15, 18, 12, 12, 7, 3),
+  # Status: 1 = dead, 0 = alive (censored)
+  # Corrected Patient 15 status to 0 and re-aligned subsequent rows
+  status = c(1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1,
+             1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0),
+  # Age of the patient (Patient 26 is 55)
+  age = c(66, 66, 53, 69, 65, 57, 52, 60, 70, 70, 68, 50, 59, 60, 66, 51, 55, 67, 60, 66, 63, 67, 60, 74, 72, 55,
+          51, 70, 53, 74, 70, 67, 63, 77, 61, 58, 69, 57, 59, 61, 75, 56, 62, 60, 71, 60, 65, 59),
+  # Sex: 1 = Male, 2 = Female
+  sex = c(1, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1, 2, 2, 1, 2, 1, 1, 1, 1, 2, 1, 1, 1,
+          1, 2, 1, 1, 2, 1, 1, 1, 1, 2, 2, 1, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1),
+  # BUN levels
+  bun = c(25, 13, 15, 10, 20, 12, 21, 41, 37, 40, 39, 172, 28, 13, 25, 12, 14, 26, 12, 18, 21, 10, 10, 10, 48, 57,
+          12, 130, 17, 37, 14, 165, 40, 23, 13, 27, 21, 20, 21, 11, 56, 20, 21, 18, 46, 6, 28, 90),
+  # CA levels
+  ca = c(10, 11, 13, 10, 10, 8, 10, 9, 12, 11, 10, 9, 9, 9, 9, 9, 9, 8, 12, 11, 9, 14, 10, 10, 9, 9,
+         15, 8, 9, 13, 9, 10, 9, 8, 10, 11, 10, 9, 10, 10, 12, 9, 10, 9, 9, 10, 8, 10),
+  # HB levels
+  hb = c(14.6, 12.0, 11.4, 10.2, 13.2, 9.9, 12.8, 14.0, 7.5, 10.6, 11.2, 10.1, 6.6, 9.7, 8.8, 9.6, 13.0, 10.4, 14.0, 12.5, 14.0, 12.4, 10.1, 6.5, 12.8, 8.2,
+         14.4, 10.2, 10.0, 7.7, 5.0, 9.4, 11.0, 9.0, 14.0, 11.0, 10.8, 5.1, 13.0, 5.1, 11.3, 14.6, 8.8, 7.5, 4.9, 5.5, 7.5, 10.2),
+  # PC percentage
+  pc = c(18, 100, 33, 30, 66, 45, 11, 70, 47, 27, 41, 46, 66, 25, 23, 80, 8, 49, 9, 90, 42, 44, 45, 54, 28, 55,
+         100, 23, 28, 11, 22, 90, 16, 29, 19, 26, 33, 100, 100, 100, 18, 3, 5, 85, 62, 25, 8, 6),
+  # BJ Protein (0 = absent, 1 = present)
+  bj = c(1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1,
+         0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1)
+)
+
+myeloma_data
+
+
+
+library(survival)
+
+# (1) Fit Cox model with Age and Sex as covariates
+fit1 <- coxph(Surv(time, status) ~ age + sex, data = myeloma_final)
+summary(fit1)
+
+# (2) Fit Cox model with ALL covariates and test significance at alpha=0.05
+fit_all <- coxph(Surv(time, status) ~ age + sex + bun + ca + hb + pc + bj, data = myeloma_final)
+summary(fit_all)
+
+# (3) Variable Selection to propose the most suitable model
+# Using stepwise selection (AIC based)
+step_model <- step(fit_all)
+summary(step_model)
+
+# Proposed Model Interpretation
+# Based on the stepwise result, check which covariates remain significant
+
+
+#5
+
+
+# Load required libraries and data
+library(survival)
+library(KMsurv)
+data(hodg)
+
+# (1) Fit Cox model with gtype and dtype as covariates
+# gtype: 1=allogenic, 2=autologous / dtype: 1=Non Hodgkin, 2=Hodgkins
+fit1 <- coxph(Surv(time, delta) ~ gtype + dtype, data = hodg)
+summary(fit1)
+
+# (2) Create 4 group indicator (Zha) and fit Cox model
+# Groups: (i) Non Hodgkin, allo (ii) Hodgkins, allo 
+#         (iii) Non Hodgkin, auto (iv) Hodgkin, auto
+hodg$Zha <- interaction(hodg$dtype, hodg$gtype)
+fit2 <- coxph(Surv(time, delta) ~ Zha, data = hodg)
+summary(fit2)
+hodg
+# (3) Fit Cox model with gtype, dtype, and score (Karnofsky score)
+fit3 <- coxph(Surv(time, delta) ~ gtype + dtype + score, data = hodg)
+summary(fit3)
+
+# (4) Fit Cox model with ALL covariates and test significance at alpha=0.05
+# Covariates include gtype, dtype, score, and wtime (waiting time)
+fit_all <- coxph(Surv(time, delta) ~ gtype + dtype + score + wtime, data = hodg)
+summary(fit_all)
+
+# (5) Stepwise Variable Selection to propose the best model
+step_model <- step(fit_all)
+summary(step_model)
+
+# (6) Log-rank test to compare K-M survival curves by dtype (Hodgkin existence)
+surv_diff <- survdiff(Surv(time, delta) ~ dtype, data = hodg)
+print(surv_diff)
+
+# Visualization for step (6)
+plot(survfit(Surv(time, delta) ~ dtype, data = hodg), 
+     col = c("blue", "red"), lty = 1:2,
+     main = "K-M Survival Curves by Disease Type",
+     xlab = "Time (Days)", ylab = "Survival Probability")
+legend("topright", legend = c("Non-Hodgkin", "Hodgkin"), col = c("blue", "red"), lty = 1:2)
+
+
+
+
+
+##### part 8 -----------------------------------------------------------------------------------------------------------------------
