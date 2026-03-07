@@ -2909,3 +2909,232 @@ p2 <- ggplot(plot_data, aes(x = time, y = cumhaz, color = group)) +
 
 # Combine using patchwork
 (p1 | p2) + plot_layout(guides = 'collect') & theme(legend.position = "right")
+
+
+
+
+##### part 7 -----------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+#example
+
+
+library(ggplot2)
+library(patchwork)
+
+# 1. Define functions based on the provided table
+
+# Partial Likelihood function
+partial_lik <- function(b) {
+  p1 <- exp(2*b) / (exp(2*b) + exp(2*b) + exp(1*b) + exp(3*b))
+  p2 <- exp(1*b) / (exp(1*b) + exp(3*b))
+  p3 <- exp(3*b) / (exp(3*b))
+  return(p1 * p2 * p3)
+}
+
+# Log Partial Likelihood function
+log_partial_lik <- function(b) {
+  term1 <- 2*b - log(exp(2*b) + exp(2*b) + exp(1*b) + exp(3*b))
+  term2 <- 1*b - log(exp(1*b) + exp(3*b))
+  term3 <- 3*b - log(exp(3*b))
+  return(term1 + term2 + term3)
+}
+
+# 2. Prepare data for plotting
+beta_seq <- seq(-3, 1, length.out = 1000)
+df <- data.frame(
+  beta = beta_seq,
+  lik = sapply(beta_seq, partial_lik),
+  log_lik = sapply(beta_seq, log_partial_lik)
+)
+
+# Find MLE
+mle_idx <- which.max(df$log_lik)
+mle_beta <- df$beta[mle_idx]
+mle_val_lik <- df$lik[mle_idx]
+mle_val_loglik <- df$log_lik[mle_idx]
+
+# 3. Create Plots
+
+# Plot A: Partial Likelihood
+p1 <- ggplot(df, aes(x = beta, y = lik)) +
+  geom_line(color = "darkorange", size = 1) +
+  geom_vline(xintercept = mle_beta, linetype = "dashed", color = "blue") +
+  annotate("text", x = mle_beta + 0.5, y = mle_val_lik, 
+           label = paste0("MLE beta: ", round(mle_beta, 3)), color = "blue") +
+  labs(title = "Partial Likelihood L(beta)", x = expression(beta), y = "Likelihood") +
+  theme_minimal()
+
+# Plot B: Log Partial Likelihood
+p2 <- ggplot(df, aes(x = beta, y = log_lik)) +
+  geom_line(color = "royalblue", size = 1) +
+  geom_vline(xintercept = mle_beta, linetype = "dashed", color = "red") +
+  annotate("text", x = mle_beta + 0.5, y = mle_val_loglik, 
+           label = paste0("MLE beta: ", round(mle_beta, 3)), color = "red") +
+  labs(title = "Log Partial Likelihood l(beta)", x = expression(beta), y = "Log-Likelihood") +
+  theme_minimal()
+
+# 4. Combine using patchwork
+p1 / p2
+
+
+
+# Partial Likelihood function, # Log Partial Likelihood function
+
+
+#beta = 0
+
+# Corrected Data preparation based on Table 7.2(a)
+# Group 0 (Z=0): 4+, 7, 8+, 9, 10+  -> Corrected delta_0[1] to 0
+times_0 <- c(4, 7, 8, 9, 10)
+delta_0 <- c(0, 1, 0, 1, 0) # Fixed: 4+ is censored
+z_0     <- rep(0, 5)
+
+# Group 1 (Z=1): 3, 5, 5+, 6, 8+
+times_1 <- c(3, 5, 5, 6, 8)
+delta_1 <- c(1, 1, 0, 1, 0)
+z_1     <- rep(1, 5)
+
+all_data <- data.frame(
+  time = c(times_0, times_1),
+  delta = c(delta_0, delta_1),
+  z = c(z_0, z_1)
+)
+df <- all_data[order(all_data$time),]
+df$time[df$delta == 1]
+
+# Function to calculate contributions and total likelihood
+get_cox_details_fixed <- function(beta) {
+  df <- all_data[order(all_data$time), ]
+  # Only consider times where an event (delta=1) occurred
+  event_times <- sort(unique(df$time[df$delta == 1]))
+  
+  contributions <- c()
+  risk_set_0 <- c()
+  risk_set_1 <- c()
+  
+  for (t in event_times) {
+    # Risk Set: Anyone still in the study at time t (time >= t)
+    at_risk <- df[df$time >= t, ]
+    n0 <- sum(at_risk$z == 0)
+    n1 <- sum(at_risk$z == 1)
+    
+    # Identify who had the event at exactly time t
+    events_at_t <- df[df$time == t & df$delta == 1, ]
+    
+    for (i in 1:nrow(events_at_t)) {
+      z_val <- events_at_t$z[i]
+      denom <- n0 * exp(0 * beta) + n1 * exp(1 * beta)
+      numer <- exp(z_val * beta)
+      prob  <- numer / denom
+      
+      contributions <- c(contributions, prob)
+      risk_set_0 <- c(risk_set_0, n0)
+      risk_set_1 <- c(risk_set_1, n1)
+    }
+  }
+  
+  res_table <- data.frame(
+    Time = event_times,
+    n0 = risk_set_0,
+    n1 = risk_set_1,
+    Contribution = contributions
+  )
+  
+  return(list(table = res_table, total_lik = prod(contributions)))
+}
+
+# Check the results (Example: beta = 0)
+output_fixed <- get_cox_details_fixed(0)
+print("--- Corrected Partial Likelihood Contributions (beta=0) ---")
+print(output_fixed$table)
+
+
+
+
+
+#beta = MLE
+
+# 1. Prepare Data (Fixed Group 0 delta as you corrected)
+times_0 <- c(4, 7, 8, 9, 10); delta_0 <- c(0, 1, 0, 1, 0); z_0 <- rep(0, 5)
+times_1 <- c(3, 5, 5, 6, 8); delta_1 <- c(1, 1, 0, 1, 0); z_1 <- rep(1, 5)
+
+all_data <- data.frame(time = c(times_0, times_1), delta = c(delta_0, delta_1), z = c(z_0, z_1))
+
+# 2. Function to calculate Negative Log-Likelihood (for optimization)
+neg_log_lik <- function(beta) {
+  df <- all_data[order(all_data$time), ]
+  event_times <- df$time[df$delta == 1]
+  log_lik <- 0
+  
+  for (t in event_times) {
+    at_risk <- df[df$time >= t, ]
+    n0 <- sum(at_risk$z == 0)
+    n1 <- sum(at_risk$z == 1)
+    event_z <- df$z[df$time == t & df$delta == 1]
+    
+    for (z_val in event_z) {
+      denom <- n0 * exp(0 * beta) + n1 * exp(1 * beta)
+      log_lik <- log_lik + (z_val * beta - log(denom))
+    }
+  }
+  return(-log_lik) # Return negative for minimization
+}
+
+# 3. Find MLE using optim()
+fit <- optim(par = 0, fn = neg_log_lik, method = "BFGS")
+mle_beta <- fit$par
+
+# 4. Get contributions using the MLE beta
+# (Reusing the get_cox_details function structure from previous turn)
+get_final_results <- function(beta) {
+  df <- all_data[order(all_data$time), ]
+  event_times <- df$time[df$delta == 1]
+  
+  contributions <- c()
+  for (t in event_times) {
+    at_risk <- df[df$time >= t, ]
+    n0 <- sum(at_risk$z == 0)
+    n1 <- sum(at_risk$z == 1)
+    event_z <- df$z[df$time == t & df$delta == 1]
+    for (z_val in event_z) {
+      contributions <- c(contributions, exp(z_val * beta) / (n0 + n1 * exp(beta)))
+    }
+  }
+  return(data.frame(Time = event_times, Contribution = contributions))
+}
+
+final_table <- get_final_results(mle_beta)
+
+# --- Output ---
+cat("Estimated MLE Beta:", mle_beta, "\n")
+cat("Hazard Ratio (exp(beta)): ", exp(mle_beta), "\n\n")
+print("--- Contributions at MLE Beta ---")
+print(final_table)
+
+
+
+library(knitr)
+
+# Display Table for beta = 0
+cat("\n\n")
+cat("### [Table] Partial Likelihood Contributions (beta = 0)")
+# Use kable to format the existing output_fixed$table
+print(kable(output_fixed$table, 
+            caption = "Results under Null Hypothesis (beta=0)", 
+            digits = 4, 
+            format = "markdown"))
+cat("Total Likelihood (beta=0):", output_fixed$total_lik, "\n\n")
+
+
+# Display Table for beta = MLE
+cat("### [Table] Partial Likelihood Contributions (beta = MLE)")
+# Use kable to format the existing final_table
+print(kable(final_table, 
+            caption = paste("Results at MLE (beta=", round(mle_beta, 4), ")"), 
+            digits = 4, 
+            format = "markdown"))
+cat("Total Likelihood (beta=MLE):", prod(final_table$Contribution), "\n")
