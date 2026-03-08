@@ -3519,3 +3519,107 @@ legend("topright", legend = c("Non-Hodgkin", "Hodgkin"), col = c("blue", "red"),
 
 
 ##### part 8 -----------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+#example
+
+
+
+#Cox Proportional Hazards
+library(survival)
+str(pbc)
+
+# Prepare the dataset
+# 'status' in pbc: 0 = censored, 1 = transplant, 2 = death
+# We usually treat 'death' (status == 2) as the event of interest
+pbc$event <- as.numeric(pbc$status == 2)
+
+# Fit the Cox Proportional Hazards Model
+# Using age, edema, and bilirubin (bili) as independent variables
+cox_mod <- coxph(Surv(time, event) ~ age + edema + bili, data = pbc)
+
+# Summary of the model
+summary(cox_mod)
+
+
+# 1. Martingale Residuals
+pbc$res_mart <- residuals(cox_mod, type = "martingale") ##direct code: -predict(cox_mod, type = "expected")
+
+par(mfrow = c(2, 2))
+
+
+plot(pbc$age, pbc$res_mart, 
+     main = "Martingale Residuals vs Age",
+     xlab = "Age", ylab = "Martingale Residuals")
+lines(lowess(pbc$age, pbc$res_mart), col = "red")
+
+# 2. Deviance Residuals
+pbc$res_dev <- residuals(cox_mod, type = "deviance")
+plot(pbc$res_dev, 
+     main = "Deviance Residuals",
+     ylab = "Deviance Residuals")
+abline(h = 0, col = "red", lty = 2)
+
+# 3. Cox-Snell Residuals
+res_mart <- residuals(cox_mod, type = "martingale")
+pbc$res_coxsnell <- pbc$event - res_mart
+fit_cs <- survfit(Surv(res_coxsnell, event) ~ 1, data = pbc)
+
+plot(fit_cs$time, -log(fit_cs$surv), type = "l",
+     main = "Cox-Snell Residuals for Goodness-of-Fit",
+     xlab = "Cox-Snell Residuals", ylab = "Cumulative Hazard")
+abline(0, 1, col = "red", lty = 2)
+
+# 4. Schoenfeld Residuals (Partial Residuals)
+residuals(cox_mod, type = "schoenfeld")
+ph_test <- cox.zph(cox_mod)
+plot(ph_test[3], main = "Schoenfeld: Bili (PH Assumption)")
+ph_test
+
+
+
+# ---------------------------------------------------------
+# 1. Linearity Testing (Using Martingale Residuals)
+# ---------------------------------------------------------
+
+pbc$res_mart <- residuals(cox_mod, type = "martingale")
+age_linearity_test <- cor.test(pbc$age, pbc$res_mart)
+edema_linearity_test <- cor.test(pbc$edema, pbc$res_mart)
+bill_linearity_test <- cor.test(pbc$bili, pbc$res_mart)
+
+print(age_linearity_test)
+print(edema_linearity_test)
+print(bill_linearity_test)
+
+
+# ---------------------------------------------------------
+# 2. Outlier Identification (Using Deviance Residuals)
+# ---------------------------------------------------------
+pbc$res_dev <- residuals(cox_mod, type = "deviance")
+
+outlier_indices <- which(abs(pbc$res_dev) > 2) #양측 검정 유의수준 5%에 해당하는 $Z$값이 약 1.96 
+outlier_data <- pbc[outlier_indices, ]
+cat("Number of identified outliers (|dev| > 2):", length(outlier_indices), "\n")
+print(outlier_data[, c("time", "event", "age", "bili", "res_dev")])
+
+# ---------------------------------------------------------
+# 3. Overall Goodness-of-Fit (Using Cox-Snell Residuals)
+# ---------------------------------------------------------
+
+pbc$res_coxsnell <- pbc$event - pbc$res_mart
+cs_mean <- mean(pbc$res_coxsnell)
+cat("Mean of Cox-Snell residuals (Ideal = 1.0):", cs_mean, "\n")
+
+ks_test_gof <- ks.test(pbc$res_coxsnell, "pexp", rate = 1)
+print(ks_test_gof)
+
+# ---------------------------------------------------------
+# 4. Proportional Hazards Test (Using Schoenfeld Residuals)
+# ---------------------------------------------------------
+ph_test <- cox.zph(cox_mod)
+print(ph_test)
+
+
