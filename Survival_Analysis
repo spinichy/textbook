@@ -3623,3 +3623,157 @@ ph_test <- cox.zph(cox_mod)
 print(ph_test)
 
 
+
+#1
+
+# Load necessary libraries
+library(survival)
+library(ggplot2)
+library(patchwork)
+
+# Load the built-in PBC dataset
+data(pbc)
+
+# Data preprocessing: handle missing values and convert age to years
+pbc_clean <- na.omit(pbc[, c("time", "status", "age", "edema", "bili")])
+pbc_clean$event <- ifelse(pbc_clean$status == 2, 1, 0) # Set death as 1
+pbc_clean$age <- pbc_clean$age / 365.25
+
+# --- (1) Martingale Residuals for the Null Model (No covariates) ---
+null_mod <- coxph(Surv(time, event) ~ 1, data = pbc_clean)
+pbc_clean$res_mart_null <- residuals(null_mod, type = "martingale")
+
+plot(pbc_clean$res_mart_null, main = "Martingale Residuals (Null Model)", 
+     ylab = "Residuals", xlab = "Index")
+abline(h = 0, col = "red", lty = 2)
+
+# --- (2) Compare Martingale Residuals and Sum of Squares (SS) for Single Covariate Models ---
+# Fit separate models for age and bilirubin
+mod_age <- coxph(Surv(time, event) ~ age, data = pbc_clean)
+mod_bili <- coxph(Surv(time, event) ~ bili, data = pbc_clean)
+
+pbc_clean$res_mart_age <- residuals(mod_age, type = "martingale")
+pbc_clean$res_mart_bili <- residuals(mod_bili, type = "martingale")
+
+# Calculate Sum of Squares for Martingale residuals
+ss_mart_null <- sum(pbc_clean$res_mart_null^2)
+ss_mart_age <- sum(pbc_clean$res_mart_age^2)
+ss_mart_bili <- sum(pbc_clean$res_mart_bili^2)
+
+cat("SS Martingale - Null:", ss_mart_null, "\nAge:", ss_mart_age, "\nBili:", ss_mart_bili, "\n")
+
+# --- (3) Compare Martingale Residuals for a Two-Covariate Model ---
+mod_2var <- coxph(Surv(time, event) ~ age + bili, data = pbc_clean)
+pbc_clean$res_mart_2var <- residuals(mod_2var, type = "martingale")
+
+plot(pbc_clean$res_mart_2var, main = "Martingale Residuals (Age + Bili)", 
+     ylab = "Residuals", xlab = "Index")
+abline(h = 0, col = "blue")
+
+# --- (4) Deviance Residuals for the Null Model ---
+pbc_clean$res_dev_null <- residuals(null_mod, type = "deviance")
+plot(pbc_clean$res_dev_null, main = "Deviance Residuals (Null Model)")
+
+# --- (5) Deviance Residuals and Sum of Squares for Single Covariate Models ---
+pbc_clean$res_dev_age <- residuals(mod_age, type = "deviance")
+pbc_clean$res_dev_bili <- residuals(mod_bili, type = "deviance")
+
+ss_dev_null <- sum(pbc_clean$res_dev_null^2)
+ss_dev_age <- sum(pbc_clean$res_dev_age^2)
+ss_dev_bili <- sum(pbc_clean$res_dev_bili^2)
+
+cat("SS Deviance - Null:", ss_dev_null, "\nAge:", ss_dev_age, "\nBili:", ss_dev_bili, "\n")
+
+# --- (6) Compare Deviance Residuals for a Two-Covariate Model ---
+pbc_clean$res_dev_2var <- residuals(mod_2var, type = "deviance")
+plot(pbc_clean$res_dev_2var, main = "Deviance Residuals (Age + Bili)")
+
+# --- (7) Checking Proportional Hazards for Discrete Covariate (Edema) ---
+# Use Anderson Plot (Cumulative Hazard by Strata)
+fit_edema <- survfit(Surv(time, event) ~ strata(edema), data = pbc_clean)
+plot(fit_edema, fun = "cumhaz", col = 1:3, main = "Anderson Plot: Edema")
+
+# --- (8) Propose and Analyze the Final Optimized Model ---
+# Applied log transformation for bili and stratification for edema based on diagnostics
+final_mod <- coxph(Surv(time, event) ~ age + log(bili) + strata(edema), data = pbc_clean)
+
+# Conduct Schoenfeld Residual Test for the final model
+test_ph <- cox.zph(final_mod)
+print(test_ph)
+plot(test_ph)
+
+
+#2
+
+
+
+# Load necessary libraries and dataset
+library(KMsurv)
+library(survival)
+
+# Load the hodg dataset (Bone marrow transplant for lymphoma patients)
+data(hodg)
+
+# --- (1) & (2) Test Proportional Hazards (PH) Assumption for gtype and dtype ---
+mod_full <- coxph(Surv(time, delta) ~ gtype + dtype, data = hodg)
+ph_test <- cox.zph(mod_full)
+print(ph_test) # Check p-values for gtype and dtype
+
+# --- (3) Null Model: Martingale Residuals ---
+# --- (4) Model with 'gtype' only ---
+# --- (5) Model with 'dtype' only ---
+# --- (6) Final Proportional Hazards Model and Diagnostic ---
+
+par(mfrow = c(2,2))
+# Fit a model with no covariates
+null_mod <- coxph(Surv(time, delta) ~ 1, data = hodg)
+res_mart_null <- residuals(null_mod, type = "martingale")
+
+
+# Plot Martingale residuals for the Null model
+plot(res_mart_null, main = "Martingale Residuals (Null Model)", 
+     ylab = "Residuals", xlab = "Index", ylim = c(-2,2)) 
+abline(h = 0, col = "gray", lty = 2)
+abline(h = c(-2,2), col = "red", lty = 2)
+
+mod_gtype <- coxph(Surv(time, delta) ~ gtype, data = hodg)
+res_mart_gtype <- residuals(mod_gtype, type = "martingale")
+
+
+# Plot and interpret Martingale residuals for gtype
+plot(res_mart_gtype, main = "Martingale Residuals (gtype Model)", 
+     ylab = "Residuals", xlab = "Index", ylim = c(-2,2)) 
+abline(h = 0, col = "gray", lty = 2)
+abline(h = c(-2,2), col = "red", lty = 2)
+
+
+mod_dtype <- coxph(Surv(time, delta) ~ dtype, data = hodg)
+res_mart_dtype <- residuals(mod_dtype, type = "martingale")
+
+
+# Plot and interpret Martingale residuals for dtype
+plot(res_mart_dtype, main = "Martingale Residuals (dtype Model)", 
+     ylab = "Residuals", xlab = "Index", ylim = c(-2,2)) 
+abline(h = 0, col = "gray", lty = 2)
+abline(h = c(-2,2), col = "red", lty = 2)
+
+
+# Fit a model using both covariates and check for overall fit
+final_mod <- coxph(Surv(time, delta) ~ gtype + dtype, data = hodg)
+
+# Deviance residuals for identifying outliers
+final_res_dev <- residuals(final_mod, type = "deviance")
+plot(final_res_dev, main = "Deviance Residuals (Final Model)", 
+     ylab = "Deviance Residuals", ylim = c(-2,2)) 
+abline(h = 0, col = "gray", lty = 2)
+abline(h = c(-2,2), col = "red", lty = 2)
+
+#anova
+anova(null_mod,final_mod)
+
+
+
+
+
+##### part 9 -----------------------------------------------------------------------------------------------------------------------
+
