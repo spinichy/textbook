@@ -2589,3 +2589,167 @@ aov_feedmice_repeat_2 <- aov(Y ~ Rep + Mom +Birth + Diet,
                            data = df)
 summary(aov_feedmice_repeat_2)
 
+
+
+part 12 -----------------------------------------------------------------------------------------------------------------------
+
+
+
+#type of Response Surface
+
+
+# Load necessary library
+library(rsm)
+
+# 0. Create a simple grid: Temperature (10~30), Time (1~5)
+# Using expand.grid for easy understanding of data structure
+base_grid <- expand.grid(
+  temp = seq(10, 30, length.out = 5),
+  time = seq(1, 5, length.out = 5)
+)
+
+# Set seed for reproducibility
+set.seed(42)
+
+# Set up a 2x3 plotting area to see all surfaces at once
+par(mfrow = c(2, 3))
+
+# --- CASE 1: First-order without interaction ---
+# Concept: Yield increases linearly as temperature and time increase.
+data1 <- base_grid
+data1$yield <- with(data1, 10 + 2*temp + 5*time + rnorm(25))
+
+fit1 <- rsm(yield ~ FO(temp, time), data = data1)
+persp(fit1, time ~ temp, col = "lightblue", main = "1. Linear (No Interaction)")
+# 
+
+
+# --- CASE 2: First-order with interaction ---
+# Concept: Synergistic effect occurs when both temp and time are high.
+data2 <- base_grid
+data2$yield <- with(data2, 10 + 2*temp + 5*time + 0.8*(temp*time) + rnorm(25))
+
+fit2 <- rsm(yield ~ FO(temp, time) + TWI(temp, time), data = data2)
+persp(fit2, time ~ temp, col = "lightgreen", main = "2. Linear w/ Interaction")
+# 
+
+
+# --- CASE 3: Second-order without interaction ---
+# Concept: Curvature exists (Yield drops after a certain point), but no synergy.
+data3 <- base_grid
+data3$yield <- with(data3, 80 - (temp-20)^2 - 10*(time-3)^2 + rnorm(25))
+
+fit3 <- rsm(yield ~ FO(temp, time) + PQ(temp, time), data = data3)
+persp(fit3, time ~ temp, col = "lightpink", main = "3. Quadratic (No Interaction)")
+# 
+
+
+# --- CASE 4: Second-order with interaction (Full Model) ---
+# Concept: Most common optimization model with both curvature and interaction.
+data4 <- base_grid
+data4$yield <- with(data4, 50 + 1.5*temp + 0.5*time + 0.2*temp*time - 0.1*temp^2 - 0.6*time^2 + rnorm(25))
+
+fit4 <- rsm(yield ~ SO(temp, time), data = data4)
+persp(fit4, time ~ temp, col = "wheat", main = "4. Full Quadratic")
+# 
+
+
+# --- CASE 5: Saddle Point ---
+# Concept: Maximum in one direction, minimum in the other (Saddle shape).
+data5 <- base_grid
+data5$yield <- with(data5, 50 + 0.2*(temp-20)^2 - 2*(time-3)^2 + rnorm(25))
+
+fit5 <- rsm(yield ~ SO(temp, time), data = data5)
+persp(fit5, time ~ temp, col = "thistle", main = "5. Saddle Point")
+# 
+
+# Reset plotting layout
+par(mfrow = c(1, 1))
+
+
+
+#exercise
+
+
+#1
+library(sasLM)
+bearing
+str(bearing)
+
+library(rsm)
+rsm_bearing <- rsm(Y ~ SO(X1, X2), data = bearing) #SO: Second-Order(2차)
+summary(rsm_bearing)
+
+
+rsm_bearing_2 <- rsm(Y ~ FO(X1, X2) + PQ(X1, X2), data = bearing) #FO: First-Order, Pure Quadratic
+summary(rsm_bearing_2)
+
+contour(x = rsm_bearing_2, 
+        form = ~ X1 + X2, 
+        image = TRUE)
+persp(x = rsm_bearing_2, form = ~ X1 + X2, contours = "colors")
+
+
+library(plotly)
+
+# 1. Define the stationary point coordinates from your summary result
+# The coordinates are extracted from the 'Stationary point' section in the image
+xs_1 <- 19.12212
+xs_2 <- 1617.09240
+
+# 2. Calculate the predicted response value (Ys) at the stationary point
+# This uses the formula: Ys = beta_0 + 0.5 * xs' * b
+ys_val <- predict(rsm_bearing_2, newdata = data.frame(X1 = xs_1, X2 = xs_2))
+
+# 3. Create a grid of data for the surface visualization
+# Expand the range slightly around the stationary point for better view
+x1_range <- seq(min(bearing$X1, xs_1), max(bearing$X1, xs_1), length.out = 50)
+x2_range <- seq(min(bearing$X2, xs_2), max(bearing$X2, xs_2), length.out = 50)
+grid <- expand.grid(X1 = x1_range, X2 = x2_range)
+
+# 4. Predict Y values for the entire grid
+grid$Y <- predict(rsm_bearing_2, newdata = grid)
+z_matrix <- matrix(grid$Y, nrow = 50)
+
+# 5. Build the Plotly 3D Surface Plot
+plot_ly() %>%
+  # Add the response surface
+  add_surface(
+    x = ~x1_range, 
+    y = ~x2_range, 
+    z = ~z_matrix,
+    opacity = 0.8,
+    name = "Response Surface"
+  ) %>%
+  # Add the stationary point as a distinct red marker
+  add_trace(
+    x = xs_1, 
+    y = xs_2, 
+    z = ys_val,
+    type = "scatter3d", 
+    mode = "markers",
+    marker = list(size = 8, color = "red", symbol = "diamond"),
+    name = "Stationary Point (Saddle)"
+  ) %>%
+  layout(
+    title = "3D Surface with Stationary Point",
+    scene = list(
+      xaxis = list(title = "X1"),
+      yaxis = list(title = "X2"),
+      zaxis = list(title = "Y")
+    )
+  )
+
+
+predict(rsm_bearing_2, list(X1 = 25, X2 = 1000)) #182.5669
+
+
+
+#2
+
+rsdata0
+rsm_rsdata0 <- rsm(Y ~ SO(X1, X2), data = rsdata0)
+rsm(Y ~ FO(X1, X2), data = rsdata0) %>% 
+  summary()
+
+
