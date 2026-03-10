@@ -2753,3 +2753,171 @@ rsm(Y ~ FO(X1, X2), data = rsdata0) %>%
   summary()
 
 
+part 13 -----------------------------------------------------------------------------------------------------------------------
+
+
+
+#example
+
+library(sasLM)
+ptensile
+str(ptensile)
+
+# 1. Using aov() function (Base R)
+# Error(Day:Pulp) specifies the main-plot error term
+model_aov <- aov(Y ~ Day + Pulp * Temp + Error(Day/Pulp), 
+                 data = ptensile)
+summary(model_aov)
+
+# 2. Using lme4 package (Linear Mixed-Effects Models)
+# This is often preferred for more complex designs
+library(lme4)
+library(lmerTest) # To get p-values
+
+model_lmer <- lmer(Y ~ Pulp * Temp + (1|Day) + (1|Day:Pulp), 
+                   data = ptensile)
+anova(model_lmer)
+
+summary(model_lmer)
+
+
+#exercise
+
+#1
+library(sasLM)
+ptensile
+str(ptensile)
+
+library(lme4)
+library(lmerTest)
+model_lmer <- lmer(Y ~ (1|Day) +  (1|Pulp) + (1|Temp) + (1|Day:Pulp) + (1|Pulp:Temp),
+                   data = ptensile)
+summary(model_lmer)
+
+ranova_results <- ranova(model_lmer)
+print(ranova_results)
+
+model_aov <- aov(Y ~ Error(Day + Pulp + Temp + Day:Pulp + Pulp:Temp), 
+                 data = ptensile)
+
+summary(model_aov)
+library(broom)
+tidy(x = model_aov)
+
+# Store the tidy output
+# Comments: Perform significance tests for all strata in the tidy object
+res <- tidy(model_aov)
+
+# Extract Mean Squares for denominators
+ms_within <- res %>% filter(stratum == "Within") %>% pull(meansq)
+ms_dp <- res %>% filter(stratum == "Day:Pulp") %>% pull(meansq)
+ms_pt <- res %>% filter(stratum == "Pulp:Temp") %>% pull(meansq)
+
+# Calculate F-statistics and p-values based on EMS logic
+# Comments: Main effects are tested against their corresponding interaction MS
+res_final <- res %>%
+  mutate(
+    # 1. Automatic DF extraction from tidy object
+    df_dp = res %>% filter(stratum == "Day:Pulp") %>% pull(df),
+    df_pt = res %>% filter(stratum == "Pulp:Temp") %>% pull(df),
+    df_within = res %>% filter(stratum == "Within") %>% pull(df),
+    
+    # 2. Logic-based Denominator Selection
+    denom_ms = case_when(
+      stratum == "Day"  ~ ms_dp,     # Tested against Main-plot error
+      stratum == "Pulp" ~ ms_dp,     # Pulp as Main-plot factor
+      stratum == "Temp" ~ ms_within, # Temp as Sub-plot factor
+      stratum %in% c("Day:Pulp", "Pulp:Temp") ~ ms_within,
+      TRUE ~ NA_real_
+    ),
+    denom_df = case_when(
+      stratum == "Day"  ~ df_dp,
+      stratum == "Pulp" ~ df_dp,
+      stratum == "Temp" ~ df_within,
+      stratum %in% c("Day:Pulp", "Pulp:Temp") ~ df_within,
+      TRUE ~ NA_real_
+    ),
+    statistic = meansq / denom_ms,
+    p.value = pf(statistic, df, denom_df, lower.tail = FALSE)
+  )%>%
+  select(stratum, df, sumsq, meansq, statistic, p.value)
+
+print(res_final)
+
+
+#2
+library(sasLM)
+beanyield
+str(beanyield)
+
+
+#1,2
+aov_beanyield <- aov(Y ~ Bean * Space + Error(Field + Field:Bean),
+                 data = beanyield)
+summary(aov_beanyield )
+
+library(lme4)
+library(lmerTest)
+lmer_beanyield <- lmer(Y ~ Bean * Space + (1|Field) + (1|Field:Bean), 
+                    data = beanyield)
+summary(lmer_beanyield)
+
+#3,4
+
+aov_beanyield_random <- aov(Y ~ Error(Field + Bean + Space + Field:Bean + Bean:Space),
+                            data = beanyield)
+summary(aov_beanyield_random)
+library(broom)
+tidy(x = aov_beanyield_random)
+
+# 1. Tidy the aov object
+# Comments: Extracting Mean Squares from each error stratum
+res <- tidy(aov_beanyield_random)
+
+# 2. Extract necessary MS and df values
+# Comments: Pulling specific values for manual F-test calculations
+ms_within <- res %>% filter(stratum == "Within") %>% pull(meansq)
+df_within <- res %>% filter(stratum == "Within") %>% pull(df)
+
+ms_fb <- res %>% filter(stratum == "Field:Bean") %>% pull(meansq)
+df_fb <- res %>% filter(stratum == "Field:Bean") %>% pull(df)
+
+ms_bs <- res %>% filter(stratum == "Bean:Space") %>% pull(meansq)
+df_bs <- res %>% filter(stratum == "Bean:Space") %>% pull(df)
+
+# 3. Manual F-testing Logic
+
+res_no_pooling <- res %>%
+  mutate(
+    # 1. Assign Denominators based on EMS logic
+    # Comments: Bean is tested against Field:Bean, Space against Bean:Space
+    denom_ms = case_when(
+      stratum == "Bean"  ~ ms_fb,  # Main plot error for Bean
+      stratum == "Space" ~ ms_bs,  # Sub plot error for Space
+      stratum == "Field" ~ ms_fb,  # Field variation compared to Field:Bean
+      stratum %in% c("Field:Bean", "Bean:Space") ~ ms_within,
+      TRUE ~ NA_real_
+    ),
+    denom_df = case_when(
+      stratum == "Bean"  ~ df_fb,
+      stratum == "Space" ~ df_bs,
+      stratum == "Field" ~ df_fb,
+      stratum %in% c("Field:Bean", "Bean:Space") ~ df_within,
+      TRUE ~ NA_real_
+    ),
+    
+    # 2. F and P-value calculation
+    # Comments: Direct ratio of Mean Squares without any adjustment
+    f_value = meansq / denom_ms,
+    p_value = pf(f_value, df, denom_df, lower.tail = FALSE)
+  ) %>%
+  select(stratum, df, meansq, f_value, p_value)
+
+print(res_no_pooling)
+
+
+
+part 14 -----------------------------------------------------------------------------------------------------------------------
+
+
+
