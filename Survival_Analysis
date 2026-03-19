@@ -3777,3 +3777,113 @@ anova(null_mod,final_mod)
 
 ##### part 9 -----------------------------------------------------------------------------------------------------------------------
 
+
+
+
+
+library(survival)
+str(leukemia)
+table(leukemia$status)
+
+#Exponential Model without Covariates
+exp_intercept <- survreg(formula = Surv(time, status) ~ 1, 
+                         data = leukemia, 
+                         dist = "exponential")
+summary(exp_intercept)
+
+
+pnorm(q = 15.4, mean = 0, sd = 1)
+
+
+#Exponential Model with Covariates
+exp_covariates <- survreg(formula = Surv(time, status) ~ x, 
+                         data = leukemia, 
+                         dist = "exponential")
+summary(exp_covariates)
+
+
+#Algorithm
+
+
+library(survival)
+data(leukemia)
+time <- leukemia$time
+status <- leukemia$status
+# Convert x to dummy variable (Maintained=0, Nonmaintained=1)
+x <- as.numeric(leukemia$x == "Nonmaintained") 
+n <- length(time)
+
+# 1. Define Log-Likelihood Function
+log_lik <- function(beta, t, d, x) {
+  lambda <- exp(-(beta[1] + beta[2] * x))
+  sum(d * log(lambda) - lambda * t)
+}
+
+# 2. Newton-Raphson Iteration
+# Initial values (starting from 0)
+beta <- c(0, 0) 
+tol <- 1e-7
+max_iter <- 10
+history <- data.frame(iter=0, 
+                      beta0=beta[1], 
+                      beta1=beta[2], 
+                      log_lik=log_lik(beta, time, status, x))
+
+for (i in 1:max_iter) {
+  # Calculate lambda_i with current beta
+  eta <- beta[1] + beta[2] * x
+  lambda <- exp(-eta)
+  
+  # Score Vector (1st Derivative)
+  s0 <- sum(-status + lambda * time)
+  s1 <- sum(-status * x + lambda * time * x)
+  score <- c(s0, s1)
+  
+  # Hessian Matrix (2nd Derivative)
+  h00 <- -sum(lambda * time)
+  h01 <- -sum(lambda * time * x)
+  h11 <- -sum(lambda * time * x^2)
+  hessian <- matrix(c(h00, h01, h01, h11), nrow=2)
+  
+  # Update Beta: beta_new = beta_old - solve(H) %*% Score
+  beta_new <- beta - solve(hessian) %*% score
+  
+  # Save history
+  history <- rbind(history, 
+                   c(i, beta_new[1], beta_new[2], log_lik(beta_new, time, status, x)))
+  
+  # Check convergence
+  if (all(abs(beta_new - beta) < tol)) {
+    beta <- beta_new
+    cat("Converged at iteration:", i, "\n")
+    break
+  }
+  beta <- beta_new
+}
+
+# 3. Final Results Comparison
+print(history)
+cat("\nFinal Beta Coefficients:\n")
+print(beta)
+
+# Variance-Covariance Matrix (Inverse of -Hessian)
+var_cov <- solve(-hessian)
+cat("\nStandard Errors:\n")
+print(sqrt(diag(var_cov)))
+
+
+
+#accelerated factor
+
+exp(exp_covariates$coefficients[2]) #0.3836235  survival time
+exp(-exp_covariates$coefficients[2]) #2.606723  $hazard ratio
+
+
+#1 - Maintained, 2 Nonmaintained
+as.numeric(leukemia$x)
+
+exp(-exp_covariates$coefficients[1] -exp_covariates$coefficients[2]*1) #0.04313725, $hazard ratio
+exp(-exp_covariates$coefficients[1] -exp_covariates$coefficients[2]*2) # 0.1124469, $hazard ratio
+
+
+\
