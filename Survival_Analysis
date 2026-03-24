@@ -4183,4 +4183,433 @@ p1 + p2 + plot_layout(guides = "collect") & theme(legend.position = "bottom")
 
 #exercise
 
-  
+
+#1
+
+
+library(survival)
+str(lung)
+lung$status
+
+
+#(1)
+
+# 1. Fit the Kaplan-Meier model for the entire dataset
+km_fit_total <- survfit(Surv(time, status == 2) ~ 1, data = lung)
+
+# 2. Plot the survival curve with specific styling for Main line and CI
+# Vector order: [1] Main Curve, [2, 3] Upper and Lower Confidence Intervals
+plot(km_fit_total, 
+     xlab = "Days", 
+     ylab = "Survival Probability", 
+     main = "Kaplan-Meier Curve with Legend",
+     col = c("black", "red", "red"), # Black for Main, Red for CI
+     lty = c(1, 3, 3),               # Solid for Main, Dotted for CI
+     lwd = 2)
+
+# 3. Add a legend to explain the line types and colors
+legend("topright", 
+       legend = c("Survival Function", "Confidence Interval"), 
+       col = c("black", "red"), 
+       lty = c(1, 3), 
+       lwd = 2)
+
+
+#(2)
+
+# 1. Fit the Kaplan-Meier model stratified by sex
+km_fit_sex <- survfit(Surv(time, status == 2) ~ sex, data = lung)
+
+# 2. Extract separate fit objects for Male (1) and Female (2)
+km_male <- km_fit_sex[1]
+km_female <- km_fit_sex[2]
+
+# 3. Plot Male data first (Creates the plot frame)
+# Main line: Black, CI lines: Gray
+plot(km_male, 
+     xlab = "Days", 
+     ylab = "Survival Probability", 
+     main = "Survival by Sex (Layered with lines)",
+     col = c("black", "gray", "gray"), 
+     lty = c(1, 3, 3), 
+     lwd = 2, 
+     conf.int = TRUE)
+
+# 4. Add Female data on top of the existing plot using lines()
+# Main line: Red, CI lines: Pink
+lines(km_female, 
+      col = c("red", "pink", "pink"), 
+      lty = c(1, 3, 3), 
+      lwd = 2, 
+      conf.int = TRUE)
+
+# 5. Add a legend to distinguish the layered groups
+legend("topright", 
+       legend = c("Male (Survival)", "Male CI (Gray)", 
+                  "Female (Survival)", "Female CI (Pink)"), 
+       col = c("black", "gray", "red", "pink"), 
+       lty = c(1, 3, 1, 3), 
+       lwd = 2)
+
+
+#(3)
+
+library(survival)
+
+# 1. Fit the Exponential null model (no covariates: ~ 1)
+# dist = "exponential" fixes the scale parameter to 1
+exp_null <- survreg(Surv(time, status == 2) ~ 1, data = lung, dist = "exponential")
+
+# 2. Check the coefficients to write the survival function
+summary(exp_null)
+
+# 3. Extract the Intercept (mu)
+mu_exp <- coef(exp_null)
+# Note: For Exponential, lambda = 1 / exp(mu)
+# Survival Function S(t) = exp(-lambda * t) = exp(-t / exp(mu))
+
+#(4)
+
+# 1. Fit the Weibull null model (no covariates: ~ 1)
+wei_null <- survreg(Surv(time, status == 2) ~ 1, data = lung, dist = "weibull")
+
+# 2. Check the coefficients and the scale parameter
+summary(wei_null)
+
+# 3. Extract parameters for the survival function
+mu_wei <- coef(wei_null)      # Intercept
+sigma_wei <- wei_null$scale   # Scale (sigma)
+
+# Survival Function S(t) = exp(-(t / exp(mu))^(1/sigma))
+
+#(5)
+
+exp_full <- survreg(Surv(time, status == 2) ~ ., data = lung, dist = "exponential")
+summary(exp_full)
+
+
+# (6) Weibull regression with all covariates
+wei_full <- survreg(Surv(time, status == 2) ~ ., data = lung, dist = "weibull")
+summary(wei_full)
+
+
+#(7)
+# 1. Fit the Weibull model with ALL covariates
+# (Make sure to handle missing values; lung data has some NAs)
+wei_full <- survreg(Surv(time, status == 2) ~ ., data = lung, dist = "weibull")
+
+# 2. Extract coefficients
+betas <- coef(wei_full)
+sigma_val <- wei_full$scale
+
+# 3. Identify the 'sex' coefficient and others
+# LP = intercept + beta_sex * sex + (beta_age * age + ... other covariates)
+# To write the function of 't' for each sex, other covariates are usually fixed at their means.
+
+
+# (8) Plotting with all covariates fixed at means except 'sex'
+
+# 1. Create a prediction frame with means of all covariates
+# We use 'survminer' or manually create a data.frame
+# Here's the manual way to ensure all covariates are included:
+avg_data <- as.data.frame(lapply(lung[, -c(2,3)], mean, na.rm = TRUE)) 
+avg_data
+# 2. Duplicate for Male(1) and Female(2)
+pred_df <- rbind(avg_data, avg_data)
+pred_df$sex <- c(1, 2)
+
+# 3. Get predicted Linear Predictors
+lp_preds <- predict(wei_full, newdata = pred_df, type = "lp")
+
+# 4. Calculate Survival Curves
+t_seq <- seq(0, 1000, length.out = 100)
+s_male_full <- exp(-(t_seq / exp(lp_preds[1]))^(1/sigma_val))
+s_female_full <- exp(-(t_seq / exp(lp_preds[2]))^(1/sigma_val))
+
+# 5. Visualization
+plot(t_seq, s_male_full, type = "l", lwd = 2, col = "black",
+     xlab = "Days", ylab = "Predicted Survival",
+     main = "Adjusted Weibull Survival (All Covariates Fixed at Mean)")
+lines(t_seq, s_female_full, lwd = 2, col = "red")
+
+legend("topright", 
+       legend = c("Male (Adjusted)", "Female (Adjusted)"), 
+       col = c("black", "red"), lwd = 2)
+
+
+
+
+#2
+
+
+#(1)
+
+library(KMsurv)
+str(larynx)
+
+# 1. Fit the Kaplan-Meier model for the entire dataset
+# 'delta == 1' is defined as the event (death)
+km_total <- survfit(Surv(time, delta == 1) ~ 1, data = larynx)
+
+# 2. Plot the overall survival curve
+# Black line for survival, red dotted lines for CI
+plot(km_total, 
+     xlab = "Months", 
+     ylab = "Survival Probability", 
+     main = "Overall Kaplan-Meier Survival Curve (Larynx)",
+     col = c("black", "red", "red"), 
+     lty = c(1, 3, 3), 
+     lwd = 2)
+
+# 3. Add legend
+legend("topright", 
+       legend = c("Survival Function", "Confidence Interval"), 
+       col = c("black", "red"), 
+       lty = c(1, 3), 
+       lwd = 2)
+
+
+#(2)
+
+# 1. Fit the model stratified by stage
+km_stage <- survfit(Surv(time, delta == 1) ~ stage, data = larynx)
+
+# 2. Plot Stage 1 first (as a baseline frame)
+plot(km_stage[1], 
+     xlab = "Months", 
+     ylab = "Survival Probability", 
+     main = "Survival by Stage (Larynx Cancer)",
+     col = c("black", "gray", "gray"), # Stage 1: Black/Gray
+     lty = c(1, 3, 3), 
+     lwd = 2)
+
+# 3. Add other stages using lines()
+# Stage 2: Blue/Lightblue
+lines(km_stage[2], col = c("blue", "lightblue", "lightblue"), lty = c(1, 3, 3), lwd = 2)
+# Stage 3: Green/Lightgreen
+lines(km_stage[3], col = c("darkgreen", "lightgreen", "lightgreen"), lty = c(1, 3, 3), lwd = 2)
+# Stage 4: Red/Pink
+lines(km_stage[4], col = c("red", "pink", "pink"), lty = c(1, 3, 3), lwd = 2)
+
+# 4. Add legend
+legend("topright", 
+       legend = c("Stage 1", "Stage 2", "Stage 3", "Stage 4", "CI (Dotted)"), 
+       col = c("black", "blue", "darkgreen", "red", "gray"), 
+       lty = c(1, 1, 1, 1, 3), 
+       lwd = 2)
+
+
+
+# (3) Exponential Null Model
+exp_null_larynx <- survreg(Surv(time, delta == 1) ~ 1, data = larynx, dist = "exponential")
+summary(exp_null_larynx)
+# Result: S(t) = exp(-t / exp(Intercept))
+
+# (4) Weibull Null Model
+wei_null_larynx <- survreg(Surv(time, delta == 1) ~ 1, data = larynx, dist = "weibull")
+summary(wei_null_larynx)
+# Result: S(t) = exp(-(t / exp(Intercept))^(1/scale))
+
+
+# (5) Exponential model with all covariates (stage as continuous)
+exp_full <- survreg(Surv(time, delta == 1) ~ stage + age + diagyr, 
+                    data = larynx, dist = "exponential")
+summary(exp_full)
+
+# (6) Weibull model with all covariates (stage as continuous)
+wei_full <- survreg(Surv(time, delta == 1) ~ stage + age + diagyr, 
+                    data = larynx, dist = "weibull")
+summary(wei_full)
+
+
+#(7)
+# 1. Fit the Weibull model with stage as a factor and other covariates
+# as.factor(stage) treats each stage as a distinct group
+wei_cat_full <- survreg(Surv(time, delta == 1) ~ as.factor(stage) + age + diagyr, 
+                        data = larynx, dist = "weibull")
+
+# 2. Extract coefficients for equation writing
+summary(wei_cat_full)
+
+# Parameters for the survival function:
+# Intercept: mu_0
+# Coefficients: beta_stage2, beta_stage3, beta_stage4, beta_age, beta_diagyr
+# Scale: sigma
+sigma_val <- wei_cat_full$scale
+
+
+#(8)
+
+# 1. Create a prediction data frame for 4 stages
+# Fix age and diagyr at their mean values
+avg_age <- mean(larynx$age)
+avg_diagyr <- mean(larynx$diagyr)
+
+pred_df <- data.frame(
+  stage = as.factor(c(1, 2, 3, 4)),
+  age = rep(avg_age, 4),
+  diagyr = rep(avg_diagyr, 4)
+)
+
+# 2. Get predicted linear predictors
+lp_preds <- predict(wei_cat_full, newdata = pred_df, type = "lp")
+
+# 3. Time sequence for plotting (0 to 15 months based on larynx data)
+t_seq <- seq(0, 15, length.out = 100)
+
+# 4. Plot Stage 1 first
+s1 <- exp(-(t_seq / exp(lp_preds[1]))^(1/sigma_val))
+plot(t_seq, s1, type = "l", lwd = 2, col = "black", ylim = c(0, 1),
+     xlab = "Months", ylab = "Predicted Survival",
+     main = "Adjusted Weibull Survival by Stage (Categorical)")
+
+# 5. Add lines for other stages
+colors <- c("black", "blue", "darkgreen", "red")
+for(i in 2:4) {
+  s_i <- exp(-(t_seq / exp(lp_preds[i]))^(1/sigma_val))
+  lines(t_seq, s_i, lwd = 2, col = colors[i])
+}
+
+# 6. Add legend
+legend("topright", 
+       legend = c("Stage 1", "Stage 2", "Stage 3", "Stage 4"), 
+       col = colors, lwd = 2)
+
+#(9)
+
+# (9) Fit Weibull regression model with all covariates
+# Treat 'stage' as a categorical (factor) variable
+wei_cat_full <- survreg(Surv(time, delta == 1) ~ as.factor(stage) + age + diagyr, 
+                        data = larynx, 
+                        dist = "weibull")
+
+# Display the model summary to see coefficients for each stage
+summary(wei_cat_full)
+
+
+#(10)
+library(KMsurv)
+library(survival)
+data(larynx)
+
+# (1) Overall Kaplan-Meier
+km_total <- survfit(Surv(time, delta == 1) ~ 1, data = larynx)
+
+# (2) KM by Stage & Log-rank Test (p-value for non-parametric)
+km_stage <- survfit(Surv(time, delta == 1) ~ stage, data = larynx)
+# Statistical test to compare groups (Non-parametric p-value)
+logrank_test <- survdiff(Surv(time, delta == 1) ~ stage, data = larynx)
+print(logrank_test) # Check the p-value here
+
+# (3) Exponential Null
+m3 <- survreg(Surv(time, delta == 1) ~ 1, data = larynx, dist = "exponential")
+
+# (4) Weibull Null
+m4 <- survreg(Surv(time, delta == 1) ~ 1, data = larynx, dist = "weibull")
+
+# (5) Exponential Full (Continuous stage)
+m5 <- survreg(Surv(time, delta == 1) ~ stage + age + diagyr, data = larynx, dist = "exponential")
+
+# (6) Weibull Full (Continuous stage)
+m6 <- survreg(Surv(time, delta == 1) ~ stage + age + diagyr, data = larynx, dist = "weibull")
+
+# (9) Weibull Full (Categorical stage)
+m9 <- survreg(Surv(time, delta == 1) ~ as.factor(stage) + age + diagyr, data = larynx, dist = "weibull")
+
+# (10) Comprehensive Model Selection
+# 1. For parametric models (m3 to m9), use AIC
+aic_summary <- AIC(m3, m4, m5, m6, m9)
+print(aic_summary)
+
+
+# (11) Cox model: stage as a continuous variable
+# Including all covariates: stage, age, diagyr
+cox_cont <- coxph(Surv(time, delta == 1) ~ stage + age + diagyr, data = larynx)
+summary(cox_cont)
+
+# (12) Cox model: stage as a categorical variable (factor)
+# Investigating each stage's hazard relative to Stage 1
+cox_cat <- coxph(Surv(time, delta == 1) ~ as.factor(stage) + age + diagyr, data = larynx)
+summary(cox_cat)
+
+
+
+
+#3
+
+
+# Create the electric motor dataset based on the provided table
+motor_data <- data.frame(
+  hours = c(8064, 1764, 2772, 3444, 3542, 3780, 4860, 5196, 5448, 
+            408, 1344, 1440, 1680, 408, 504, 528),
+  censor = c(0, 1, 1, 1, 1, 1, 1, 1, 0, 
+             1, 1, 1, 0, 1, 1, 0),
+  temperature = c(150, 170, 170, 170, 170, 170, 170, 170, 170, 
+                  190, 190, 190, 190, 220, 220, 220)
+)
+
+motor_data
+
+
+# (1) Kaplan-Meier survival function for all data
+fit1 <- survfit(Surv(hours, censor == 1) ~ 1, data = motor_data)
+plot(fit1, main="Kaplan-Meier Survival Curve (Total)", xlab="Hours", ylab="Survival Probability")
+
+
+# (2) Kaplan-Meier survival function by temperature
+fit2 <- survfit(Surv(hours, censor == 1) ~ temperature, data = motor_data)
+plot(fit2, col=1:4, lty=1:4, main="Survival Curves by Temperature")
+legend("bottomright", legend=unique(motor_data$temperature), col=1:4, lty=1:4)
+
+
+# (3) Exponential Regression Model without Covariates (Null Model)
+# In survreg, Exponential is a Weibull with scale fixed to 1
+m3 <- survreg(Surv(hours, censor == 1) ~ 1, data = motor_data, dist = "exponential")
+summary(m3)
+
+
+# (4) Weibull Regression Model without Covariates (Null Model)
+m4 <- survreg(Surv(hours, censor == 1) ~ 1, data = motor_data, dist = "weibull")
+summary(m4)
+
+# (5) Exponential Regression Model with Temperature as a Covariate
+m5 <- survreg(Surv(hours, censor == 1) ~ temperature, data = motor_data, dist = "exponential")
+summary(m5)
+
+# (6) Weibull Regression Model with Temperature as a Covariate
+m6 <- survreg(Surv(hours, censor == 1) ~ temperature, data = motor_data, dist = "weibull")
+summary(m6)
+
+
+# (7) Kaplan-Meier for log(hours)
+# Note: KM is a non-parametric method. Taking a log doesn't change the 
+# order of events, so the survival probabilities remain the same as (1).
+fit7 <- survfit(Surv(log(hours), censor == 1) ~ 1, data = motor_data)
+plot(fit7, main="KM Curve for Log(Hours)", xlab="Log(Hours)", ylab="Survival")
+
+# (8) Kaplan-Meier for log(hours) by Temperature
+fit8 <- survfit(Surv(log(hours), censor == 1) ~ temperature, data = motor_data)
+plot(fit8, col=1:4, main="KM Curves by Temperature (Log Scale)")
+legend("bottomleft", legend=unique(motor_data$temperature), col=1:4, lty=1)
+
+# (9) Exponential Regression (Null Model) for Log-response
+# Effectively equivalent to (3) as survreg uses log-linear form
+m9 <- survreg(Surv(hours, censor == 1) ~ 1, data = motor_data, dist = "exponential")
+summary(m9)
+
+# (10) Weibull Regression (Null Model) for Log-response
+m10 <- survreg(Surv(hours, censor == 1) ~ 1, data = motor_data, dist = "weibull")
+summary(m10)
+
+# (11) Exponential Regression with Temperature for Log-response
+# Examining the linear effect of temperature on log(survival time)
+m11 <- survreg(Surv(hours, censor == 1) ~ temperature, data = motor_data, dist = "exponential")
+summary(m11)
+
+# (12) Weibull Regression with Temperature for Log-response
+m12 <- survreg(Surv(hours, censor == 1) ~ temperature, data = motor_data, dist = "weibull")
+summary(m12)
+
+
+
+
