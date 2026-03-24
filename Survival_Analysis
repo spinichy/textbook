@@ -3779,6 +3779,7 @@ anova(null_mod,final_mod)
 
 
 
+#example
 
 
 library(survival)
@@ -3802,7 +3803,7 @@ exp_covariates <- survreg(formula = Surv(time, status) ~ x,
 summary(exp_covariates)
 
 
-#Algorithm
+#xponential Model without Covariates - Algorithm
 
 
 library(survival)
@@ -3886,4 +3887,300 @@ exp(-exp_covariates$coefficients[1] -exp_covariates$coefficients[2]*1) #0.043137
 exp(-exp_covariates$coefficients[1] -exp_covariates$coefficients[2]*2) # 0.1124469, $hazard ratio
 
 
-\
+
+
+#Weibull Model without Covariates
+weibull_intercept <- survreg(formula = Surv(time, status) ~ 1, 
+                         data = leukemia, 
+                         dist = "weibull")
+summary(weibull_intercept)
+
+
+#Weibull Model without Covariates - algorithm
+
+
+# Weibull AFT Model using Newton-Raphson with k (Shape) and mu (Intercept)
+library(survival)
+
+# 1. Data Preparation
+y <- log(leukemia$time)   # Log-survival time
+delta <- leukemia$status  # Status (1=event, 0=censored)
+n <- length(y)
+
+# 2. Log-likelihood Function with k and mu
+# Relation: k = 1/sigma, so sigma = 1/k and log_sigma = -log(k)
+log_lik <- function(mu, k) {
+  sigma <- 1/k
+  log_sigma <- -log(k)
+  w <- (y - mu) / sigma
+  
+  # Log-likelihood using explicit k and mu
+  val <- sum(delta * (w - log_sigma) - exp(w))
+  return(val)
+}
+
+# 3. Function to Calculate Score and Hessian using k and mu
+get_score_and_hessian <- function(mu, k) {
+  sigma <- 1/k
+  log_sigma <- -log(k)
+  w <- (y - mu) / sigma
+  exp_w <- exp(w)
+  
+  # --- Score Vector (First Derivatives) ---
+  # Derivatives are still computed with respect to mu and log_sigma 
+  # for numerical stability during the Newton step
+  s_mu <- (1/sigma) * sum(exp_w - delta)
+  s_log_sigma <- sum(w * (exp_w - delta) - delta)
+  
+  score_vec <- c(s_mu, s_log_sigma)
+  
+  # --- Hessian Matrix (Second Derivatives) ---
+  h_mu_mu <- (-1/sigma^2) * sum(exp_w)
+  h_mu_ls <- (-1/sigma) * sum(w * exp_w + exp_w - delta)
+  h_ls_ls <- -sum(w^2 * exp_w + w * exp_w - w * delta)
+  
+  hessian_mat <- matrix(c(h_mu_mu, h_mu_ls, h_mu_ls, h_ls_ls), 2, 2)
+  
+  return(list(score = score_vec, hessian = hessian_mat))
+}
+
+# 4. Newton-Raphson Iterative Optimization
+# Initial values: k=1 (Exponential case), mu=mean(y)
+current_mu <- mean(y)
+current_k <- 1.0 
+
+cat("Starting Newton-Raphson with k (Shape) and mu (Intercept)...\n\n")
+
+for (i in 1:10) {
+  # Inside the loop, we map k back to log_sigma for the Newton step
+  current_log_sigma <- -log(current_k)
+  
+  # Get gradients and curvature
+  sh <- get_score_and_hessian(current_mu, current_k)
+  
+  # Solve for the update step
+  step <- solve(sh$hessian) %*% sh$score
+  
+  # Update parameters
+  current_mu        <- current_mu - step[1]
+  current_log_sigma <- current_log_sigma - step[2]
+  
+  # Convert log_sigma back to k for the next iteration and display
+  current_k <- exp(-current_log_sigma)
+  
+  # Monitor Likelihood
+  ll <- log_lik(current_mu, current_k)
+  cat(sprintf("Iteration %d: Log-lik = %.4f, mu = %.4f, k = %.4f\n", 
+              i, ll, current_mu, current_k))
+  
+  # Convergence check
+  if (max(abs(sh$score)) < 1e-6) {
+    cat("\nConverged!\n")
+    break
+  }
+}
+
+# 5. Final Summary
+final_log_sigma <- -log(current_k)
+final_sh <- get_score_and_hessian(current_mu, current_k)
+vcv <- solve(-final_sh$hessian)
+se <- sqrt(diag(vcv))
+
+results <- data.frame(
+  Estimate = c(current_mu, final_log_sigma),
+  Std_Error = se,
+  row.names = c("(Intercept)", "Log(scale)")
+)
+
+cat("\nFinal Results (Matching survreg output):\n")
+print(results)
+cat(sprintf("\nFinal Shape (k): %.4f\n", current_k))
+cat(sprintf("Final Scale (sigma): %.4f\n", 1/current_k))
+
+
+
+#Weibull Model with Covariates
+
+
+weibull_covariates <- survreg(formula = Surv(time, status) ~ x, 
+                             data = leukemia, 
+                             dist = "weibull")
+summary(weibull_covariates)
+
+
+#Weibull Model with Covariates  algorithm
+
+
+# Weibull AFT Model with One Covariate (Step-Halving Newton-Raphson)
+library(survival)
+
+# 1. Data Preparation
+# Converting Factor 'x' to Numeric (Maintained=0, Nonmaintained=1)
+x_dummy <- ifelse(leukemia$x == "Nonmaintained", 1, 0)
+y <- log(leukemia$time)
+delta <- leukemia$status
+n <- length(y)
+
+# 2. Log-likelihood Function
+log_lik <- function(beta, k) {
+  mu <- beta[1] + beta[2] * x_dummy
+  sigma <- 1/k
+  log_sigma <- -log(k)
+  w <- (y - mu) / sigma
+  
+  # Log-likelihood considering delta (censoring)
+  val <- sum(delta * (w - log_sigma) - exp(w))
+  return(val)
+}
+
+# 3. Score and Hessian Function
+get_score_and_hessian <- function(beta, k) {
+  mu <- beta[1] + beta[2] * x_dummy
+  sigma <- 1/k
+  log_sigma <- -log(k)
+  w <- (y - mu) / sigma
+  exp_w <- exp(w)
+  
+  # --- Score Vector ---
+  s_beta0 <- (1/sigma) * sum(exp_w - delta)
+  s_beta1 <- (1/sigma) * sum(x_dummy * (exp_w - delta))
+  s_log_sigma <- sum(w * (exp_w - delta) - delta)
+  score_vec <- c(s_beta0, s_beta1, s_log_sigma)
+  
+  # --- Hessian Matrix ---
+  h_b0_b0 <- (-1/sigma^2) * sum(exp_w)
+  h_b0_b1 <- (-1/sigma^2) * sum(x_dummy * exp_w)
+  h_b1_b1 <- (-1/sigma^2) * sum(x_dummy^2 * exp_w)
+  
+  h_b0_ls <- (-1/sigma) * sum(w * exp_w + exp_w - delta)
+  h_b1_ls <- (-1/sigma) * sum(x_dummy * (w * exp_w + exp_w - delta))
+  h_ls_ls <- -sum(w^2 * exp_w + w * exp_w - w * delta)
+  
+  hessian_mat <- matrix(c(
+    h_b0_b0, h_b0_b1, h_b0_ls,
+    h_b0_b1, h_b1_b1, h_b1_ls,
+    h_b0_ls, h_b1_ls, h_ls_ls
+  ), 3, 3)
+  
+  return(list(score = score_vec, hessian = hessian_mat))
+}
+
+# 4. Optimization with Step-Halving
+# Starting values: beta0=mean(y), beta1=0, k=1
+current_beta <- c(mean(y), 0)
+current_k <- 1.0
+current_ll <- log_lik(current_beta, current_k)
+
+cat("Starting robust Newton-Raphson with Step-Halving...\n\n")
+
+for (i in 1:20) {
+  sh <- get_score_and_hessian(current_beta, current_k)
+  
+  # Newton step direction
+  step <- solve(sh$hessian) %*% sh$score
+  
+  # --- Step-Halving (Backtracking Line Search) ---
+  lambda <- 1.0  # Initial step size
+  repeat {
+    trial_beta <- current_beta - lambda * step[1:2]
+    trial_log_sigma <- -log(current_k) - lambda * step[3]
+    trial_k <- exp(-trial_log_sigma)
+    
+    trial_ll <- log_lik(trial_beta, trial_k)
+    
+    # If likelihood improves or step is too small, accept the move
+    if (trial_ll > current_ll || lambda < 1e-5) {
+      current_beta <- trial_beta
+      current_k <- trial_k
+      current_ll <- trial_ll
+      break
+    }
+    # Otherwise, half the step size
+    lambda <- lambda * 0.5
+  }
+  
+  cat(sprintf("Iteration %d (lambda=%.3f): Log-lik = %.4f, b0 = %.4f, b1 = %.4f, k = %.4f\n", 
+              i, lambda, current_ll, current_beta[1], current_beta[2], current_k))
+  
+  # Convergence check based on score
+  if (max(abs(sh$score)) < 1e-6) {
+    cat("\nConverged!\n")
+    break
+  }
+}
+
+# 5. Final Results
+final_log_sigma <- -log(current_k)
+vcv <- solve(-sh$hessian)
+se <- sqrt(diag(vcv))
+
+results <- data.frame(
+  Estimate = c(current_beta, final_log_sigma),
+  Std_Error = se,
+  row.names = c("(Intercept)", "xNonmaintained", "Log(scale)")
+)
+print(results)
+
+
+#predict - median
+predict(weibull_covariates, type = "quantile", p = 0.5, 
+        newdata = list(x = c("Maintained","Nonmaintained")))
+
+
+#graph
+
+library(survival)
+library(ggplot2)
+library(patchwork)
+
+# 1. Fit the models
+# Exponential Model (Scale is fixed to 1)
+exp_covariates <- survreg(Surv(time, status) ~ x, data = aml, dist = "exponential")
+
+# Weibull Model (Scale is estimated)
+weibull_covariates <- survreg(Surv(time, status) ~ x, data = aml, dist = "weibull")
+
+# 2. Create a sequence of time for prediction
+time_seq <- seq(0, 160, length.out = 100)
+
+# 3. Predict survival probabilities
+# Function to calculate survival: S(t) = exp(-(t / exp(linear_predictor))^(1/scale))
+get_surv_df <- function(model, dist_name) {
+  # Predict for both levels of x: Maintained and Nonmaintained
+  pred_maintained <- predict(model, newdata = data.frame(x = "Maintained"), type = "lp") #lp: Linear Predictor
+  pred_nonmaintained <- predict(model, newdata = data.frame(x = "Nonmaintained"), type = "lp") #lp: Linear Predictor
+  
+  scale_val <- model$scale
+  
+  df <- data.frame(
+    time = rep(time_seq, 2),
+    surv = c(exp(-(time_seq / exp(pred_maintained))^(1/scale_val)),
+             exp(-(time_seq / exp(pred_nonmaintained))^(1/scale_val))),
+    group = rep(c("Maintained", "Nonmaintained"), each = 100),
+    model = dist_name
+  )
+  return(df)
+}
+df_exp 
+df_exp <- get_surv_df(exp_covariates, "Exponential Model")
+df_wei <- get_surv_df(weibull_covariates, "Weibull Model")
+
+# 4. Generate plots
+p1 <- ggplot(df_exp, aes(x = time, y = surv, color = group)) +
+  geom_line(size = 1) +
+  labs(title = "Exponential Model", y = "Survival Probability", x = "Time") +
+  theme_minimal()
+
+p2 <- ggplot(df_wei, aes(x = time, y = surv, color = group)) +
+  geom_line(size = 1) +
+  labs(title = "Weibull Model", y = "Survival Probability", x = "Time") +
+  theme_minimal()
+
+# 5. Combine plots using patchwork
+p1 + p2 + plot_layout(guides = "collect") & theme(legend.position = "bottom")
+
+
+
+#exercise
+
+  
