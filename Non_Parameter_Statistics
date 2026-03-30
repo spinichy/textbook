@@ -1,4 +1,131 @@
 #Part 1 --------------------------------------------------------------------------------------------------------------
 
+#1
+
+qnorm(p = 0.5, mean = 0, sd = 1)
+qnorm(p = 0.25, mean = 0, sd = 1)
+qnorm(p = 0.75, mean = 0, sd = 1)
+
+#2
+
+qbinom(p = 0.5, size = 10, prob = 0.3)
+qbinom(p = 0.25, size = 10, prob = 0.3)
+qbinom(p = 0.75, size = 10, prob = 0.3)
+
+pbinom(q = 3, size = 10, prob = 0.3)
+pbinom(q = 2, size = 10, prob = 0.3)
+pbinom(q = 4, size = 10, prob = 0.3)
+
+
+# Probability and Cumulative Probability Calculation
+x <- 0:10
+n <- 10
+p <- 0.3
+
+cdf_val <- pbinom(q = x, size = n, prob = p)
+pmf_val <- dbinom(x = x, size = n, prob = p)
+
+# Plotting the Cumulative Distribution Function (CDF)
+# Using type = "s" for step function to represent CDF of discrete distribution
+plot(x, cdf_val, type = "s", col = "blue", lwd = 2,
+     main = "B(10, 0.3) CDF and PMF",
+     xlab = "x", ylab = "Probability")
+
+# Adding the Probability Mass Function (PMF) points
+points(x, pmf_val, col = "red", pch = 19, cex = 1.2)
+
+# Adding Legend
+# x = "topleft" or "right" can be used depending on the data shape
+legend("right", 
+       legend = c("CDF (pbinom)", "PMF (dbinom)"), 
+       col = c("blue", "red"), 
+       lty = c(1, NA),      # Line for CDF, None for PMF
+       pch = c(NA, 19),     # None for CDF, Point for PMF
+       lwd = c(2, NA), 
+       bty = "n")           # Remove legend box border
+
+#3
+
+qnorm(p = 0.05/2);qnorm(p = 1-0.05/2)
+pnorm(q = 1.96);pnorm(q = -1.96)
+
+#4
+
+qt(p = 0.05/2, df = 8-1)
+
+set.seed(123)        # For reproducibility
+n_sim <- 100000      # Number of iterations
+n <- 8               # Small sample size
+mu_true <- 8         # Theoretical mean of Uniform(-2, 18)
+t_critical <- qt(0.975, df = n - 1)  # Critical value for 95% CI
+
+# 2. Run Simulation
+results <- replicate(n_sim, {
+  # Sample 8 observations from the actual population: U(-2, 18)
+  sample_data <- runif(n, min = -2, max = 18)
+  
+  # Calculate sample statistics
+  x_bar <- mean(sample_data)
+  s <- sd(sample_data)
+  
+  # Construct the Confidence Interval (CI)
+  # Standard Error (SE) = s / sqrt(n)
+  lower <- x_bar - t_critical * (s / sqrt(n))
+  upper <- x_bar + t_critical * (s / sqrt(n))
+  
+  # Check if the true mean is captured within the interval
+  return(mu_true >= lower & mu_true <= upper)
+})
+
+# 3. Output the Coverage Probability
+# Calculate the proportion of intervals that captured the true mean
+coverage_prob <- mean(results)
+print(paste("Estimated Coverage Probability:", round(coverage_prob, 4)))
+
+#5
+pnorm(q = 7, mean = 10, sd = 10/sqrt(40))
+
+#6
+
+# 1. Setup Simulation
+set.seed(505)
+n <- 10              # Small sample size
+theta_true <- 10     # True mean
+n_sim <- 100000
+z_crit <- 1.96
+
+# 2. Detailed Simulation Execution
+sim_results <- replicate(n_sim, {
+  sample_data <- rexp(n, rate = 1 / theta_true)
+  x_bar <- mean(sample_data)
+  
+  # CI Formula: x_bar / (1 +/- 1.96/sqrt(n))
+  lower <- x_bar / (1 + z_crit / sqrt(n))
+  upper <- x_bar / (1 - z_crit / sqrt(n))
+  
+  # Check failure cases
+  miss_below <- (theta_true < lower)  # Interval is too high (theta is below it)
+  miss_above <- (theta_true > upper)  # Interval is too low (theta is above it)
+  
+  return(c(miss_below, miss_above))
+})
+
+# 3. Calculate Failure Rates and Total Coverage
+fail_low_rate <- mean(sim_results[1,])
+fail_high_rate <- mean(sim_results[2,])
+actual_coverage <- 1 - (fail_low_rate + fail_high_rate)
+
+# 4. Output Results
+cat("Actual Coverage Probability:", round(actual_coverage, 4), "\n")
+cat("Probability theta < Lower Bound (Left Tail Fail):", round(fail_low_rate, 4), "\n")
+cat("Probability theta > Upper Bound (Right Tail Fail):", round(fail_high_rate, 4), "\n")
+
+#7
+
+#exp dist ~ gamma
+
+
+#Part 2 --------------------------------------------------------------------------------------------------------------
+
 
 
