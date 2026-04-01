@@ -128,4 +128,254 @@ cat("Probability theta > Upper Bound (Right Tail Fail):", round(fail_high_rate, 
 #Part 2 --------------------------------------------------------------------------------------------------------------
 
 
+##example
+
+#2.3
+# Data input
+iq <- c(98, 121, 110, 89, 109, 108, 102, 92, 131, 114)
+x <- sum(iq > 100)
+
+# Sign Test using binom.test
+binom.test(x = x, n = 10, p = 0.5, alternative = "greater")
+
+
+p_value = 1 - pbinom(x-1, 10, 0.5)
+print(p_value)
+
+
+# Finding Critical Value (c_val)
+alpha = 0.05
+
+# qbinom gives the quantile Q(1-alpha)
+# It finds the smallest k such that P(S <= k) >= 1 - alpha
+q_val <- qbinom(1 - alpha, 10, 0.5)
+c_val <- q_val + 1
+
+cat("Critical Value (c_val):", c_val, "\n")
+
+
+pnorm(1/2)
+
+
+#2.6
+
+# --- Parameter Settings ---
+n <- 10                # Sample size
+theta0 <- 100          # Null hypothesis mean (H0)
+theta1 <- 105          # True mean under Alternative hypothesis (H1)
+sigma <- 10            # Population standard deviation
+alpha <- 0.05          # Significance level
+se <- sigma / sqrt(n)  # Standard Error
+
+# ==========================================================
+# 1. Power of Z-test
+# ==========================================================
+
+# Find the critical value (x_bar) under H0
+# Since H1: theta > 100, we use the upper tail of Normal distribution
+z_crit <- qnorm(1 - alpha)
+crit_x_bar <- theta0 + z_crit * se
+
+# Calculate Power: P(X_bar > crit_x_bar | theta = 105)
+z_power <- pnorm(crit_x_bar, mean = theta1, sd = se, lower.tail = FALSE)
+
+cat("--- Z-test Results ---\n")
+cat("Critical Value (x_bar):", round(crit_x_bar, 4), "\n")
+cat("Statistical Power:", round(z_power, 4), "\n\n")
+
+
+# ==========================================================
+# 2. Power of Sign Test
+# ==========================================================
+
+# Step A: Find the success probability (p1) under H1
+# p1 = P(Xi > 100) when true mean is 105
+p1 <- pnorm(theta0, mean = theta1, sd = sigma, lower.tail = FALSE)
+
+# Step B: Determine the rejection region for Sign Test
+# Under H0, S follows Binomial(n=10, p=0.5)
+# We find the smallest k such that P(S >= k) <= alpha
+# Let's check k values around the 0.05 threshold
+k_values <- 0:n
+probs <- pbinom(k_values - 1, n, 0.5, lower.tail = FALSE)
+c_val <- min(k_values[probs <= 0.055]) # Matching the 5.5% in the image
+
+# Step C: Calculate Power
+# Power = P(S >= c_val | p = p1)
+sign_power <- pbinom(c_val - 1, n, p1, lower.tail = FALSE)
+
+cat("--- Sign Test Results ---\n")
+cat("Success Probability (p1):", round(p1, 4), "\n")
+cat("Critical Value (c_val):", c_val, "\n")
+cat("Statistical Power:", round(sign_power, 4), "\n")
+
+#2.7
+
+# Parameter settings for Laplace distribution
+# variance = 2 * b^2 = 100, so b = sqrt(50)
+b <- sqrt(50)
+theta0 <- 100
+theta1 <- 105
+n <- 10
+alpha <- 0.05
+
+# 1. Power of Sign Test under Laplace
+# Success probability p1 = P(Xi > 100)
+# For x < mu: F(x) = 1/2 * exp((x-mu)/b)
+p1_laplace <- 1 - (0.5 * exp((theta0 - theta1) / b))
+
+# Rejection region: S >= 8 (same as before, alpha approx 0.055)
+sign_power_laplace <- pbinom(7, n, p1_laplace, lower.tail = FALSE)
+
+# 2. Power of Z-test under Laplace (Z-test assumes normality)
+# Note: Z-test is no longer the UMP test here, but we check its performance
+se <- 10 / sqrt(n)
+crit_x_bar <- theta0 + qnorm(0.95) * se
+
+# Under Laplace, sample mean of n=10 is approximately normal by CLT
+z_power_laplace <- pnorm(crit_x_bar, mean = theta1, sd = se, lower.tail = FALSE)
+
+cat("--- Laplace Distribution Results ---\n")
+cat("Success Probability (p1):", round(p1_laplace, 4), "\n")
+cat("Sign Test Power:", round(sign_power_laplace, 4), "\n")
+cat("Z-test Power (Approx):", round(z_power_laplace, 4), "\n")
+
+#2.8
+
+# 1. Data input and basic setup
+# Sorted data from previous example
+x <- sort(c(1200, 2300, 5800, 1100, 1200, 1700, 1400, 1900, 3800, 1300))
+n <- length(x)
+alpha <- 0.05
+
+# 2. Find the largest 'l' such that P(S <= l-1) <= alpha/2
+# S follows Binomial distribution B(n, 0.5)
+# pbinom(k, n, p) calculates P(S <= k)
+l_candidates <- 1:(n/2)
+probabilities <- pbinom(l_candidates - 1, n, 0.5)
+
+# Select the largest l that satisfies the condition
+l <- max(l_candidates[probabilities <= alpha/2])
+
+# 3. Determine the rank of upper bound: u = n - l + 1
+u <- n - l + 1
+
+# 4. Extract the confidence interval from order statistics
+conf_interval <- c(x[l], x[u])
+
+# 5. Calculate exact confidence level
+# The actual confidence level is 1 - 2 * P(S <= l-1)
+exact_alpha <- 2 * pbinom(l - 1, n, 0.5)
+exact_conf_level <- 1 - exact_alpha
+
+# 6. Display results
+cat("--- Result Based on Order Statistics ---\n")
+cat("Sample Size (n):", n, "\n")
+cat("Rank for Lower Bound (l):", l, "\n")
+cat("Rank for Upper Bound (u):", u, "\n")
+cat("95% Confidence Interval: [", conf_interval[1], ",", conf_interval[2], "]\n")
+cat("Actual Confidence Level:", round(exact_conf_level * 100, 2), "%\n")
+
+#2.9
+
+# 1. Input data and null hypothesis value
+x <- c(11, 20, 16, 5, 3, 17)
+theta_0 <- 15
+
+# 2. Step-by-step calculation for understanding
+diff <- x - theta_0          # Difference (Xi - theta_0)
+abs_diff <- abs(diff)       # Absolute difference |Xi - theta_0|
+sign_val <- sign(diff)      # Sign of the difference (+1 or -1)
+ranks <- rank(abs_diff)     # Ranks based on absolute differences
+
+# Create a summary table to match the textbook example
+calculation_table <- data.frame(
+  Observation = x,
+  Difference = diff,
+  Abs_Difference = abs_diff,
+  Sign = sign_val,
+  Rank = ranks,
+  Signed_Rank = sign_val * ranks
+)
+
+# 3. Calculate Wilcoxon Statistics (W+ and W-)
+w_plus <- sum(ranks[diff > 0])
+w_minus <- sum(ranks[diff < 0])
+
+# 4. Perform the exact Wilcoxon Signed-Rank Test using R's built-in function
+# 'exact = TRUE' is recommended for small sample sizes
+test_result <- wilcox.test(x, mu = theta_0, alternative = "two.sided", 
+                           conf.int = TRUE, exact = TRUE)
+
+# 5. Display Results
+print("--- Step-by-Step Calculation Table ---")
+print(calculation_table)
+
+cat("\n--- Wilcoxon Test Statistics ---",
+    "\nW+ (Sum of positive ranks):", w_plus,
+    "\nW- (Sum of negative ranks):", w_minus,
+    "\nTotal Sum of Ranks [n(n+1)/2]:", sum(ranks), "\n")
+
+cat("\n--- R built-in wilcox.test Output ---",
+    "\nV (Test Statistic):", test_result$statistic,
+    "\nP-value:", test_result$p.value, "\n")
+
+#2.10
+
+# 1. Setup
+n <- 6
+possible_sum <- n * (n + 1) / 2 # Maximum possible sum of ranks (21 for n=6)
+
+# 2. Generate all 2^n combinations of signed ranks
+# Each rank i (1 to n) can be either positive (+i) or zero (if we only count W+)
+all_combinations <- expand.grid(replicate(n, c(0, 1), simplify = FALSE))
+rank_values <- 1:n
+
+# Calculate W+ for each of the 64 (2^6) combinations
+w_plus_distributions <- apply(all_combinations, 1, function(row) sum(row * rank_values))
+w_plus_distributions 
+# 3. Create Frequency Table (도수분포표)
+freq_table <- table(w_plus_distributions)
+prob_table <- freq_table / (2^n) # Probability P(W+ = w)
+
+# 4. Visualization (Histogram-like Barplot)
+colors <- ifelse(names(freq_table) == "7", "red", "skyblue") # Highlight example W+ = 7
+
+barplot(freq_table, 
+        main = paste0("Null Distribution of Wilcoxon Signed-Rank Stat (n=", n, ")"),
+        xlab = "Value of W+ (Sum of Positive Ranks)", 
+        ylab = "Frequency (Total combinations = 64)",
+        col = colors,
+        border = "white")
+
+# Add grid for readability
+grid(nx = NA, ny = NULL)
+
+# 5. Print Frequency Table to Console
+cat("--- Frequency Table for W+ (n =", n, ") ---\n")
+print(freq_table)
+
+cat("\n--- Probability (Frequency / 2^n) ---\n")
+print(round(prob_table, 4))
+
+
+# 1. Setup (n=6)
+n <- 6
+rank_values <- 1:n
+
+# 2. 모든 2^n (64가지) 조합의 W+ 합 계산
+all_combinations <- expand.grid(replicate(n, c(0, 1), simplify = FALSE))
+w_plus_distributions <- apply(all_combinations, 1, function(row) sum(row * rank_values))
+
+# 3. 도수분포표 생성
+freq_table <- table(w_plus_distributions)
+
+# 4. 누적 확률 계산 (Cumulative Probability)
+# prop.table로 개별 확률을 구한 뒤, cumsum으로 누적함
+prob_table <- prop.table(freq_table)
+cumulative_prob <- cumsum(prob_table)
+
+# 5. 결과 확인: W+가 7 이하일 확률 찾기
+target_val <- "7"
+cumulative_prob[target_val]*2
 
