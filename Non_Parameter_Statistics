@@ -379,3 +379,201 @@ cumulative_prob <- cumsum(prob_table)
 target_val <- "7"
 cumulative_prob[target_val]*2
 
+#2.11
+
+# Pre-counseling scores
+pre <- c(1.83, 0.5, 1.62, 2.48, 1.68, 1.88, 1.55, 3.06, 1.30, 0.39, 0.94, 1.34)
+# Post-counseling scores
+post <- c(0.88, 0.65, 0.59, 2.05, 1.06, 1.29, 1.06, 3.14, 1.29, 0.43, 0.57, 0.92)
+
+# 2. Calculate the differences (x vector)
+# Positive value means depression score decreased after counseling
+diff <- pre - post
+
+# 3. Wilcoxon Signed-Rank Test
+# alternative = "greater" for right-tailed test as mentioned in the image
+# exact = FALSE uses normal approximation (representative sample approximation)
+result <- wilcox.test(pre, post, paired = TRUE, alternative = "greater", exact = FALSE)
+
+# 4. Output results
+print(result)
+
+# 5. Manual calculation of Z-statistic for normal approximation (Optional reference)
+n <- length(diff)
+w_stat <- result$statistic
+mu_w <- n * (n + 1) / 4
+var_w <- n * (n + 1) * (2 * n + 1) / 24
+z_stat <- (w_stat - mu_w) / sqrt(var_w)
+
+cat("Z-statistic:", z_stat, "\n")
+pnorm(z_stat, lower.tail = FALSE)
+
+abs_diff <- abs(diff)
+ranks <- rank(abs_diff)
+v_i <- as.numeric(diff > 0)
+sr_plus <- sum(v_i * ranks);sr_plus
+
+# P(SR+ >= 69) 계산
+# lower.tail = FALSE는 P(X > x)를 구하므로, 69를 포함하기 위해 68을 넣습니다.
+psignrank(68, n = n, lower.tail = FALSE)
+
+
+#2.13
+# 1. Data Input
+# Original data includes 0, which should be handled according to Wilcoxon rules
+toy.data <- c(-3, -2, -2, 0, 1, 2, 4, 8, 11, 11)
+theta0 <- 0
+dev <- toy.data - theta0
+
+# 2. Step 1: Filter out zero differences
+# Traditional Wilcoxon signed-rank test discards zero values
+dev_filtered <- dev[dev != 0]
+n <- length(dev_filtered) # n decreases from 10 to 9
+
+# 3. Step 2: Calculate absolute values and assign ranks
+# Use 'average' method for ties (Mid-rank method)
+abs_dev <- abs(dev_filtered)
+ranks <- rank(abs_dev, ties.method = "average")
+
+# 4. Step 3: Calculate the Test Statistic (SR+)
+# Create indicator vector: 1 if positive, 0 otherwise
+v_i <- as.numeric(dev_filtered > 0)
+sr_plus <- sum(v_i * ranks)
+
+# 5. Step 4: Variance correction for ties
+# If ties exist, the variance formula must be adjusted
+mu_w <- n * (n + 1) / 4
+var_base <- n * (n + 1) * (2 * n + 1) / 24
+
+# Count occurrences of each absolute value to find ties
+t_j <- table(abs_dev)
+t_j <- t_j[t_j > 1] # Identify groups with ties
+tie_correction <- sum(t_j^3 - t_j) / 48
+var_corrected <- var_base - tie_correction
+
+# 6. Step 5: Normal Approximation (Z-test)
+# Continuity correction (0.5) is often applied for better approximation
+z_stat <- (sr_plus - mu_w) / sqrt(var_corrected)
+p_value <- pnorm(z_stat, lower.tail = FALSE)
+
+# 7. Output Results
+cat("--- Manual Calculation Results ---\n")
+cat("Filtered n:", n, "\n")
+cat("Test Statistic (SR+):", sr_plus, "\n")
+cat("Corrected Variance:", var_corrected, "\n")
+cat("Z-statistic:", z_stat, "\n")
+cat("P-value (Greater):", p_value, "\n")
+
+# Verification with R's built-in function
+cat("\n--- Built-in Function Result ---\n")
+print(wilcox.test(dev_filtered, alternative = "greater", exact = FALSE))
+
+#2.14
+
+library(Rfit)
+
+# 1. Sample Data (Increased size to ensure a valid confidence interval)
+data <- c(12, 15, 18, 20, 25, 22, 19, 30, 28, 24)
+n <- length(data)
+alpha <- 0.05 # 95% Confidence Level
+
+# 2. Calculate and sort Walsh Averages
+# W_ij = (Xi + Xj) / 2
+walsh_avgs <- sort(walsh(data)) 
+N <- length(walsh_avgs)
+
+# 3. Find the critical value 'l' for the Wilcoxon Signed-Rank distribution
+# qsignrank(p, n) returns the quantile for the distribution of SR+
+l <- qsignrank(alpha / 2, n)
+
+
+# 5. Define indices for the Confidence Interval
+# Lower bound index: l
+# Upper bound index: N - l + 1
+lower_idx <- l
+upper_idx <- N - l + 1
+
+# 6. Extract the Confidence Interval and Hodges-Lehmann Estimate
+# CI: [W(l), W(N-l+1)]
+# HL-Estimate: median of all Walsh averages
+conf_interval <- c(walsh_avgs[lower_idx], walsh_avgs[upper_idx])
+hl_estimate <- median(walsh_avgs)
+
+# 7. Print the results
+cat("--- Analysis Results ---\n")
+cat("Sample Size (n):", n, "\n")
+cat("Total Walsh Averages (N):", N, "\n")
+cat("Critical Index (l):", lower_idx, "\n")
+cat("95% Confidence Interval: [", conf_interval[1], ",", conf_interval[2], "]\n")
+cat("Hodges-Lehmann Estimate:", hl_estimate, "\n")
+
+
+#2.20
+
+# Load necessary library for Laplace distribution
+library(rmutil)
+
+# 1. Function to generate Slash distribution: X = theta + Z/U
+rslash <- function(n, theta) {
+  z <- rnorm(n)
+  u <- runif(n)
+  return(theta + (z / u))
+}
+
+# 2. Simulation Function to calculate Rejection Rate (Power)
+# Tests: t-test, Sign test, Wilcoxon Signed-Rank test
+get_power <- function(n, dist_type, theta, n_sim = 1000, alpha = 0.05) {
+  rejections <- data.frame(t_test = logical(n_sim), 
+                           sign_test = logical(n_sim), 
+                           wilcox_test = logical(n_sim))
+  
+  for(i in 1:n_sim) {
+    # Generate data based on distribution and theta
+    if(dist_type == "Normal") {
+      x <- rnorm(n, mean = theta, sd = 1)
+    } else if(dist_type == "Laplace") {
+      x <- rlaplace(n, m = theta, s = 1)
+    } else if(dist_type == "Slash") {
+      x <- rslash(n, theta = theta)
+    }
+    
+    # Perform 3 types of tests (H0: theta = 0)
+    rejections$t_test[i] <- t.test(x = x, mu = 0)$p.value < alpha
+    rejections$sign_test[i] <- binom.test(sum(x > 0), n, p = 0.5)$p.value < alpha
+    rejections$wilcox_test[i] <- wilcox.test(x = x, mu = 0)$p.value < alpha
+  }
+  
+  # Calculate power (proportion of rejections)
+  return(colMeans(rejections))
+}
+
+# 3. Main Simulation Execution
+set.seed(123)
+theta_val <- 1/4
+n_sizes <- c(10, 100)
+distributions <- c("Normal", "Laplace", "Slash")
+
+# Create an empty data frame to store results
+final_table <- data.frame()
+
+for (n in n_sizes) {
+  for (dist in distributions) {
+    # Run simulation for each combination
+    power_results <- get_power(n, dist, theta_val)
+    
+    # Organize into a row
+    row_data <- data.frame(
+      Sample_Size = n,
+      Distribution = dist,
+      T_Test = round(power_results["t_test"], 3),
+      Sign_Test = round(power_results["sign_test"], 3),
+      Wilcoxon_Test = round(power_results["wilcox_test"], 3)
+    )
+    final_table <- rbind(final_table, row_data)
+  }
+}
+
+# 4. Display the Final Table
+cat("--- Power Simulation Results Table ---\n")
+print(final_table, row.names = FALSE)
+
