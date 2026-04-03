@@ -724,5 +724,266 @@ cat("90% CI: [", sorted_data[lower_idx], ",", sorted_data[upper_idx], "]\n")
 
 #Part 2 --------------------------------------------------------------------------------------------------------------
 
+##example
 
+#1
+
+# 1. Original data (combined observation units)
+all_data <- c(19, 22, 23, 24, 26, 33, 40)
+
+# 2. Generate all possible combinations of choosing 4 for the 'New' group
+# combinations(n, r) gives all ways to choose r elements from n
+comb_indices <- combn(1:7, 4)
+
+# 3. Create a data frame to store results (total 35 cases)
+results <- data.frame(matrix(ncol = 8, nrow = ncol(comb_indices)))
+colnames(results) <- c("new1", "new2", "new3", "new4", "old1", "old2", "old3", "D")
+
+# 4. Loop through each combination to calculate group means and their difference
+for(i in 1:ncol(comb_indices)) {
+  # Select indices for new and old groups
+  new_idx <- comb_indices[, i]
+  old_idx <- setdiff(1:7, new_idx)
+  
+  # Get data values
+  new_group <- all_data[new_idx]
+  old_group <- all_data[old_idx]
+  
+  # Calculate the difference (D = Mean of Old - Mean of New)
+  # Following the table's D calculation logic
+  diff_mean <- mean(old_group) - mean(new_group)
+  
+  # Store values in the result data frame
+  # Sorting values to match the visual layout of the provided table
+  results[i, 1:4] <- sort(new_group)
+  results[i, 5:7] <- sort(old_group)
+  results[i, 8] <- diff_mean
+}
+
+# 5. Print the results (First few rows and the total count)
+print(paste("Total number of cases:", nrow(results)))
+
+hist(results$D)
+
+# 1. Original observation data (from the image)
+# New treatment group (n=4): 19, 22, 24, 26
+# Old treatment group (n=3): 23, 33, 40
+new_obs <- c(19, 22, 24, 26)
+old_obs <- c(23, 33, 40)
+all_data <- c(new_obs, old_obs)
+
+# 2. Calculate the observed test statistic (D_obs)
+# D = Mean(Old) - Mean(New) 
+# If 'New' reduces recovery time, D_obs should be a large positive value.
+d_obs <- mean(old_obs) - mean(new_obs)
+
+abline(v = d_obs, col = "red", lwd = 2, lty = 2)
+
+text(x = d_obs, y = 5, labels = paste("Observed D =", d_obs), 
+     pos = 4, col = "red")
+
+# 3. Generate the Reference Distribution (All 35 combinations)
+comb_indices <- combn(1:7, 4)
+null_distribution <- numeric(ncol(comb_indices))
+
+for(i in 1:ncol(comb_indices)) {
+  new_idx <- comb_indices[, i]
+  old_idx <- setdiff(1:7, new_idx)
+  
+  null_distribution[i] <- mean(all_data[old_idx]) - mean(all_data[new_idx])
+}
+
+# 4. Calculate the p-value
+# Alternative Hypothesis (H1): New treatment reduces recovery time (D > 0)
+# p-value = (Number of cases where D >= d_obs) / Total cases
+p_value <- sum(null_distribution >= d_obs) / length(null_distribution)
+
+# 5. Results Output
+cat("Observed Difference (D_obs):", d_obs, "\n")
+cat("Total number of combinations:", length(null_distribution), "\n")
+cat("P-value:", p_value, "\n")
+
+# 6. Conclusion logic (at alpha = 0.05)
+if(p_value < 0.05) {
+  cat("Result: Reject H0. The new treatment significantly reduces recovery time.\n")
+} else {
+  cat("Result: Fail to reject H0. No significant evidence for the new treatment.\n")
+}
+
+#two-sided
+
+# 1. Calculate Absolute Observed Difference
+abs_d_obs <- abs(d_obs)
+
+# 2. Calculate Two-sided p-value
+# Count cases where the absolute difference is greater than or equal to abs_d_obs
+p_value_2tail <- sum(abs(null_distribution) >= abs_d_obs) / length(null_distribution)
+
+# 3. Results Output
+cat("Observed Difference (D_obs):", d_obs, "\n")
+cat("Two-sided P-value:", p_value_2tail, "\n")
+
+# 4. Visualization with Two Vertical Lines
+hist(null_distribution, breaks = 15, col = "lightgray", border = "white",
+     main = "Two-sided Randomization Test",
+     xlab = "Difference in Means")
+
+# Add vertical lines for both tails
+abline(v = d_obs, col = "red", lwd = 2, lty = 2)        # Positive side
+abline(v = -d_obs, col = "blue", lwd = 2, lty = 2)     # Negative side (Symmetric point)
+
+legend(x = -7, y = 3.5, legend=c("Observed D", "Symmetric Point"), 
+       col=c("red", "blue"), lty=2, lwd=2)
+
+
+#other two-sample test
+
+# 1. Data Generation (Uniform Distribution [1, 100])
+set.seed(42)
+n_new <- 30
+n_old <- 30
+
+# Generate random values from Uniform(1, 100)
+# Group New: centered around 45, Group Old: centered around 55
+group_new <- runif(n_new, min = 1, max = 90) 
+group_old <- runif(n_old, min = 10, max = 100)
+
+all_data <- c(group_new, group_old)
+n_total <- length(all_data)
+
+# 2. Define Test Statistic Functions (English Comments)
+stats_list <- list(
+  # Sum of observations for Group New
+  Sum_Y        = function(y, x) sum(y),
+  
+  # Standard t-statistic (assuming equal variance for calculation)
+  T_Stat       = function(y, x) t.test(y, x, var.equal = TRUE)$statistic,
+  
+  # Difference in medians (New - Old)
+  Median_Diff  = function(y, x) median(y) - median(x),
+  
+  # 10% Trimmed Mean Difference
+  Trimmed_Diff = function(y, x) mean(y, trim = 0.05) - mean(x, trim = 0.05)
+)
+
+# 3. Monte Carlo Simulation (10,000 iterations)
+n_iter <- 10000
+null_distributions <- list()
+
+for (name in names(stats_list)) {
+  # Generate null distribution by randomly shuffling group labels
+  null_distributions[[name]] <- replicate(n_iter, {
+    shuffled_idx <- sample(1:n_total, n_new)
+    stats_list[[name]](all_data[shuffled_idx], all_data[-shuffled_idx])
+  })
+}
+
+# 4. Calculate Observed Stats and P-values
+cat("--- Results with Uniform Distribution (n=60) ---\n")
+for (name in names(stats_list)) {
+  # Calculate actual observed statistic from the generated data
+  obs_val <- stats_list[[name]](group_new, group_old)
+  
+  # Calculate p-value (Lower tail: New is expected to be smaller than Old)
+  p_val <- sum(null_distributions[[name]] <= obs_val) / n_iter
+  
+  cat(sprintf("[%s]\n Observed Value: %.3f | P-value: %.4f\n\n", 
+              name, obs_val, p_val))
+}
+
+
+#2
+
+# 1. Input Data (Tsetse fly antenna length)
+forest <- c(1.24, 1.38, 1.36, 1.40, 1.38, 1.48, 1.38, 1.54, 1.56)
+river <- c(1.14, 1.20, 1.30, 1.26, 1.28, 1.18)
+all_data <- c(forest, river)
+
+# 2. Define Test Statistic (Two-sample t-statistic)
+calc_t <- function(g1, g2) {
+  # Use 'as.numeric' to ensure the result is a simple number, not a named vector
+  return(as.numeric(t.test(g1, g2, var.equal = TRUE)$statistic))
+}
+
+# 3. Observed T-statistic
+obs_t <- calc_t(forest, river)
+
+# 4. Generate Null Distribution (Full Enumeration: 5,005 combinations)
+comb_idx <- combn(1:15, length(forest))
+null_dist <- apply(comb_idx, 2, function(idx) {
+  calc_t(all_data[idx], all_data[-idx])
+})
+
+# 5. P-value calculation
+p_val <- sum(abs(null_dist) >= abs(obs_t)) / length(null_dist)
+
+# 6. Plotting the Null Distribution (Zero-centered)
+# Use 'true hist' for density estimation
+h <- hist(null_dist, breaks = 40, plot = FALSE)
+plot(h, col = "lightgray", border = "white", freq = FALSE,
+     main = "Null Distribution for Population Model",
+     xlab = "Fake T-statistics", xlim = c(-5, 5))
+
+# Fixed Density Line: Use stats::density to avoid conflicts
+d <- stats::density(null_dist)
+lines(d, col = "blue", lwd = 2)
+
+# Mark Observed T-statistic
+abline(v = c(obs_t, -obs_t), col = "red", lwd = 2, lty = 2)
+
+# Annotations
+text(obs_t, max(h$density)*0.8, labels = paste("Observed T =", round(obs_t, 3)), 
+     pos = 4, col = "red")
+legend("topright", legend = c("Null (Fake T) Dist.", "Observed T"),
+       col = c("blue", "red"), lty = c(1, 2), lwd = 2)
+
+cat("Two-sided P-value:", p_val, "\n")
+
+#3
+
+
+# 1. Create the Contingency Table
+# Row 1: Heart Disease (5, 25), Row 2: No Heart Disease (2, 28)
+# Fixed marginal totals: Row totals (30, 30), Column totals (7, 53)
+data_matrix <- matrix(c(5, 25, 2, 28), 
+                      nrow = 2, byrow = TRUE,
+                      dimnames = list(Condition = c("Heart_Disease", "No_Heart_Disease"),
+                                      Salt_Intake = c("High_Salt", "Low_Salt")))
+
+# Check the table
+print("--- Contingency Table ---")
+print(data_matrix)
+
+
+# 2. Chi-squared Test (Asymptotic Method)
+# This uses the formula (O-E)^2 / E
+# Note: R will likely give a warning because expected frequencies are small.
+chi_result <- chisq.test(data_matrix, correct = FALSE)
+
+print("--- Chi-squared Test Result ---")
+print(chi_result)
+
+# Check Expected Frequencies (E)
+# If any E < 5, the p-value above might be unreliable.
+print("Expected Frequencies:")
+print(chi_result$expected)
+
+
+# 3. Permutation Test (Monte Carlo Simulation)
+# This is the "Randomly Shuffling" method we discussed.
+# It keeps the original proportions (marginal totals) and shuffles labels M times.
+# B = 10000 is the number of random trials to reduce variance of the p-value.
+perm_test_result <- chisq.test(data_matrix, simulate.p.value = TRUE, B = 10000)
+
+print("--- Randomized Permutation Test (Monte Carlo) ---")
+print(perm_test_result)
+
+
+# 4. Fisher's Exact Test (Exact Permutation for 2x2)
+# This calculates the exact p-value by considering ALL possible permutations.
+# Most reliable for small sample sizes.
+fisher_result <- fisher.test(data_matrix)
+
+print("--- Fisher's Exact Test (Exact) ---")
+print(fisher_result)
 
