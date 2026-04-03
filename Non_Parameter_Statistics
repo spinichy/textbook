@@ -577,3 +577,152 @@ for (n in n_sizes) {
 cat("--- Power Simulation Results Table ---\n")
 print(final_table, row.names = FALSE)
 
+
+##exercise
+
+
+#2
+
+iq <- c(98, 121, 110, 89, 109, 108, 102, 92, 131, 114)
+
+n <- 20                # Sample size
+theta0 <- 100          # Null hypothesis mean (H0)
+theta1 <- 105          # True mean under Alternative hypothesis (H1)
+sigma <- 10            # Population standard deviation
+alpha <- 0.05          # Significance level
+se <- sigma / sqrt(n)  # Standard Error
+
+
+# ==========================================================
+# 1. Power of Z-test
+# ==========================================================
+
+z_crit <- qnorm(1 - alpha)
+crit_x_bar <- theta0 + z_crit * se
+z_power <- pnorm(q = crit_x_bar, mean = theta1, sd = se, 
+                 lower.tail = FALSE);z_power
+
+b <- sqrt(50)
+sqrt(2*b^2)
+
+
+# ==========================================================
+# 2. Power of Sign Test
+# ==========================================================
+
+p1 <- pnorm(q = theta0, mean = theta1, sd = sigma, 
+            lower.tail = FALSE)
+k_values <- 0:n
+probs <- pbinom(q = k_values - 1, size = n, prob = 0.5, 
+                lower.tail = FALSE)
+c_val <- min(k_values[probs <= 0.055]);c_val
+sign_power <- pbinom(q = c_val - 1, size = n, prob = p1, 
+                     lower.tail = FALSE);sign_power
+
+b <- sqrt(50)
+p1_laplace <- 1 - (0.5 * exp((theta0 - theta1) / b))
+sign_power_laplace <- pbinom(q = c_val-1, size = n, prob = p1_laplace, 
+                             lower.tail = FALSE);sign_power_laplace
+
+
+#3
+
+# Parameters for Exercise 2.3
+n <- 20
+theta0 <- 100
+alpha <- 0.05
+sigma_h0 <- 10  # Standard deviation assumed under H0 for Z-test
+n_sim <- 10000  # Number of simulations for accuracy
+
+# Function to calculate power under 100 + Exp(5)
+# Note: Exp(5) in R (rexp) uses rate = 1/mean. So rate = 1/5.
+set.seed(123)
+
+results <- data.frame(z_rejection = logical(n_sim),
+                      sign_rejection = logical(n_sim))
+
+# Critical value for Z-test (Right-tailed)
+z_crit <- qnorm(1 - alpha)
+se <- sigma_h0 / sqrt(n)
+crit_x_bar <- theta0 + z_crit * se
+
+# Critical value for Sign Test (c)
+# We need P(S >= c | p=0.5) <= alpha
+# Same logic as your provided code
+k_vals <- 0:n
+probs <- pbinom(k_vals - 1, size = n, prob = 0.5, lower.tail = FALSE)
+c_val <- min(k_vals[probs <= alpha])
+
+for(i in 1:n_sim) {
+  # Generate data from Alternative Hypothesis: 100 + Exp(5)
+  # rexp(n, rate) where rate = 1/mean
+  x <- 100 + rexp(n, rate = 1/5)
+  
+  # 1. Z-test power calculation
+  results$z_rejection[i] <- mean(x) > crit_x_bar
+  
+  # 2. Sign test power calculation
+  # Count values greater than theta0 (100)
+  results$sign_rejection[i] <- sum(x > theta0) >= c_val
+}
+
+# Final Power comparison
+cat("--- Exercise 2.3 Power Results ---\n")
+cat("Z-test Power (under Exp(5)): ", mean(results$z_rejection), "\n")
+cat("Sign-test Power (under Exp(5)): ", mean(results$sign_rejection), "\n")
+
+#4
+
+# 1. Input Data (unit: 10,000 times)
+folding_data <- c(7, 9, 12, 39, 28, 11, 22, 17, 14, 9)
+
+# 2. Sign Test
+# H0: The 90th percentile (theta_0.9) <= 10 (100,000 times)
+# H1: The 90th percentile (theta_0.9) > 10
+# Note: "At least 90% breakdown after 100,000 times" refers to the 10th percentile 
+# or testing if the median/percentile exceeds a specific threshold. 
+# Here, we test if more than 10% of devices last longer than 10.
+
+n <- length(folding_data)
+threshold <- 10
+
+# Count the number of observations greater than the threshold (10)
+plus_signs <- sum(folding_data > threshold)
+
+# Under H0, the number of successes follows a Binomial distribution B(n, p)
+# where p is the probability related to the specific percentile.
+# Testing if at least 90% break after 10 (i.e., P(X > 10) <= 0.1)
+p_value <- 1 - pbinom(q = plus_signs - 1, size = n, prob = 0.1)
+
+cat("--- Sign Test Results --- \n")
+cat("Number of observations > 10: ", plus_signs, "\n")
+cat("P-value: ", p_value, "\n")
+if(p_value < 0.1) {
+  cat("Result: Reject H0 at alpha=0.1. Significant evidence that the device lasts over 100,000 times.\n")
+} else {
+  cat("Result: Fail to reject H0. Insufficient evidence.\n")
+}
+
+# 3. 90% Confidence Interval for the 10th percentile
+# For a small sample (n=10), we find indices j and k such that P(X_(j) < theta_p < X_(k)) >= 1-alpha
+# Since we need the 10th percentile (p=0.1), let's sort the data first.
+sorted_data <- sort(folding_data)
+
+# Binomial calculation for n=10, p=0.1 to find confidence limits
+# P(K < j) where K ~ Binom(10, 0.1)
+# Looking for interval [X_(j), X_(k)]
+
+pbinom(q = 0:n, size = n, prob = 0.1)
+
+lower_idx <- 1
+upper_idx <- 4 # Approximate index for small sample size coverage
+
+cat("\n--- 90% Confidence Interval for 10-percentile --- \n")
+cat("Sorted Data: ", sorted_data, "\n")
+cat("90% CI: [", sorted_data[lower_idx], ",", sorted_data[upper_idx], "]\n")
+
+
+#Part 2 --------------------------------------------------------------------------------------------------------------
+
+
+
