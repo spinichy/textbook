@@ -987,3 +987,135 @@ fisher_result <- fisher.test(data_matrix)
 print("--- Fisher's Exact Test (Exact) ---")
 print(fisher_result)
 
+
+##exercise
+
+#1
+
+# 1. Data Input
+# New Treatment (m=4), Traditional Treatment (n=3)
+group_new <- c(19, 22, 24, 26)
+group_trad <- c(23, 33, 40)
+combined <- c(group_new, group_trad)
+
+m <- length(group_new)
+n <- length(group_trad)
+total_n <- m + n
+
+# 2. Observed Statistics
+obs_diff <- mean(group_new) - mean(group_trad)
+# Standard two-sample t-test (assuming equal variance for consistency in permutation)
+obs_t <- t.test(group_new, group_trad, var.equal = TRUE)$statistic
+
+# 3. Exact Permutation (All 7C4 = 35 combinations)
+combinations <- combn(1:total_n, m)
+num_perms <- ncol(combinations)
+
+perm_diffs <- numeric(num_perms)
+perm_t_stats <- numeric(num_perms)
+
+for (i in 1:num_perms) {
+  # Partition the data based on current combination indices
+  idx <- combinations[, i]
+  g1 <- combined[idx]
+  g2 <- combined[-idx]
+  
+  # Calculate D (mean difference) and T (t-statistic) for each case
+  perm_diffs[i] <- mean(g1) - mean(g2)
+  perm_t_stats[i] <- t.test(g1, g2, var.equal = TRUE)$statistic
+}
+
+# 4. P-value Calculations
+# One-sided (H1: New treatment reduces recovery time -> D < 0)
+p_one_D <- sum(perm_diffs <= obs_diff) / num_perms
+p_one_T <- sum(perm_t_stats <= obs_t) / num_perms
+
+# Two-sided (H1: Any difference exists -> |D| is large)
+p_two_D <- sum(abs(perm_diffs) >= abs(obs_diff)) / num_perms
+p_two_T <- sum(abs(perm_t_stats) >= abs(obs_t)) / num_perms
+
+# 5. Output Results
+cat("--- Observed Values ---\n")
+cat("length:", length(combined), "\n\n")
+cat("Observed D:", obs_diff, "\n")
+cat("Observed T:", obs_t, "\n\n")
+
+
+cat("--- Permutation P-values ---\n")
+cat("One-sided (Lower):",c( p_one_D,p_one_T), "(Calculated by D and T are identical)\n")
+cat("Two-sided:      ", c(p_two_D,p_two_T ), "(Calculated by D and T are identical)\n")
+
+# 6. Visualization: Scatter Plot of D vs. T
+plot(perm_diffs, perm_t_stats, 
+     main = "Relationship between Mean Difference (D) and T-statistic",
+     xlab = "Mean Difference (D)", 
+     ylab = "T-statistic (T)", 
+     pch = 21, bg = "lightblue", col = "darkblue", cex = 1.2)
+
+# Highlight the observed point in red
+abline(h = obs_t, v = obs_diff, col = "red", lty = 2, lwd = 1.5)
+points(obs_diff, obs_t, col = "red", pch = 19, cex = 1.5)
+
+legend("topleft", 
+       legend = c("Permutation Points", "Observed Data"), 
+       col = c("darkblue", "red"), 
+       pch = c(21, 19), 
+       pt.bg = c("lightblue", NA),
+       cex = 0.9)
+
+grid()
+
+#2
+
+# 1. Setup based on previous data
+# group_new: 19, 22, 24, 26 (m=4)
+# group_trad: 23, 33, 40 (n=3)
+# perm_t_stats: already calculated from 35 permutations
+
+# 2. Define the theoretical t-distribution parameters
+# df = (m + n - 2) = 4 + 3 - 2 = 5
+
+group_new <- c(19, 22, 24, 26)
+group_trad <- c(23, 33, 40)
+combined <- c(group_new, group_trad)
+
+m <- length(group_new)
+n <- length(group_trad)
+total_n <- m + n
+
+df_val <- total_n - 2
+x_range <- seq(-5, 5, length.out = 200)
+y_theory <- dt(x_range, df = df_val)
+
+obs_t <- t.test(group_new, group_trad, var.equal = TRUE)$statistic
+
+# 3. Plotting the Null Distribution
+# Create a histogram of the permutation t-statistics
+hist(perm_t_stats, breaks = 10, probability = TRUE, 
+     main = "Null Distribution of T-statistic",
+     xlab = "T-statistic", ylab = "Density",
+     col = "lightgray", border = "white", xlim = c(-5, 5), ylim = c(0, 0.5))
+
+# Add the theoretical t-distribution curve
+lines(x_range, y_theory, col = "blue", lwd = 2)
+
+# 4. Visualize the P-value (Observed T-stat)
+# Draw a vertical line for the observed T-statistic
+abline(v = obs_t, col = "red", lwd = 2, lty = 2)
+
+# Shade the area representing the one-sided p-value (Lower tail)
+# This represents the probability of seeing a value as extreme as obs_t
+polygon_x <- seq(-5, obs_t, length.out = 100)
+polygon_y <- dt(polygon_x, df = df_val)
+polygon(x = c(polygon_x, obs_t, -5), y = c(polygon_y, 0, 0), 
+        col = rgb(1, 0, 0, 0.3), border = NA)
+
+# 5. Add Legend and Annotation
+text(obs_t - 0.3, 0.4, labels = paste("Observed T =", round(obs_t, 3)), 
+     col = "red", pos = 2, font = 2)
+legend("topright", 
+       legend = c("Permutation Dist (Empirical)", "T-Distribution (Theoretical)", "Observed T (P-value Area)"),
+       col = c("lightgray", "blue", "red"), 
+       lwd = c(8, 2, 2), lty = c(1, 1, 2), cex = 0.8)
+
+grid()
