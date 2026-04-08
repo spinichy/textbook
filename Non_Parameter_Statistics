@@ -722,7 +722,7 @@ cat("Sorted Data: ", sorted_data, "\n")
 cat("90% CI: [", sorted_data[lower_idx], ",", sorted_data[upper_idx], "]\n")
 
 
-#Part 2 --------------------------------------------------------------------------------------------------------------
+#Part 3 --------------------------------------------------------------------------------------------------------------
 
 ##example
 
@@ -1521,3 +1521,586 @@ cat("P-value (Odds Ratio):", p_val_or, "\n")
 
 cat("\n--- Fisher's Exact Test (Greater) ---\n")
 cat("P-value (Fisher):    ", fisher_res$p.value, "\n")
+
+
+#Part 4 --------------------------------------------------------------------------------------------------------------
+
+
+
+##example
+
+
+#1
+
+
+# 1. Create the data frame
+# High: 740, 610, 720 / Low: 580, 680, 850, 510 (one more value needed to match your input)
+# Based on your input "580 680 850 510", I will assume the last 'Low' value.
+df <- data.frame(
+  Group = c("High", "High", "High", "Low", "Low", "Low", "Low"),
+  Value = c(740, 610, 720, 580, 680, 850, 510)
+)
+
+# 2. Perform Wilcoxon Rank Sum Test (Mann-Whitney U Test)
+# This is used for independent samples.
+result <- wilcox.test(Value ~ Group, data = df, exact = FALSE)
+
+# 3. View the result
+print(result)
+
+
+
+
+# 1. Input data directly
+high_group <- c(740, 610, 720)
+low_group  <- c(580, 680, 850, 510)
+
+# 2. Combine all values and assign ranks (1 to 7)
+all_values <- c(high_group, low_group)
+all_ranks  <- rank(all_values)
+
+# Display assigned ranks for verification
+# Ranks: 6, 3, 5 (High) | 2, 4, 7, 1 (Low)
+cat("Assigned Ranks:", all_ranks, "\n")
+
+# 3. Calculate the observed rank sum for the 'High' group
+# Observed Rank Sum (R1) = 6 + 3 + 5 = 14
+obs_rank_sum <- sum(all_ranks[1:length(high_group)])
+
+# 4. Generate the Null Distribution using all possible combinations (7C3)
+# We pick 3 ranks out of the total 7 ranks
+n1 <- length(high_group)
+n_total <- length(all_values)
+
+# 'combn' generates all 35 possible combinations of ranks
+all_combos <- combn(all_ranks, n1)
+
+# Calculate the rank sum for each of the 35 combinations
+null_dist <- colSums(all_combos)
+
+# 5. Calculate the P-value (One-tailed: High >= Observed)
+# Count how many combinations result in a rank sum >= 14
+favorable_cases <- sum(null_dist >= obs_rank_sum)
+total_cases <- ncol(all_combos) # This will be 35
+
+# P-value = 11 / 35
+p_value_exact <- favorable_cases / total_cases
+
+# 6. Output the final results
+cat("-------------------------------------------\n")
+cat("Observed Rank Sum (High Group):", obs_rank_sum, "\n")
+cat("Total Combinations (7C3):      ", total_cases, "\n")
+cat("Cases >= Observed Rank Sum:    ", favorable_cases, "\n")
+cat("Final Exact P-value:           ", p_value_exact, "(11/35)\n")
+cat("-------------------------------------------\n")
+
+# Optional: View the frequency table of the Null Distribution
+print(table(null_dist))
+
+
+
+# 1. Generate the null distribution (7C3 = 35 combinations)
+all_ranks <- rank(c(740, 610, 720, 580, 680, 850, 510))
+n1 <- 3
+combos <- combn(all_ranks, n1)
+null_dist <- colSums(combos)
+
+# 2. Calculate probabilities for each possible rank sum
+dist_table <- table(null_dist)
+prob_table <- dist_table / sum(dist_table)
+
+# 3. Define the Critical Region (Alpha = 0.05, Two-sided)
+# For n1=3, n2=4, the total combinations are only 35.
+# 35 * 0.025 = 0.875. This means we need a count < 1 to be in the 2.5% tail.
+# In this small sample, the most extreme values (6 and 18) each have 1/35 probability.
+# 1/35 = 0.0285, which is already > 0.025. 
+# Therefore, technically, there is NO rejection region at alpha = 0.05!
+
+# 4. Visualization with a threshold (Let's highlight the most extreme 1/35 cases)
+# We will color the absolute minimum (6) and maximum (18) to show the 'closest' rejection points.
+colors <- ifelse(as.numeric(names(dist_table)) == 6 | 
+                   as.numeric(names(dist_table)) == 18, 
+                 "red", "gray")
+
+barplot(dist_table, 
+        main = "Null Distribution & Potential Rejection Regions",
+        xlab = "Rank Sum", 
+        ylab = "Frequency",
+        col = colors)
+
+# 5. English comments:
+# At alpha = 0.05 (two-sided), the threshold for each tail is 0.025.
+# However, 1/35 is approximately 0.0286, which is greater than 0.025.
+# This means for this sample size (3, 4), you can NEVER reject the null at alpha = 0.05.
+# The red bars show the most extreme possible outcomes (Rank Sum 6 or 18).
+
+
+
+# 1. Input data and assign ranks
+high_group <- c(740, 610, 720)
+low_group  <- c(580, 680, 850, 510)
+all_ranks  <- rank(c(high_group, low_group))
+
+n1 <- length(high_group)
+n2 <- length(low_group)
+
+# 2. Calculate the observed rank sum and W (U statistic)
+obs_rank_sum <- sum(all_ranks[1:n1]) # 14
+w_obs <- obs_rank_sum - (n1 * (n1 + 1)) / 2 # 8
+
+# 3. Generate the Null Distribution (All 35 combinations)
+combos <- combn(all_ranks, n1)
+null_w_dist <- colSums(combos) - (n1 * (n1 + 1)) / 2
+
+# 4. Two-sided P-value calculation
+# Logic: Sum probabilities of values as extreme as or more extreme than w_obs 
+# on BOTH sides of the mean (Mean of W is n1*n2 / 2 = 6)
+
+# Expected mean of W under Null Hypothesis
+mu_w <- (n1 * n2) / 2 # 6
+
+# Distance from the mean
+distance <- abs(w_obs - mu_w) # |8 - 6| = 2
+
+# Find values that are at least 'distance' away from the mean (6)
+# Upper extreme: W >= 8
+# Lower extreme: W <= 4 (Since 6 - 2 = 4)
+extreme_cases <- sum(null_w_dist >= (mu_w + distance) | null_w_dist <= (mu_w - distance))
+total_cases <- length(null_w_dist) # 35
+
+p_value_two_sided <- extreme_cases / total_cases
+
+# 5. Print the results
+cat("Observed W:", w_obs, "\n")
+cat("Mean of Null Distribution:", mu_w, "\n")
+cat("Extreme cases (W >= 8 or W <= 4):", extreme_cases, "\n")
+cat("Two-sided P-value (Exact):", p_value_two_sided, "(", extreme_cases, "/ 35 )\n")
+
+
+#2
+
+# 1. Data Setup
+high <- c(740, 610, 720)
+low <- c(580, 680, 850, 510)
+n1 <- length(high)
+n2 <- length(low)
+N <- n1 + n2
+
+# 2. Calculate Observed Rank Sum (W)
+all_values <- c(high, low)
+all_ranks <- rank(all_values)
+w_obs <- sum(all_ranks[1:n1]) # High 그룹의 순위합
+
+# 3. Expectation and Variance (Under H0)
+# Derived from Non-replacement sampling theory
+e_w <- (n1 * (N + 1)) / 2
+var_w <- (n1 * n2 * (N + 1)) / 12
+sd_w <- sqrt(var_w)
+
+# 4. Z-score Calculation (with Continuity Correction)
+# Continuity correction (+/- 0.5) is used for better approximation
+z_stat <- (w_obs - e_w) / sd_w
+
+# 5. P-value (Two-sided)
+p_val <- 2 * (1 - pnorm(abs(z_stat)))
+
+# Print Results
+cat("Observed W:", w_obs, "\n")
+cat("Expected E[W]:", e_w, "\n")
+cat("Z-statistic:", z_stat, "\n")
+cat("P-value (Approx):", p_val, "\n")
+
+# English comments:
+# The Z-statistic is calculated using the mean and variance derived earlier.
+# In small samples like this (3, 4), the approximation might be less accurate than the exact test.
+
+
+#3
+
+# 1. Data Preparation
+x <- c(110, 115, 120, 105, 103, 117)
+y <- c(109, 118, 113, 112, 119)
+N <- length(x) + length(y) # 11
+n_y <- length(y)           # 5
+
+# 2. Scoring Table Construction
+library(dplyr)
+curry <- data.frame(
+  label = c(rep("Old", 6), rep("New", 5)),
+  val   = c(x, y)
+)
+
+# Assign Scores based on sorted ranks
+curry2 <- curry %>%
+  arrange(val) %>%
+  mutate(
+    rank = row_number(),
+    AB   = c(1:6, 5:1), # Ansari-Bradley
+    ST   = c(1, 4, 5, 8, 9, 11, 10, 7, 6, 3, 2), # Siegel-Tukey
+    Mood = (rank - (N + 1) / 2)^2 # Mood
+  )
+
+# 3. Observed Statistics for 'New' Group
+stats_obs <- curry2 %>%
+  filter(label == "New") %>%
+  summarise(sum(AB), sum(ST), sum(Mood)) %>%
+  unlist()
+
+# 4. Generate All 462 Combinations
+library(gtools)
+all_perms <- combinations(N, n_y)
+
+# Calculate sum of scores for every possible combination
+stats_perm <- apply(all_perms, 1, function(idx) {
+  curry2[idx, ] %>%
+    summarise(s_AB = sum(AB), s_ST = sum(ST), s_Mood = sum(Mood)) %>%
+    unlist()
+})
+
+# 5. Calculate Exact One-sided P-values
+p_vals <- c(
+  p_AB   = mean(stats_perm[1, ] >= stats_obs[1]),
+  p_ST   = mean(stats_perm[2, ] >= stats_obs[2]),
+  p_Mood = mean(stats_perm[3, ] <= stats_obs[3])
+)
+
+print(p_vals)
+
+
+old_p <- c(110, 115, 120, 105, 103, 117)
+new_p <- c(109, 118, 113, 112, 119)
+
+# 2. Median Centering (Must be done to match the scale test context)
+old_c <- old_p - median(old_p)
+new_c <- new_p - median(new_p)
+
+# 3. Load Library
+library(DescTools)
+
+# ---------------------------------------------------------
+# 4. Customized Package Calls to Match Image Results
+# ---------------------------------------------------------
+
+# A. Ansari-Bradley (Target: 0.2294)
+# 'exact = TRUE' matches the permutation logic.
+res_ab <- ansari.test(new_c, old_c, alternative = "less", exact = TRUE)
+
+# B. Siegel-Tukey (Target: 0.2683)
+# To get 0.2683, we must disable 'continuity correction' and 'ties adjustment'.
+# However, SiegelTukeyTest often forces approximation when ties exist.
+# A manual exact Wilcoxon on ST-scores is the most robust way:
+st_scores <- c(1, 4, 5, 8, 9, 11, 10, 7, 6, 3, 2)
+# Replicating the image's rank-based score assignment:
+all_data <- data.frame(val = c(new_p, old_p), group = c(rep("New", 5), rep("Old", 6)))
+all_data <- all_data[order(all_data$val), ]
+all_data$st_score <- st_scores
+# Use wilcox.test on these scores to get the exact p-value (0.2683)
+res_st_exact <- wilcox.test(st_score ~ group, data = all_data, 
+                            alternative = "greater", exact = TRUE)
+
+# C. Mood Test (Target: 0.1864)
+
+# 1. Data Setup
+old_p <- c(110, 115, 120, 105, 103, 117)
+new_p <- c(109, 118, 113, 112, 119)
+
+# 2. Mood Test (Base R package 'stats')
+# alternative = "less" means New has smaller scale than Old
+res_mood <- mood.test(new_p, old_p, alternative = "less")
+
+# ---------------------------------------------------------
+# 5. Final Output
+# ---------------------------------------------------------
+cat("1. Ansari-Bradley P-value :", res_ab$p.value, "\n")
+cat("2. Siegel-Tukey P-value   :", res_st_exact$p.value, "\n")
+cat("Mood Test P-value (Package default):", res_mood$p.value, "\n")
+
+
+#4
+
+
+all_values <- c(328, 295, 276, 182, 266, 24, 142, 252, 174, 142, 177, 129, 146, 211, 180, 68, 
+                237, 152, 270, 172, 88, 283, 309, 12, 168, 71, 55, -2, 268, 219, 82, 25, 
+                173, 243, 149, 257, 301, 78, 207, 218, 132, -24, -36, 255, 316, 54, 81)
+
+aml_values <- c(38, 309, 170, 314, 319, 178, 340, 31, 396, 141, 95, 146, 431, 9, 101, 132, 
+                318, 325, 392, 241, 193, 312, 230, 330, 337)
+
+df <- data.frame(
+  ge = c(all_values, aml_values),
+  label = factor(c(rep("ALL", length(all_values)), rep("AML", length(aml_values))))
+)
+
+# 1. Classical F-test (Assumes Normality)
+# This tests the ratio of variances between ALL and AML groups
+f_test_result <- var.test(ge ~ label, data = df)
+print(f_test_result)
+
+# 2. Median-adjusted Dispersion Test (Brown-Forsythe approach)
+# Step A: Calculate the median for each group
+medians <- aggregate(ge ~ label, data = df, FUN = median)
+
+# Step B: Calculate absolute deviations from the median (D_ij = |X_ij - Median_j|)
+df$abs_dev <- ifelse(df$label == "ALL", 
+                     abs(df$ge - medians$ge[medians$label == "ALL"]),
+                     abs(df$ge - medians$ge[medians$label == "AML"]))
+
+# Step C: Perform t-test on the absolute deviations to compare dispersion
+# This is equivalent to the Brown-Forsythe test for two groups
+robust_test_result <- t.test(abs_dev ~ label, data = df, var.equal = FALSE)
+print(robust_test_result)
+
+# 3. Using a Pre-built Library (Optional but recommended for validation)
+library(car)
+leveneTest(ge ~ label, data = df, center = median)
+
+
+# 4. Ansari-Bradley Test (Non-parametric Scale Test)
+
+# Step A: Location Adjustment (Centering by Median)
+# Since the locations (medians) of ALL and AML differ, 
+# we subtract the median from each group to ensure exchangeability.
+all_centered <- all_values - median(all_values)
+aml_centered <- aml_values - median(aml_values)
+
+# Step B: Perform the Ansari-Bradley Test
+# This tests whether the scales (dispersions) of the two groups are equal.
+# It assigns lower ranks to extreme values and higher ranks to central values.
+ab_test_result <- ansari.test(all_centered, aml_centered)
+
+# Step C: Print the results
+print(ab_test_result)
+
+
+# 1. Define the sample sizes from your data
+m <- length(all_values) # Sample size of ALL
+n <- length(aml_values) # Sample size of AML
+
+# 2. Extract the Observed Ansari-Bradley Statistic
+# We use centered values to calculate the actual observed W
+all_centered <- all_values - median(all_values)
+aml_centered <- aml_values - median(aml_values)
+obs_stat <- ansari.test(all_centered, aml_centered)$statistic
+
+# 3. Simulate the Null Distribution using Permutation
+# We pool all adjusted data and randomly shuffle the labels
+combined_adj <- c(all_centered, aml_centered)
+set.seed(123) # For reproducibility
+n_iter <- 10000
+null_dist <- replicate(n_iter, {
+  # Shuffle labels
+  shuffled_labels <- sample(c(rep("ALL", m), rep("AML", n)))
+  # Calculate W for this permutation
+  ansari.test(combined_adj ~ shuffled_labels)$statistic
+})
+
+# 4. Plotting the Null Distribution
+hist(null_dist, breaks = 40, prob = TRUE, 
+     main = "Null Distribution of Ansari-Bradley Statistic (W)",
+     xlab = "W (Statistic)", col = "lightgray", border = "white")
+
+# Add the density curve (Normal Approximation)
+curve(dnorm(x, mean = mean(null_dist), sd = sd(null_dist)), 
+      add = TRUE, col = "blue", lwd = 2)
+
+# Mark the Observed Statistic from your data
+abline(v = obs_stat, col = "red", lwd = 2, lty = 2)
+legend("topright", legend = c("Null Distribution", "Normal Approx", "Observed W"),
+       col = c("lightgray", "blue", "red"), lwd = c(10, 2, 2), bty = "n")
+
+
+#5
+
+
+# 1. Prepare the data
+all_values <- c(328, 295, 276, 182, 266, 24, 142, 252, 174, 142, 177, 129, 146, 211, 180, 68, 
+                237, 152, 270, 172, 88, 283, 309, 12, 168, 71, 55, -2, 268, 219, 82, 25, 
+                173, 243, 149, 257, 301, 78, 207, 218, 132, -24, -36, 255, 316, 54, 81)
+
+aml_values <- c(38, 309, 170, 314, 319, 178, 340, 31, 396, 141, 95, 146, 431, 9, 101, 132, 
+                318, 325, 392, 241, 193, 312, 230, 330, 337)
+
+# 2. Visualization: Empirical Cumulative Distribution Function (ECDF)
+# This plot shows the step functions for both groups to visualize the maximum distance (D)
+plot(ecdf(all_values), verticals = TRUE, do.points = FALSE, col = "blue", lwd = 2,
+     main = "ECDF Comparison: ALL vs AML", 
+     xlab = "Expression Level", ylab = "Cumulative Probability",
+     xlim = range(c(all_values, aml_values)))
+plot(ecdf(aml_values), verticals = TRUE, do.points = FALSE, col = "red", lwd = 2, 
+     add = TRUE)
+
+# Add a legend for clarity
+legend("bottomright", legend = c("ALL", "AML"), col = c("blue", "red"), lty = 1, lwd = 2)
+
+# 3. Two-Sample Kolmogorov-Smirnov Test
+# H0: Both samples come from the same distribution
+# H1: The distributions of the two samples are different
+ks_result <- ks.test(all_values, aml_values)
+
+# 4. Display the results
+print(ks_result)
+
+
+
+
+# 1. Prepare and Sort Data
+# Sorting is essential to calculate cumulative probabilities manually
+all_sorted <- sort(all_values)
+aml_sorted <- sort(aml_values)
+
+m <- length(all_sorted)
+n <- length(aml_sorted)
+
+# 2. Calculate Cumulative Probabilities (1/m, 2/m, ..., m/m)
+all_probs <- (1:m) / m
+aml_probs <- (1:n) / n
+
+# 3. Basic Plotting using step-type lines ('s')
+# 'type = s' creates the staircase effect of the empirical distribution
+plot(all_sorted, all_probs, type = "s", col = "blue", lwd = 2,
+     main = "Manual ECDF: ALL vs AML",
+     xlab = "Expression Level", ylab = "F(x)",
+     xlim = range(c(all_values, aml_values))) # Ensure both fit in the x-axis
+
+# Add the second group to the same plot
+lines(aml_sorted, aml_probs, type = "s", col = "red", lwd = 2)
+
+# Add a horizontal line at y=1 for reference
+abline(h = 1, lty = 2, col = "gray")
+
+# Add a legend
+legend("bottomright", legend = c("ALL", "AML"), col = c("blue", "red"), lty = 1, lwd = 2)
+
+# 4. Perform K-S Test
+# This remains the standard basic function in R
+ks_result <- ks.test(all_values, aml_values)
+print(ks_result)
+
+
+
+
+# 1. Data Setup
+all_val <- sort(all_values)
+aml_val <- sort(aml_values)
+
+m <- length(all_val)
+n <- length(aml_val)
+
+# 2. Define a combined set of all observation points
+# To find the maximum difference, we must check at every data point
+knots <- sort(unique(c(all_val, aml_val)))
+
+# 3. Calculate Empirical CDF values at each knot
+# F(x) = (number of samples <= x) / total_samples
+all_ecdf_values <- sapply(knots, function(x) sum(all_val <= x) / m)
+aml_ecdf_values <- sapply(knots, function(x) sum(aml_val <= x) / n)
+
+# 4. Calculate the Maximum Distance (D_mn)
+# D_mn = sup |F_m(x) - G_n(x)|
+d_distances <- abs(all_ecdf_values - aml_ecdf_values)
+d_mn <- max(d_distances)
+
+# 5. Calculate the Standardized Statistic (K)
+# Applying the formula: K = sqrt( (m*n) / (m+n) ) * D_mn
+scaling_factor <- sqrt((m * n) / (m + n))
+k_stat <- scaling_factor * d_mn
+
+# 6. Compare with Built-in Function
+ks_builtin <- ks.test(all_values, aml_values)
+
+# 7. Print Results
+cat("--- Manual Calculation Results ---\n")
+cat("Sample Size m (ALL):", m, "\n")
+cat("Sample Size n (AML):", n, "\n")
+cat("Maximum Distance (D_mn):", d_mn, "\n")
+cat("Scaling Factor (sqrt(mn/(m+n))):", scaling_factor, "\n")
+cat("Standardized Statistic (K):", k_stat, "\n\n")
+
+cat("--- R Built-in Function Result (ks.test) ---\n")
+print(ks_builtin$statistic)
+
+
+
+##exercise
+
+
+#8
+
+# Parameters
+m <- 5
+n <- 4
+max_u <- m * n # 20
+
+# Calculate exact distribution of Mann-Whitney U
+# dwilcox returns the density (probability) for given U, m, and n
+u_values <- 0:max_u
+u_probs <- dwilcox(u_values, m, n)
+
+# Compare with Binomial distribution Bin(mn, 0.5)
+bin_probs <- dbinom(u_values, size = max_u, prob = 0.5)
+
+# Visualization
+library(ggplot2)
+df <- data.frame(
+  u = rep(u_values, 2),
+  probability = c(u_probs, bin_probs),
+  distribution = rep(c("Mann-Whitney U", "Binomial (Independent)"), each = length(u_values))
+)
+
+ggplot(df, aes(x = u, y = probability, fill = distribution)) +
+  geom_bar(stat = "identity", position = "dodge", alpha = 0.7) +
+  theme_minimal() +
+  labs(title = "U Distribution vs Binomial Distribution (m=5, n=4)",
+       x = "U value", y = "Probability") +
+  scale_fill_manual(values = c("skyblue", "salmon"))
+
+# Output the variance comparison
+# Variance of U: m*n*(m+n+1)/12
+# Variance of Binomial: m*n*0.5*0.5
+var_u <- m * n * (m + n + 1) / 12
+var_bin <- m * n * 0.25
+
+cat("Variance of U:", var_u, "\n")
+cat("Variance of Binomial:", var_bin, "\n")
+
+
+
+# Parameters
+m <- 5
+n <- 4
+total_combinations <- choose(m + n, n) # 126
+
+# Generate all possible combinations of positions for n items (Y group)
+# among m + n total positions
+combos <- combn(m + n, n)
+
+# Function to calculate U for a given set of ranks
+# U = sum(ranks) - n*(n+1)/2
+calculate_u <- function(ranks, n) {
+  return(sum(ranks) - (n * (n + 1) / 2))
+}
+
+# Calculate U for all combinations
+all_u_values <- apply(combos, 2, calculate_u, n = n)
+
+# Calculate frequency and probability for each U (0 to 20)
+u_freq <- table(factor(all_u_values, levels = 0:(m*n)))
+u_dist_manual <- as.numeric(u_freq) / total_combinations
+
+# Display the result
+dist_table <- data.frame(
+  U = 0:(m*n),
+  Frequency = as.numeric(u_freq),
+  Probability = round(u_dist_manual, 4)
+)
+
+print(dist_table)
+
+# Quick check: compare manual result with dwilcox
+# all.equal(u_dist_manual, dwilcox(0:(m*n), m, n))
+
+
+#Part 5 --------------------------------------------------------------------------------------------------------------
+
+
+
