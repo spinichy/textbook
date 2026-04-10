@@ -2103,4 +2103,123 @@ print(dist_table)
 #Part 5 --------------------------------------------------------------------------------------------------------------
 
 
+##example
 
+
+#1
+
+ranks <- 1:10
+score <- c(10, 20, 25, 50, 80, 82, 85, 90, 95, 100)
+
+cor(x = ranks, y = score, method = "pearson")
+cor(x = ranks, y = score, method = "spearman")
+
+#2
+
+# 1. Data Setup
+ranks <- 1:10
+score <- c(10, 20, 25, 50, 80, 82, 85, 90, 95, 100)
+
+# Observed correlation (Pearson)
+obs_r <- cor(ranks, score)
+
+# 2. Permutation Test Setup
+M <- 1999
+perm_r <- numeric(M) # Vector to store results
+
+# Set seed for reproducibility
+set.seed(123)
+
+# 3. Running the Simulation
+for (i in 1:M) {
+  # Randomly shuffle the 'score' variable
+  shuffled_score <- sample(score)
+  
+  # Calculate correlation with the shuffled data
+  perm_r[i] <- cor(ranks, shuffled_score)
+}
+
+# 4. Calculate P-value
+# Proportion of cases where absolute permuted r is greater than or equal to observed r
+p_value <- (sum(abs(perm_r) >= abs(obs_r)) + 1) / (M + 1)
+
+# 5. Output Results
+cat("Observed Correlation:", obs_r, "\n")
+cat("Permutation P-value:", p_value, "\n")
+
+# Optional: Histogram of the null distribution
+hist(perm_r, 
+     prob = TRUE,
+     main="Null Distribution of Correlation", 
+     xlab="Permuted Correlation Coefficients", col="lightblue", breaks=30)
+abline(v = obs_r, col="red", lwd=2, lty=2) # Mark observed r
+
+
+curve(dnorm(x, mean = mean(perm_r), sd = sd(perm_r)), 
+      col = "darkred", 
+      lwd = 2, 
+      add = TRUE) # add = TRUE: existing plot 위에 겹쳐서 그리기
+
+# Mark the Observed Correlation
+abline(v = obs_r, col = "blue", lwd = 2, lty = 2)
+text(obs_r, 2.3, labels = paste("Observed r =", round(obs_r, 3)), col = "blue", pos = 2)
+
+
+# Text display: Shows the numeric value of obs_r
+# adj = c(1.1, 0) adjusts the position relative to the coordinates
+text(x = obs_r, y = 1.5, 
+     labels = paste("Observed r =", round(obs_r, 4)), 
+     col = "blue", 
+     pos = 2, 
+     font = 2)
+
+# 6. Add Legend at Top-Left
+legend("topleft", 
+       legend = c("Permutation Density", "Normal Curve", "Observed r"), 
+       col = c("lightblue", "red", "blue"), 
+       lwd = c(8, 2, 2), # Different widths for better distinction
+       lty = c(1, 1, 2), 
+       bty = "n") # Removes the box around the legend
+
+
+#3
+
+
+# 1. Simple dataset
+x <- c(1, 2, 3, 4, 5)
+y <- c(1, 3, 2, 5, 4)
+
+n <- length(x)
+concordant <- 0
+discordant <- 0
+
+# 2. Iterate through all possible pairs (i < j)
+for (i in 1:(n - 1)) {
+  for (j in (i + 1):n) {
+    
+    # Calculate the product of differences (the sgn function principle)
+    pair_relation <- (x[i] - x[j]) * (y[i] - y[j])
+    
+    if (pair_relation > 0) {
+      concordant <- concordant + 1     # Concordant pair (C)
+    } else if (pair_relation < 0) {
+      discordant <- discordant + 1     # Discordant pair (D)
+    }
+  }
+}
+
+# 3. Calculate Tau based on the formula
+total_pairs <- n * (n - 1) / 2
+tau_manual <- (concordant - discordant) / total_pairs
+
+# 4. Compare results
+print(paste("Number of Concordant pairs (C):", concordant))
+print(paste("Number of Discordant pairs (D):", discordant))
+print(paste("Manually calculated Tau:", tau_manual))
+
+# Verification with built-in function
+print(paste("R cor() function result:", cor(x, y, method = "kendall")))
+
+
+
+#Part 6 --------------------------------------------------------------------------------------------------------------
