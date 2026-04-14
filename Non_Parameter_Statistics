@@ -2223,3 +2223,515 @@ print(paste("R cor() function result:", cor(x, y, method = "kendall")))
 
 
 #Part 6 --------------------------------------------------------------------------------------------------------------
+
+
+
+##example
+
+
+#1
+
+
+# 1. Input values with corrected counts to reach 155 observations
+# KG brand: 32 observations
+kg_time <- c(10, 10, 10, 10, 10, 11, 12, 12, 12, 13, 14, 15, 15, 16, 17, 18, 19, 23, 23, 24, 25, 25, 27, 27, 27, 28, 29, 30, 31, 31, 34, 34)
+
+# Lime brand: 101 observations (Adjusted from 102 to 101 by correcting the count of '10's)
+lime_time <- c(10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 11, 11, 11, 11, 11, 11, 12, 12, 12, 12, 12, 13, 13, 13, 14, 14, 14, 14, 14, 14, 14, 15, 15, 15, 16, 16, 16, 17, 17, 17, 18, 18, 18, 18, 20, 20, 21, 21, 21, 22, 22, 22, 22, 22, 22, 23, 24, 25, 25, 25, 25, 26, 26, 26, 26, 27, 27, 28, 29, 29, 30, 30, 30, 32, 32, 33, 36, 36, 36, 36, 38, 40, 41, 42, 44, 45, 45, 47, 48, 49, 49, 49, 56, 57, 57, 60, 65, 66, 94)
+
+# GG brand: 22 observations
+gg_time <- c(10, 10, 11, 11, 13, 14, 15, 18, 18, 22, 29, 30, 30, 32, 33, 34, 35, 36, 39, 39, 47, 50)
+
+# 2. Combine into a tidy data frame
+# This now correctly aligns 155 time values with 155 brand labels
+kickboard_data <- data.frame(
+  time = c(kg_time, lime_time, gg_time),
+  brand = factor(c(rep("KG", 32), 
+                   rep("Lime", 101), 
+                   rep("GG", 22)))
+)
+
+boxplot(time ~ brand, data = kickboard_data)
+
+library(tidyverse)
+aov(formula = time ~ brand, data = kickboard_data) %>% 
+  summary()
+
+
+#2
+
+
+# 1. Data Construction
+activation_times <- c(575, 395, 280, 120, 720, 554, 200, 135, 525, 450, 175, 210, 700, 650, 250, 150)
+recipe <- factor(rep(c("A", "B", "C", "D"), each = 2, times = 2))
+df <- data.frame(recipe, activation_times)
+
+# 2. Observed F-statistic calculation
+observed_anova <- aov(activation_times ~ recipe, data = df)
+observed_f <- summary(observed_anova)[[1]]["recipe", "F value"]
+
+# 3. Permutation Test for Null Distribution (M = 9999)
+set.seed(123) # For reproducibility
+M <- 9999
+f_null_dist <- numeric(M)
+
+for (i in 1:M) {
+  # Randomly shuffle the recipe labels (Null Hypothesis: No difference between recipes)
+  shuffled_recipe <- sample(df$recipe)
+  
+  # Calculate F-statistic for the shuffled data
+  perm_anova <- aov(df$activation_times ~ shuffled_recipe)
+  f_null_dist[i] <- summary(perm_anova)[[1]]["shuffled_recipe", "F value"]
+}
+
+# 4. Visualization: Histogram of Null Distribution
+# Setting aesthetic labels and titles
+hist(f_null_dist, 
+     breaks = 40, 
+     col = "skyblue", 
+     border = "white",
+     main = "Null Distribution of F-statistic via Permutation", 
+     xlab = "F-value (Simulated)", 
+     ylab = "Frequency",
+     xlim = c(0, max(f_null_dist, observed_f) + 1))
+
+# Add a vertical line for the observed F-statistic to see where it falls
+abline(v = observed_f, col = "red", lwd = 2, lty = 2)
+
+# Add a legend or text for clarity
+text(observed_f, M/20, 
+     labels = paste("Observed F =", round(observed_f, 3)), 
+     pos = 4, col = "red", font = 2)
+
+# 5. Permutation P-value calculation
+p_val_perm <- (sum(f_null_dist >= observed_f) + 1) / (M + 1)
+
+# Display final results
+cat("--- Analysis Results ---\n")
+cat("Observed F-statistic:", observed_f, "\n")
+cat("Permutation P-value (M=9999):", p_val_perm, "\n")
+
+
+#3
+
+kruskal.test(activation_times ~ recipe, data = df)
+
+
+#4
+
+# Data Input
+group_I <- c(1.91, 1.53, 2.08, 1.71)
+group_II <- c(2.44)
+group_III <- c(2.45, 2.04, 1.60, 2.37)
+group_IV <- c(2.52, 2.36, 2.73)
+group_V <- c(2.78, 2.88, 2.10, 1.66)
+
+# Combine into a data frame
+values <- c(group_I, group_II, group_III, group_IV, group_V)
+groups <- factor(c(rep("I", 4), rep("II", 1), rep("III", 4), rep("IV", 3), rep("V", 4)),
+                 levels = c("I", "II", "III", "IV", "V"), ordered = TRUE)
+
+df <- data.frame(groups, values)
+
+kw_result <- kruskal.test(values ~ groups, data = df)
+print(kw_result)
+
+
+library(clinfun)
+jt_result <- jonckheere.test(df$values, as.numeric(df$groups), 
+                             alternative = "increasing")
+print(jt_result)
+
+
+# 1. Data Input (From Image)
+group_I   <- c(1.91, 1.53, 2.08, 1.71)
+group_II  <- c(2.44)
+group_III <- c(2.45, 2.04, 1.60, 2.37)
+group_IV  <- c(2.52, 2.36, 2.73)
+group_V   <- c(2.78, 2.88, 2.10, 1.66)
+
+# Combine into a list to maintain group order (I -> V)
+data_list <- list(group_I, group_II, group_III, group_IV, group_V)
+
+# 2. Function to calculate JT Statistic (T)
+calc_jt_stat <- function(lst) {
+  k <- length(lst)
+  t_stat <- 0
+  
+  # Outer loops for group pairs (i < j)
+  for (i in 1:(k - 1)) {
+    for (j in (i + 1):k) {
+      
+      # Inner loops to calculate Mann-Whitney U for each pair
+      u_ij <- 0
+      for (val_i in lst[[i]]) {
+        for (val_j in lst[[j]]) {
+          if (val_i < val_j) {
+            u_ij <- u_ij + 1
+          } else if (val_i == val_j) {
+            u_ij <- u_ij + 0.5
+          }
+        }
+      }
+      t_stat <- t_stat + u_ij
+    }
+  }
+  return(t_stat)
+}
+
+# 3. Observed Statistic
+observed_t <- calc_jt_stat(data_list)
+
+# 4. Permutation Test (M = 9999)
+set.seed(123)
+M <- 9999
+all_values <- unlist(data_list)
+group_sizes <- sapply(data_list, length)
+null_t_dist <- numeric(M)
+
+for (m in 1:M) {
+  # Shuffle all data
+  shuffled_all <- sample(all_values)
+  
+  # Re-group shuffled data with original sizes
+  shuffled_list <- split(shuffled_all, rep(1:length(group_sizes), group_sizes))
+  
+  # Calculate T for null hypothesis
+  null_t_dist[m] <- calc_jt_stat(shuffled_list)
+}
+
+# 5. Results and Visualization
+p_value <- (sum(null_t_dist >= observed_t) + 1) / (M + 1)
+
+cat("--- Jonckheere-Terpstra Test (Manual) ---\n")
+cat("Observed T-statistic:", observed_t, "\n")
+cat("Permutation P-value:", p_value, "\n")
+
+hist(null_t_dist, breaks = 30, col = "thistle", border = "white",
+     main = "Null Distribution of T (Permutation)",
+     xlab = "T-value", ylab = "Frequency")
+abline(v = observed_t, col = "red", lwd = 2, lty = 2)
+
+
+#5
+
+
+# Create the dataset based on the provided image
+data <- data.frame(
+  x = c(85, 105, 95, 95, 96, 110, 100, 112, 117),
+  treatment = factor(rep(c("A", "B", "C"), each = 3)),
+  block = factor(rep(c("over", "in", "under"), times = 3))
+)
+
+friedman_result <- friedman.test(x ~ treatment | block, data = data)
+print(friedman_result)
+
+
+# 1. Input Data
+x <- c(85, 105, 95, 95, 96, 110, 100, 112, 117)
+treatment <- factor(rep(c("A", "B", "C"), each = 3))
+block <- factor(rep(c("over", "in", "under"), times = 3))
+
+df <- data.frame(x, treatment, block)
+
+# 2. Data Preparation: Reshape to a block-by-treatment matrix
+# Rows: blocks, Columns: treatments
+mat <- matrix(df$x, nrow = 3, byrow = TRUE)
+n <- nrow(mat) # number of blocks (3)
+k <- ncol(mat) # number of treatments (3)
+
+# 3. Ranking: Rank the data within each block
+# Apply 'rank' function to each row
+ranks <- t(apply(mat, 1, rank))
+ranks
+# 4. Calculation: Sum of ranks for each treatment
+column_rank_sums <- colSums(ranks)
+
+# 5. Compute Friedman Statistic (Chi-squared)
+# Formula: [12 / (n * k * (k + 1))] * Sum(R_j^2) - 3 * n * (k + 1)
+term1 <- 12 / (n * k * (k + 1))
+term2 <- sum(column_rank_sums^2)
+term3 <- 3 * n * (k + 1)
+
+chi_sq_stat <- term1 * term2 - term3
+
+# 6. Calculate P-value using Chi-squared distribution
+# df = k - 1
+p_value <- pchisq(chi_sq_stat, df = k - 1, lower.tail = FALSE)
+
+# 7. Print Results
+cat("--- Manual Friedman Test Results ---\n")
+cat("Sum of Ranks per Treatment:", column_rank_sums, "\n")
+cat("Friedman Chi-squared:", chi_sq_stat, "\n")
+cat("Degrees of Freedom:", k - 1, "\n")
+cat("P-value:", p_value, "\n")
+
+
+# 1. Input Data
+x_mat <- matrix(c(85, 105, 95, 
+                  95, 96, 110, 
+                  100, 112, 117), nrow = 3, byrow = TRUE)
+n <- nrow(x_mat) # number of blocks: 3
+k <- ncol(x_mat) # number of treatments: 3
+
+# 2. Function to compute Friedman statistic from a rank matrix
+get_friedman_stat <- function(r_mat) {
+  col_sums <- colSums(r_mat)
+  stat <- (12 / (n * k * (k + 1))) * sum(col_sums^2) - 3 * n * (k + 1)
+  return(stat)
+}
+
+# 3. Observed Statistic
+obs_ranks <- t(apply(x_mat, 1, rank))
+obs_stat <- get_friedman_stat(obs_ranks)
+
+# 4. Generate the Theoretical Null Distribution
+# Get all possible permutations for one block: 3! = 6
+library(gtools)
+perms <- permutations(n = k, r = k) # Generates all 6 permutations of (1, 2, 3)
+
+# Create all (3!)^3 = 216 combinations of permutations across 3 blocks
+# Each row in 'grid' represents a combination of the 6 possible permutation indices
+grid <- expand.grid(p1 = 1:6, p2 = 1:6, p3 = 1:6)
+
+null_distribution <- apply(grid, 1, function(indices) {
+  # Build a rank matrix based on the current permutation combination
+  r_mat <- rbind(perms[indices[1], ], 
+                 perms[indices[2], ], 
+                 perms[indices[3], ])
+  return(get_friedman_stat(r_mat))
+})
+
+# 5. Calculate Exact P-value
+# P-value = (Number of null stats >= Observed stat) / Total number of combinations
+exact_p_value <- sum(null_distribution >= obs_stat - 1e-10) / length(null_distribution)
+
+# 6. Results
+cat("Observed Friedman Statistic:", obs_stat, "\n")
+cat("Total Number of Combinations ((3!)^3):", length(null_distribution), "\n")
+cat("Exact P-value:", exact_p_value, "\n")
+
+# Optional: Visualization of the Null Distribution
+hist(null_distribution, breaks = 20, main = "Exact Null Distribution of Friedman Stat",
+     xlab = "Statistic", col = "skyblue")
+abline(v = obs_stat, col = "red", lwd = 2, lty = 2)
+
+
+# Creating the dataset
+df <- data.frame(
+  x = c(85, 88, 72, 105, 100, 97, 95, 69, 45, # Treatment A
+        95, 100, 84, 96, 87, 92, 110, 94, 93, # Treatment B
+        100, 105, 98, 112, 109, 116, 117, 121, 101), # Treatment C
+  treatment = rep(c("A", "B", "C"), each = 9),
+  block = rep(rep(c("over", "in", "under"), each = 3), times = 3)
+)
+
+# Convert categorical variables to factors
+df$treatment <- as.factor(df$treatment)
+df$block <- as.factor(df$block)
+
+# Calculate the mean for each treatment within each block
+library(dplyr)
+df_summarized <- df %>%
+  group_by(treatment, block) %>%
+  summarize(mean_x = mean(x), .groups = 'drop')
+
+# Perform standard Friedman Test
+friedman_result <- friedman.test(mean_x ~ treatment | block, data = df_summarized)
+print(friedman_result)
+
+
+# Two-way ANOVA with interaction (if normality holds)
+anova_model <- aov(x ~ treatment * block, data = df)
+summary(anova_model)
+
+
+#6
+
+
+
+# Creating the dataset based on the provided image
+df2 <- data.frame(
+  x = c(128, 128, 160, 142, 157, 179, # Treatment 1
+        122, 137, 177, 177, 160, 138, # Treatment 2
+        207, 188, 181, 164, 155, 175, # Treatment 3
+        120, 208, 199, 194, 177, 195), # Treatment 4
+  treatment = factor(rep(1:4, each = 6)),
+  block = factor(rep(1:6, times = 4))
+)
+
+# Check the structure
+str(df2)
+
+
+# Perform Friedman Test
+# Formula: value ~ groups | blocks
+friedman_result <- friedman.test(x ~ treatment | block, data = df2)
+
+# Print the result
+print(friedman_result)
+
+library(DescTools)
+
+# Page Test requires the data in a matrix format (rows = blocks, columns = treatments)
+# Reshape the data for Page Test
+data_matrix <- matrix(df2$x, nrow = 6, ncol = 4, 
+                      dimnames = list(Block = 1:6, Treatment = 1:4))
+
+# Perform Page Test
+# Standard hypothesis: Treatment 1 <= Treatment 2 <= Treatment 3 <= Treatment 4
+page_result <- PageTest(data_matrix)
+
+# Print the result
+print(page_result)
+
+
+
+# 1. Data Setup (Same as before)
+x_values <- c(128, 128, 160, 142, 157, 179,
+              122, 137, 177, 177, 160, 138,
+              207, 188, 181, 164, 155, 175,
+              120, 208, 199, 194, 177, 195)
+
+# Create a matrix (Rows: Blocks, Cols: Treatments)
+# Each row represents one block
+data_matrix <- matrix(x_values, nrow = 6, ncol = 4)
+
+# 2. Calculate Ranks within each block (row-wise)
+# apply function is used to rank each row
+row_ranks <- t(apply(data_matrix, 1, rank))
+
+# 3. Calculate Page's L Statistic
+# Sum of (Rank * Column Index)
+col_rank_sums <- colSums(row_ranks)
+treatment_indices <- 1:ncol(data_matrix)
+L_stat <- sum(col_rank_sums * treatment_indices)
+
+# 4. Calculate Expected Value and Variance for Normal Approximation
+n_blocks <- nrow(data_matrix)
+k_treatments <- ncol(data_matrix)
+
+expected_L <- (n_blocks * k_treatments * (k_treatments + 1)^2) / 4
+var_L <- (n_blocks * (k_treatments^2) * (k_treatments^2 - 1) * (k_treatments + 1)) / 144
+
+# 5. Calculate Z-score and P-value
+z_score <- (L_stat - expected_L) / sqrt(var_L)
+p_value <- 1 - pnorm(z_score) # One-tailed test
+
+# 6. Display Results
+cat("Page's L Statistic:", L_stat, "\n")
+cat("Z-score:", z_score, "\n")
+cat("P-value:", p_value, "\n")
+
+
+
+
+# 1. Observation Data (Same as before)
+x_values <- c(128, 128, 160, 142, 157, 179,
+              122, 137, 177, 177, 160, 138,
+              207, 188, 181, 164, 155, 175,
+              120, 208, 199, 194, 177, 195)
+data_matrix <- matrix(x_values, nrow = 6, ncol = 4)
+n_blocks <- nrow(data_matrix)
+k_treatments <- ncol(data_matrix)
+treatment_indices <- 1:k_treatments
+
+# 2. Function to calculate L statistic
+calc_L <- function(m) {
+  row_ranks <- t(apply(m, 1, rank))
+  sum(colSums(row_ranks) * treatment_indices)
+}
+
+# Observed L statistic
+obs_L <- calc_L(data_matrix)
+
+# 3. Permutation Test (Generating Null Distribution)
+set.seed(123) # For reproducibility
+n_iter <- 10000 # Number of permutations
+null_L <- numeric(n_iter)
+
+for(i in 1:n_iter) {
+  # Shuffle ranks within each block independently
+  permuted_ranks <- t(apply(matrix(0, n_blocks, k_treatments), 1, function(x) sample(1:k_treatments)))
+  # Calculate L for this permutation
+  null_L[i] <- sum(colSums(permuted_ranks) * treatment_indices)
+}
+
+
+# 4. Calculate P-value (Position in Null Distribution)
+# Probability of getting L >= observed L
+p_value_perm <- sum(null_L >= obs_L) / n_iter
+
+# 5. Results
+cat("Observed Page's L:", obs_L, "\n")
+cat("Permutation P-value (n=10000):", p_value_perm, "\n")
+
+# 6. Visualization of Null Distribution
+hist(null_L, breaks = 30, main = "Null Distribution of Page's L",
+     xlab = "L Statistic", col = "skyblue")
+abline(v = obs_L, col = "red", lwd = 2, lty = 2)
+legend("topright", legend = "Observed L", col = "red", lty = 2, lwd = 2)
+
+
+#7
+
+
+df <- data.frame(
+  x = c(85, 88, 72, 105, 100, 97, 95, 69, 45, 
+        95, 100, 84, 96, 87, 92, 110, 94, 93, 
+        100, 105, 98, 112, 109, 116, 117, 121, 101),
+  treatment = rep(c("A", "B", "C"), each = 9),
+  block = rep(rep(c("over", "in", "under"), each = 3), times = 3)
+)
+
+# 2. Skillings-Mack Statistic Function
+calc_SM <- function(data) {
+  # Parameters based on your notation
+  b <- length(unique(data$block))
+  k <- length(unique(data$treatment))
+  n_total <- nrow(data)
+  c_rep <- n_total / (b * k)
+  kc <- k * c_rep
+  
+  # Ranking within each block (Fixing the 'ave' error by using split)
+  # Split x by block, apply rank, and unsplit to maintain order
+  data$ranks <- unsplit(lapply(split(data$x, data$block), rank), data$block)
+  
+  # Calculate Rbar_i.. (Mean rank for each treatment)
+  Rbar_i <- as.numeric(tapply(data$ranks, data$treatment, mean))
+  
+  # Calculate Rbar_... (Global mean rank)
+  Rbar_all <- (kc + 1) / 2
+  
+  
+  
+  # SM Formula
+  # SM = (12 * b / (kc * (kc + 1))) * sum((Rbar_i - Rbar_all)^2)
+  SM <- (12 * b / (kc * (kc + 1))) * sum((Rbar_i - Rbar_all)^2)
+  
+  return(SM)
+}
+
+# 3. Execution & Permutation Test
+obs_SM <- calc_SM(df)
+
+set.seed(123)
+n_iter <- 10000
+null_SM <- numeric(n_iter)
+
+for(i in 1:n_iter) {
+  perm_df <- df
+  # Permute x within each block to simulate Null Hypothesis
+  perm_df$x <- unsplit(lapply(split(df$x, df$block), sample), df$block)
+  null_SM[i] <- calc_SM(perm_df)
+}
+
+# 4. Results
+p_val_asymp <- 1 - pchisq(obs_SM, df = length(unique(df$treatment)) - 1)
+p_val_perm <- sum(null_SM >= obs_SM) / n_iter
+
+cat("--- Adjusted Skillings-Mack Results ---\n")
+cat("Observed SM Statistic :", obs_SM, "\n")
+cat("Asymptotic P-value    :", p_val_asymp, "\n")
+cat("Permutation P-value   :", p_val_perm, "\n")
+
