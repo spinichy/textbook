@@ -353,3 +353,164 @@ cat("Total visits to state 0 during", n_steps, "steps:", visits_to_zero, "\n")
 # For p != 0.5, it tends to drift away from zero.
 
 
+
+Part 2 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+##example
+
+
+#1
+
+# Linear Congruential Generator (LCG) Implementation
+# Parameters satisfy Hull-Dobell Theorem for Full Period M
+
+create_lcg <- function(seed, n = 10) {
+  # 1. Parameters setting
+  # M = 2^32: M is a multiple of 4
+  # a = 1103515245: (a-1) is a multiple of 4, and divisible by all prime factors of M (which is 2)
+  # c = 12345: c and M are relatively prime (12345 is odd, M is a power of 2)
+  
+  m <- 2^32
+  a <- 1103515245
+  c <- 12345
+  
+  # Initialize vector to store random numbers
+  random_numbers <- numeric(n)
+  current_x <- seed
+  
+  for (i in 1:n) {
+    # LCG Formula: X_{n+1} = (aX_n + c) mod M
+    # Using double precision to handle large integer multiplication before modulo
+    current_x <- (a * current_x + c) %% m
+    
+    # Scaling to [0, 1) range for general utility
+    random_numbers[i] <- current_x / m
+  }
+  
+  return(random_numbers)
+}
+
+# Example Usage: Generate 5 random numbers starting with seed 42
+my_random_samples <- create_lcg(seed = 42, n = 5)
+print(my_random_samples)
+
+
+#2
+
+
+# Multiplicative Congruential Generator (MCG)
+# Specific case: Park-Miller Generator (Minimum Standard)
+
+create_mcg <- function(seed, n = 10) {
+  # 1. Parameters (Park-Miller)
+  # M is a Mersenne prime (2^31 - 1)
+  # a is a primitive root modulo M
+  # c is 0 (This is what makes it 'Multiplicative')
+  
+  m <- 2^31 - 1
+  a <- 48271
+  
+  # Seed check: In MCG, seed must NOT be 0
+  if (seed == 0) {
+    stop("In MCG, seed cannot be 0 because it will trap the sequence at 0.")
+  }
+  
+  random_numbers <- numeric(n)
+  current_x <- seed
+  
+  for (i in 1:n) {
+    # Formula: X_{n+1} = (a * X_n) mod M
+    # Use modulo carefully with large numbers
+    current_x <- (a * current_x) %% m
+    
+    # Scaling to [0, 1) range
+    random_numbers[i] <- current_x / m
+  }
+  
+  return(random_numbers)
+}
+
+# Example Usage
+# Generate 5 random numbers with seed 1
+samples <- create_mcg(seed = 1, n = 5)
+print(samples)
+
+
+#3
+
+
+# Required libraries
+# install.packages(c("nortest", "circular"))
+library(nortest)   # For Anderson-Darling and Cramér-von Mises tests
+library(circular)  # For Rayleigh test
+library(ggplot2)   # For visualization
+library(goftest)   # For Cramér-von Mises test
+
+
+# 1. Data Generation
+set.seed(123)
+n <- 100
+unif_data <- runif(n, min = 0, max = 1)  # Perfectly uniform data
+norm_data <- rnorm(n, mean = 0.5, sd = 0.1) # Not uniform data (normal)
+
+# ---------------------------------------------------------
+# 2. Kolmogorov-Smirnov (K-S) Test
+# ks.test compares the data to a cumulative distribution function (punif)
+ks_unif <- ks.test(unif_data, "punif", 0, 1)
+ks_norm <- ks.test(norm_data, "punif", 0, 1)
+
+print(paste("K-S Test (Uniform Data) p-value:", round(ks_unif$p.value, 4)))
+print(paste("K-S Test (Normal Data) p-value:", round(ks_norm$p.value, 4)))
+
+
+# ---------------------------------------------------------
+# 3. Cramér-von Mises (폰 미제스) Test
+# cvm.test from 'nortest' package
+cvm_unif <- goftest::cvm.test(unif_data, "punif")
+cvm_norm <- goftest::cvm.test(norm_data, "punif")
+
+print(paste("Fixed CVM Test p-value:", round(cvm_unif$p.value, 4)))
+print(paste("Fixed CVM Test p-value:", round(cvm_norm$p.value, 4)))
+
+# ---------------------------------------------------------
+# 4. Anderson-Darling Test
+# ad.test from 'nortest' package
+
+ad_unif <- ad.test(unif_data)
+ad_norm <- ad.test(norm_data)
+
+print(paste("A-D Test (Uniform Data) p-value:", round(ad_unif$p.value, 4)))
+print(paste("A-D Test (Normal Data) p-value:", round(ad_norm$p.value, 4)))
+
+# ---------------------------------------------------------
+# 5. Chi-Squared Goodness-of-Fit Test
+# Binning the data into 10 intervals
+bins <- seq(0, 1, length.out = 11)
+observed_unif <- table(cut(unif_data, breaks = bins))
+expected_probs <- rep(1/10, 10)
+
+chi_unif <- chisq.test(observed_unif, p = expected_probs)
+print(paste("Chi-sq Test (Uniform Data) p-value:", round(chi_unif$p.value, 4)))
+
+
+# ---------------------------------------------------------
+# 6. Rayleigh Test (Circular Uniformity)
+# Convert data to circular objects (0 to 2*pi radians)
+circ_unif <- as.circular(runif(n, 0, 2*pi), 
+                         units = "radians", 
+                         type = "angles", 
+                         template = "none",
+                         modulo = "asis", 
+                         zero = 0, 
+                         rotation = "counter")
+rayleigh_res <- rayleigh.test(circ_unif)
+print(paste("Rayleigh Test p-value:", round(rayleigh_res$p.value, 4)))
+plot(circ_unif)
+
+# ---------------------------------------------------------
+# Visualization: Comparing ECDF vs. Theoretical CDF
+plot(ecdf(unif_data), main="ECDF of Uniform Data", col="blue")
+curve(punif(x, 0, 1), add=TRUE, col="red", lwd=2)
+legend("bottomright", legend=c("Empirical", "Theoretical"), col=c("blue", "red"), lty=1)
