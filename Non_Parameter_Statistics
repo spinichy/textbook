@@ -2735,3 +2735,166 @@ cat("Observed SM Statistic :", obs_SM, "\n")
 cat("Asymptotic P-value    :", p_val_asymp, "\n")
 cat("Permutation P-value   :", p_val_perm, "\n")
 
+
+
+## exercise
+
+
+#7
+
+
+# 1. Data Construction
+# Rows: Treatment (Freezing, Surgery, Medication, Tape)
+# Columns: Patients (1 to 7)
+treatment_data <- matrix(c(
+  0, 1, 0, 0, 0, 1, 0, # Freezing (얼린 뒤 제거)
+  1, 1, 0, 1, 0, 1, 1, # Surgery (외과수술)
+  0, 0, 0, 0, 1, 0, 0, # Medication (피부약)
+  1, 1, 0, 1, 0, 0, 1  # Multi-tape (만능테이프)
+), nrow = 4, byrow = TRUE)
+
+# Set row and column names
+rownames(treatment_data) <- c("Freezing", "Surgery", "Medication", "Tape")
+colnames(treatment_data) <- paste0("Patient", 1:7)
+
+# Display original data
+print("Original Data Matrix:")
+print(treatment_data)
+
+# ---------------------------------------------------------
+# 2. Cochran's Q Test using DescTools package
+# Install if not already installed: install.packages("DescTools")
+library(DescTools)
+
+# CochranQTest requires data in a specific format or as a matrix
+# Note: Data should be transposed if treatments are in rows
+q_result <- CochranQTest(t(treatment_data))
+
+print("Cochran's Q Test Result (DescTools):")
+print(q_result)
+
+# ---------------------------------------------------------
+# 3. Manual Calculation (Verification of the formula)
+# Formula: Q = (k-1) * (k*sum(Ti^2) - (sum(Ti))^2) / (k*sum(Bj) - sum(Bj^2))
+
+k <- nrow(treatment_data)    # Number of treatments
+b <- ncol(treatment_data)    # Number of blocks (patients)
+
+Ti <- rowSums(treatment_data) # Totals for each treatment
+Bj <- colSums(treatment_data) # Totals for each block
+
+Q_stat <- (k - 1) * (k * sum(Ti^2) - sum(Ti)^2) / (k * sum(Bj) - sum(Bj^2))
+p_val <- pchisq(Q_stat, df = k - 1, lower.tail = FALSE)
+
+cat("\nManual Calculation Results:\n")
+cat("Q Statistic:", Q_stat, "\n")
+cat("Degrees of Freedom:", k - 1, "\n")
+cat("P-value:", p_val, "\n")
+
+# ---------------------------------------------------------
+# 4. Visualization (Success Rate by Treatment)
+success_rates <- rowMeans(treatment_data)
+barplot(success_rates, main="Success Rate by Treatment", 
+        col=rainbow(4), ylim=c(0, 1), ylab="Success Rate")
+
+
+#8
+
+
+# 1. Input Data
+# Scores for 11 singers by 3 judges (A, B, C)
+judge_A <- c(74, 85, 89, 90, 92, 85, 91, 83, 85, 80, 95)
+judge_B <- c(88, 87, 93, 96, 99, 92, 97, 93, 94, 90, 100)
+judge_C <- c(50, 54, 67, 85, 92, 66, 89, 73, 70, 61, 90)
+
+# Create a matrix: Singers as rows, Judges as columns
+score_matrix <- matrix(c(judge_A, judge_B, judge_C), 
+                       nrow = 11, 
+                       byrow = FALSE,
+                       dimnames = list(paste0("Singer", 1:11), 
+                                       c("Judge_A", "Judge_B", "Judge_C")))
+
+# 2. Friedman Test
+# In R, friedman.test assumes groups in columns and blocks in rows.
+# To test if there is a difference between 'Singers' (Treatments) 
+# while 'Judges' are blocks, we transpose the matrix or use the formula.
+# Here, we treat Judges as 'Blocks' and Singers as 'Groups'.
+friedman_res <- friedman.test(score_matrix)
+
+print("--- Friedman Test Results ---")
+print(friedman_res)
+
+
+# 3. Kendall's W (Coefficient of Concordance)
+# Using 'DescTools' or 'irr' package is common, 
+# but we can calculate it from the Friedman chi-squared statistic.
+# Formula: W = chi_squared / (n * (k - 1))
+chi2 <- friedman_res$statistic
+n <- nrow(score_matrix) # Number of singers (11)
+k <- ncol(score_matrix) # Number of judges (3)
+
+kendall_w <- chi2 / (n * (k - 1))
+
+cat("\n--- Kendall's W Coefficient ---\n")
+cat("Kendall's W:", kendall_w, "\n")
+
+
+
+# 1. Load data from the previous example
+judge_A <- c(74, 85, 89, 90, 92, 85, 91, 83, 85, 80, 95)
+judge_B <- c(88, 87, 93, 96, 99, 92, 97, 93, 94, 90, 100)
+judge_C <- c(50, 54, 67, 85, 92, 66, 89, 73, 70, 61, 90)
+
+score_matrix <- matrix(c(judge_A, judge_B, judge_C), nrow = 11)
+
+# 2. Function to calculate Friedman Statistic
+# Formula: Chi-sq = [12 / nk(k+1)] * Sum(R_j^2) - 3n(k+1)
+calc_friedman_stat <- function(mat) {
+  n <- nrow(mat) # Number of singers (11)
+  k <- ncol(mat) # Number of judges (3)
+  
+  # Step 1: Rank scores within each judge (row-wise ranking for blocks)
+  # Here we need to rank across columns for each row
+  ranks <- t(apply(mat, 1, rank)) 
+  
+  # Step 2: Sum of ranks for each singer (column sums)
+  rank_sums <- colSums(ranks)
+  
+  # Step 3: Apply the formula
+  stat <- (12 / (n * k * (k + 1))) * sum(rank_sums^2) - 3 * n * (k + 1)
+  return(stat)
+}
+
+# 3. Simulate Null Distribution using Permutation
+set.seed(123) # For reproducibility
+n_iterations <- 10000
+null_stats <- numeric(n_iterations)
+
+for (i in 1:n_iterations) {
+  # Under H0, the rankings within each judge are random.
+  # We shuffle the scores within each judge independently.
+  null_mat <- t(apply(score_matrix, 1, sample))
+  null_stats[i] <- calc_friedman_stat(null_mat)
+}
+
+# 4. Visualization of Null Distribution
+# Observed statistic from original data
+observed_stat <- calc_friedman_stat(score_matrix)
+
+# Plotting
+hist(null_stats, breaks = 50, prob = TRUE, main = "Null Distribution of Friedman Statistic",
+     xlab = "Friedman Chi-squared Statistic", col = "skyblue", border = "white", 
+     xlim = c(0,22))
+curve(dchisq(x, df = ncol(score_matrix) - 1), add = TRUE, col = "red", lwd = 2) # Theoretical Chi-sq
+abline(v = observed_stat, col = "darkblue", lwd = 2, lty = 2)
+legend("topright", legend = c("Simulated Null Dist", "Theoretical Chi-sq (df=2)", "Observed Stat"),
+       col = c("skyblue", "red", "darkblue"), lwd = 2, lty = c(1, 1, 2))
+
+# 5. P-value Calculation
+p_val_simulated <- mean(null_stats >= observed_stat)
+cat("Observed Statistic:", observed_stat, "\n")
+cat("Simulated P-value:", p_val_simulated, "\n")
+
+
+#Part 7 --------------------------------------------------------------------------------------------------------------
+
