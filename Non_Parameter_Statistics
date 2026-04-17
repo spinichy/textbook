@@ -2896,5 +2896,332 @@ cat("Observed Statistic:", observed_stat, "\n")
 cat("Simulated P-value:", p_val_simulated, "\n")
 
 
-#Part 7 --------------------------------------------------------------------------------------------------------------
 
+#Part 7.8.9 (Bootstrap) --------------------------------------------------------------------------------------------------------------
+
+
+##example.7
+
+
+#1
+
+
+# 1. Original data from the image
+dat <- c(-5, 12, 9, 35, -5, -10, 1, -1, -3, -6)
+n <- length(dat)
+
+# 2. Set the number of bootstrap repetitions
+# Using 10,000 iterations for a smooth distribution
+n_boot <- 10000
+
+# 3. Create a vector to store bootstrap medians
+boot_medians <- numeric(n_boot)
+
+# 4. Perform bootstrapping
+set.seed(123) # For reproducibility
+for(i in 1:n_boot) {
+  # Resample with replacement
+  boot_sample <- sample(dat, size = n, replace = TRUE)
+  # Calculate and store the median of the resampled data
+  boot_medians[i] <- median(boot_sample)
+}
+
+# 5. Visualize the distribution with a histogram
+hist(boot_medians, 
+     breaks = 20, 
+     col = "skyblue", 
+     border = "white",
+     main = "Bootstrap Distribution of Medians",
+     xlab = "Median Values",
+     ylab = "Frequency")
+
+# Add a vertical line for the original sample median
+abline(v = median(dat), col = "red", lwd = 2, lty = 2)
+legend("topright", legend = "Original Median", col = "red", lwd = 2, lty = 2)
+
+
+# 1. Settings
+n_boot <- 10000
+set.seed(123)
+par(mfrow = c(1, 2)) # Side-by-side comparison
+
+# 2. Data Preparation
+dat_10 <- c(-5, 12, 9, 35, -5, -10, 1, -1, -3, -6)
+dat_100 <- sample(dat_10, 100, replace = TRUE)
+
+# 3. Bootstrap Function
+get_boot_medians <- function(data, iterations) {
+  n <- length(data)
+  reps <- numeric(iterations)
+  for(i in 1:iterations) {
+    reps[i] <- median(sample(data, n, replace = TRUE))
+  }
+  return(reps)
+}
+
+boot_10 <- get_boot_medians(dat_10, n_boot)
+boot_100 <- get_boot_medians(dat_100, n_boot)
+
+# 4. Visualization Function with Text Labels
+draw_hist_with_labels <- function(boot_data, original_data, title, color) {
+  # Calculate histogram data without plotting first to get coordinates
+  h <- hist(boot_data, breaks = 15, plot = FALSE)
+  
+  # Draw the actual histogram
+  plot(h, col = color, border = "white", main = title, 
+       xlab = "Median", ylab = "Frequency", ylim = c(0, max(h$counts) * 1.2))
+  
+  # Add frequency text labels on top of each bar
+  # x: midpoints of bars, y: counts, labels: the actual count
+  text(x = h$mids, y = h$counts, labels = h$counts, pos = 3, cex = 0.8, col = "black")
+  
+  # Add original sample median line and label
+  orig_med <- median(original_data)
+  abline(v = orig_med, col = "red", lwd = 2, lty = 2)
+  
+  # Add text for the original median
+  text(x = orig_med, y = max(h$counts) * 1.1, 
+       labels = paste("Orig Med:", orig_med), col = "red", font = 2)
+}
+
+# 5. Execute Plotting
+draw_hist_with_labels(boot_10, dat_10, "n=10 Bootstrap Medians", "lightblue")
+draw_hist_with_labels(boot_100, dat_100, "n=100 Bootstrap Medians", "lightgreen")
+
+# Reset layout
+par(mfrow = c(1, 1))
+
+
+#2
+
+
+# 1. Input Data
+v <- seq(0.5, 9.5, by = 1)
+counts <- c(6421, 14246, 11953, 7463, 2322, 659, 120, 11, 3, 0)
+
+# 2. Define the Power Output Function p(v)
+p_v <- function(v) {
+  1 - 2*v + v^2 - 0.05*v^3
+}
+
+# 3. Reconstruct the original sample based on frequencies
+# This creates a vector of size n = 43198
+original_sample <- rep(x = v, times = counts)
+
+# 4. Calculate the Point Estimate (theta_hat) using the Plug-in principle
+# This is equivalent to the integral of p(v) with respect to dF_hat
+theta_hat <- mean(p_v(original_sample))
+cat("Point Estimate (theta_hat):", theta_hat, "\n")
+
+# 5. Bootstrap Procedure
+B <- 1000  # Number of bootstrap replications
+n <- length(original_sample)
+bootstrap_theta <- numeric(B)
+
+set.seed(123) # For reproducibility
+for (b in 1:B) {
+  # Step 1: Resample with replacement (Bootstrap Sample)
+  resample <- sample(original_sample, size = n, replace = TRUE)
+  
+  # Step 2: Calculate bootstrap statistic (theta_star)
+  bootstrap_theta[b] <- mean(p_v(resample))
+}
+
+# 6. Calculate Bootstrap Standard Error
+# This is the standard deviation of the B bootstrap replications
+se_boot <- sd(bootstrap_theta)
+cat("Bootstrap Standard Error:", se_boot, "\n")
+
+# 7. (Optional) Check Bias
+bias_boot <- mean(bootstrap_theta) - theta_hat
+cat("Bootstrap Bias Estimate:", bias_boot, "\n")
+
+
+
+
+# Load necessary library
+if (!require(fitdistrplus)) install.packages("fitdistrplus")
+library(fitdistrplus)
+
+# 1. Input Data
+# Wind speed (v) and observed frequencies (f)
+v <- c(0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5)
+f <- c(6421, 14246, 11953, 7463, 2322, 659, 120, 11, 3)
+
+# Expand the grouped data into individual observations for MLE
+wind_data <- rep(v, times = f)
+
+# 2. Estimate Weibull Parameters using MLE
+# k: shape parameter, lambda: scale parameter
+fit_weibull <- fitdist(wind_data, "weibull", method = "mle")
+params <- fit_weibull$estimate
+
+k_est <- params["shape"]
+lambda_est <- params["scale"]
+
+cat("--- Weibull Parameter Estimation Results ---\n")
+cat("Shape Parameter (k): ", k_est, "\n")
+cat("Scale Parameter (lambda): ", lambda_est, "\n\n")
+
+# 3. Define the Power Function p(v)
+# p(v) = 1 - 2v + v^2 - 0.05v^3
+p_v <- function(v) {
+  1 - 2*v + v^2 - 0.05*v^3
+}
+
+# 4. Estimate Average Power (theta) using the Fitted Model
+# We integrate p(v) * f(v) over the possible wind speed range (0 to infinity)
+expected_power_func <- function(v) {
+  p_v(v) * dweibull(v, shape = k_est, scale = lambda_est)
+}
+
+theta_est <- integrate(expected_power_func, lower = 0, upper = Inf)$value
+
+cat("--- Average Power Estimation ---\n")
+cat("Estimated Average Power (theta): ", theta_est, "\n")
+
+# 5. Visualization
+plot(fit_weibull)
+
+
+
+
+# 1. Input Data
+v_unique <- c(0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5)
+f_counts <- c(6421, 14246, 11953, 7463, 2322, 659, 120, 11, 3)
+
+# Expand grouped data to individual observations
+wind_data <- rep(v_unique, times = f_counts)
+
+# 2. Define Negative Log-Likelihood function for Weibull
+# parameters[1] = shape (k), parameters[2] = scale (lambda)
+weibull_loglik <- function(params, data) {
+  
+  # Here, 'params' is a placeholder for the vector c(shape, scale) 
+  # that will be passed from the optim() function.
+  k <- params[1]
+  lambda <- params[2]
+  
+  # Return a very large value if parameters are non-positive (constraint)
+  if (k <= 0 || lambda <= 0) return(1e10)
+  
+  # Calculate Negative Log-Likelihood
+  # sum(log(pdf))
+  loglik <- sum(dweibull(data, shape = k, scale = lambda, log = TRUE))
+  return(-loglik) # Negative for minimization
+}
+
+# 3. Estimate Parameters using optim()
+# Initial guesses: shape = 2, scale = mean(data)
+initial_guess <- c(2, mean(wind_data))
+fit <- optim(par = initial_guess, fn = weibull_loglik, data = wind_data)
+
+k_est <- fit$par[1]
+lambda_est <- fit$par[2]
+
+cat("--- Weibull Parameter Estimation (Base R) ---\n")
+cat("Shape Parameter (k): ", k_est, "\n")
+cat("Scale Parameter (lambda): ", lambda_est, "\n\n")
+
+# 4. Define the Power Function p(v)
+p_v <- function(v) {
+  1 - 2*v + v^2 - 0.05*v^3
+}
+
+# 5. Estimate Average Power (theta) using Numerical Integration
+expected_power_func <- function(v) {
+  p_v(v) * dweibull(v, shape = k_est, scale = lambda_est)
+}
+
+theta_est <- integrate(expected_power_func, lower = 0, upper = Inf)$value
+
+cat("--- Average Power Estimation ---\n")
+cat("Estimated Average Power (theta): ", theta_est, "\n")
+
+# 6. Simple Histogram with Fitted Weibull Curve
+hist(wind_data, breaks = 20, prob = TRUE, 
+     main = "Wind Speed Distribution & Weibull Fit",
+     xlab = "Wind Speed (m/s)", col = "lightgray")
+curve(dweibull(x, shape = k_est, scale = lambda_est), 
+      add = TRUE, col = "red", lwd = 2)
+
+
+
+#exercise.7
+
+
+#2
+str(flights2)
+
+
+# 1. Data Preparation
+# Remove NA values from DEPARTURE_DELAY to ensure clean calculations
+delay_data <- na.omit(flights2$DEPARTURE_DELAY)
+
+# 2. Setup Simulation Parameters
+# Sample sizes to test as per your request
+sample_sizes <- c(100, 200, 500, 1000)
+# Number of iterations for each n to demonstrate stability
+num_iterations <- 10
+# Number of bootstrap resamples (B)
+B <- 1000
+
+# Function to calculate bootstrap SE and Bias
+run_bootstrap <- function(data, n_size, b_reps) {
+  # Step 1: Draw a sample of size n from the original population
+  current_sample <- sample(data, size = n_size, replace = FALSE)
+  sample_mean <- mean(current_sample)
+  
+  # Step 2: Generate Bootstrap distribution
+  boot_means <- replicate(b_reps, {
+    # Resample with replacement from the current sample
+    resample <- sample(current_sample, size = n_size, replace = TRUE)
+    mean(resample)
+  })
+  
+  # Step 3: Calculate Bootstrap SE and Bias
+  boot_se <- sd(boot_means)
+  # Bias = Mean of Bootstrap estimates - Original sample estimate
+  boot_bias <- mean(boot_means) - sample_mean
+  
+  return(c(SE = boot_se, Bias = boot_bias))
+}
+
+# 3. Execution Loop
+results <- list()
+
+cat("Starting Simulation...\n\n")
+
+for (n in sample_sizes) {
+  cat("Processing n =", n, "\n")
+  
+  # Run the bootstrap 10 times for each n to show variability
+  iter_results <- replicate(num_iterations, run_bootstrap(delay_data, n, B))
+  
+  # Calculate average of results for stability comparison
+  avg_se <- mean(iter_results["SE", ])
+  avg_bias <- mean(iter_results["Bias", ])
+  
+  results[[as.character(n)]] <- list(
+    SE_values = iter_results["SE", ],
+    Bias_values = iter_results["Bias", ],
+    Avg_SE = avg_se,
+    Avg_Bias = avg_bias
+  )
+}
+
+# 4. Result Summary Table
+summary_table <- data.frame(
+  n = sample_sizes,
+  Mean_Bootstrap_SE = sapply(results, function(x) x$Avg_SE),
+  Mean_Bootstrap_Bias = sapply(results, function(x) x$Avg_Bias)
+)
+
+print(summary_table)
+
+# 5. Visualization: SE Reduction as n increases
+plot(summary_table$n, summary_table$Mean_Bootstrap_SE, type = "b", 
+     pch = 19, col = "blue",
+     xlab = "Sample Size (n)", ylab = "Bootstrap Standard Error",
+     main = "Effect of Sample Size on Estimation Accuracy")
+grid()
