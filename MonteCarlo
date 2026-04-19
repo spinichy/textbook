@@ -514,3 +514,501 @@ plot(circ_unif)
 plot(ecdf(unif_data), main="ECDF of Uniform Data", col="blue")
 curve(punif(x, 0, 1), add=TRUE, col="red", lwd=2)
 legend("bottomright", legend=c("Empirical", "Theoretical"), col=c("blue", "red"), lty=1)
+
+
+
+#4
+
+
+# Set the number of simulations
+n_simulations <- 100000
+# Set the number of coin flips per simulation
+n_flips <- 10
+# Set the target consecutive length
+target_streak <- 3
+
+# Function to check if a sequence has a streak of 3 or more
+has_streak <- function(flips, n) {
+  # rle (Run Length Encoding) counts consecutive values
+  runs <- rle(flips)
+  # Check if any run length is greater than or equal to n
+  return(any(runs$lengths >= n))
+}
+
+# Run simulation
+set.seed(123) # For reproducibility
+results <- replicate(n_simulations, {
+  # Generate 10 random flips (0: Head, 1: Tail)
+  flips <- sample(c(0, 1), n_flips, replace = TRUE)
+  # Check for a streak
+  has_streak(flips, target_streak)
+})
+
+# Calculate the estimated probability
+estimated_prob <- mean(results)
+
+# Print the result
+cat("Total Simulations:", n_simulations, "\n")
+cat("Estimated Probability of 3+ consecutive heads or tails:", estimated_prob, "\n")
+
+
+# Set simulation parameters
+n_simulations <- 100000
+set.seed(123)
+
+results_string <- replicate(n_simulations, {
+  # 1. Generate 10 flips
+  flips <- sample(c(0, 1), 10, replace = TRUE)
+  
+  # 2. Convert to a single string (e.g., "01110...")
+  flip_string <- paste(flips, collapse = "")
+  
+  # 3. Check if "000" or "111" exists in the string
+  grepl("000|111", flip_string)
+})
+
+mean(results_string)
+
+
+
+# Define the transition matrix
+# Row/Col: [State 0, State 1, State 2]
+M <- matrix(c(0.5, 0.5, 0,
+              0.5, 0,   0.5,
+              0,   0,   1), 
+            nrow = 3, byrow = TRUE)
+
+# Initial state (After 1st flip, we are always in State 0)
+v <- c(1, 0, 0)
+
+# Apply matrix multiplication 9 more times (for a total of 10 flips)
+library(expm) # For matrix power function %^%
+final_v <- v %*% (M %^% 9)
+
+cat("Probability of 3+ consecutive:", final_v[3], "\n")
+
+
+#5
+
+
+# Monte Carlo Simulation for Q2
+# Condition: Stop when a girl is born or total children reach 4.
+
+set.seed(123) # For reproducibility
+n_sim <- 100000 # Number of iterations
+has_girl <- logical(n_sim)
+
+for (i in 1:n_sim) {
+  children <- c()
+  
+  for (j in 1:4) {
+    # Generate a child: 0 for Boy, 1 for Girl
+    child <- sample(c(0, 1), 1, prob = c(0.5, 0.5))
+    children <- c(children, child)
+    
+    # Stop if the child is a girl
+    if (child == 1) {
+      break
+    }
+  }
+  
+  # Check if there is at least one girl in the family
+  has_girl[i] <- any(children == 1)
+}
+
+# Calculate the estimated probability
+estimated_prob <- mean(has_girl)
+cat("Estimated Probability of having a girl:", estimated_prob, "\n")
+
+# Theoretical calculation for verification:
+# P(at least one girl) = 1 - P(all four are boys)
+# 1 - (0.5^4) = 1 - 0.0625 = 0.9375
+theoretical_prob <- 1 - (0.5^4)
+cat("Theoretical Probability:", theoretical_prob, "\n")
+
+
+
+# Define the Transition Matrix P
+# States: S0, S1, S2, S3, G, B4
+P <- matrix(c(
+  0, 0.5, 0,   0,   0.5, 0,    # S0
+  0, 0,   0.5, 0,   0.5, 0,    # S1
+  0, 0,   0,   0.5, 0.5, 0,    # S2
+  0, 0,   0,   0,   0.5, 0.5,  # S3
+  0, 0,   0,   0,   1,   0,    # G (Absorbing)
+  0, 0,   0,   0,   0,   1     # B4 (Absorbing)
+), nrow = 6, byrow = TRUE)
+
+rownames(P) <- colnames(P) <- c("S0", "S1", "S2", "S3", "G", "B4")
+
+# Initial state vector (Starting at S0)
+v0 <- c(1, 0, 0, 0, 0, 0)
+
+# Power of the matrix (After 4 steps, all processes must end)
+library(expm)
+P4 <- P %^% 4
+
+# Final probability distribution
+final_dist <- v0 %*% P4
+print(final_dist)
+
+# Probability of having a girl (State G)
+cat("Probability of having a girl (from Markov Chain):", final_dist[1, "G"], "\n")
+
+
+
+#6
+
+
+set.seed(123)
+
+# Parameters
+n_trials <- 10000      # Number of simulations
+n_attempts <- 5       # Number of free throws per simulation
+prob_success <- 0.2   # Probability of success for each free throw
+
+# 1. Conduct Monte Carlo Simulation
+# Generate the number of successful goals for each of the 1000 simulations
+results <- rbinom(n_trials, size = n_attempts, prob = prob_success)
+
+# 2. Check the condition (at least 2 goals)
+# Logical vector: TRUE if successes >= 2, FALSE otherwise
+at_least_two <- results >= 2
+
+# 3. Estimate the probability
+# Mean of a logical vector gives the proportion of TRUE values
+estimated_prob <- mean(at_least_two)
+
+# Output the result
+cat("Estimated probability through 1,000 simulations:", estimated_prob, "\n")
+
+# (Reference) Exact probability using the binomial distribution formula
+exact_prob <- pbinom(1, size = 5, prob = 0.2, lower.tail = FALSE)
+cat("Exact theoretical probability:", exact_prob, "\n")
+
+
+
+
+# 1. Define the transition matrix P (6x6 matrix)
+p <- 0.2
+q <- 0.8
+
+P <- matrix(0, nrow = 6, ncol = 6)
+for (i in 1:5) {
+  P[i, i] <- q      # Stay in current state (failure)
+  P[i, i+1] <- p    # Move to next state (success)
+}
+P[6, 6] <- 1        # Absorbing state (5 goals reached)
+
+# 2. Initial state vector (starting with 0 goals)
+# v0 = [1, 0, 0, 0, 0, 0]
+v0 <- c(1, 0, 0, 0, 0, 0)
+
+# 3. Calculate state distribution after 5 steps (v5 = v0 * P^5)
+# Using 'expm' library for matrix power or repeated multiplication
+library(expm)
+v5 <- v0 %*% (P %^% 5)
+
+# 4. Probability of having at least 2 goals
+# Indices 3, 4, 5, 6 correspond to states 2, 3, 4, 5
+prob_at_least_2 <- sum(v5[3:6])
+
+# Output results
+cat("Probability distribution after 5 throws:\n")
+print(v5)
+cat("\nEstimated probability of at least 2 goals:", prob_at_least_2, "\n")
+
+
+#7
+
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Parameters
+p_success <- 0.7       # Probability of success (7/10)
+target_streak <- 4     # Target: 4 consecutive successes
+n_simulations <- 100000  # Number of Monte Carlo simulations
+
+# Vector to store total attempts for each simulation
+total_attempts_needed <- numeric(n_simulations)
+
+for (i in 1:n_simulations) {
+  count <- 0          # Current total attempts in this simulation
+  consecutive <- 0    # Current streak of successes
+  
+  while (consecutive < target_streak) {
+    count <- count + 1
+    # Simulate one jump (1 = success, 0 = failure)
+    is_success <- rbinom(1, 1, p_success)
+    
+    if (is_success == 1) {
+      consecutive <- consecutive + 1
+    } else {
+      consecutive <- 0  # Reset streak upon failure
+    }
+  }
+  total_attempts_needed[i] <- count
+}
+
+# 1. Average number of attempts needed
+mean_attempts <- mean(total_attempts_needed)
+
+# 2. Results Output
+cat("Average attempts needed for 4 consecutive successes:", mean_attempts, "\n")
+
+
+
+# 1. Define the transition matrix P
+# States: 0, 1, 2, 3 (Non-absorbing) and 4 (Absorbing)
+p <- 0.7
+q <- 0.3
+
+P <- matrix(c(
+  q, p, 0, 0, 0,  # State 0: reset to 0 or move to 1
+  q, 0, p, 0, 0,  # State 1: reset to 0 or move to 2
+  q, 0, 0, p, 0,  # State 2: reset to 0 or move to 3
+  q, 0, 0, 0, p,  # State 3: reset to 0 or move to 4 (Target)
+  0, 0, 0, 0, 1   # State 4: Absorbing state
+), nrow = 5, byrow = TRUE)
+
+# 2. Extract the sub-matrix Q (Non-absorbing states)
+# We take rows and columns 1 to 4
+Q <- P[1:4, 1:4]
+
+# 3. Calculate the Fundamental Matrix N = (I - Q)^-1
+# I is the Identity matrix
+I <- diag(4)
+N <- solve(I - Q)
+
+# 4. Expected number of steps to reach state 4 starting from state 0
+# Sum the first row of N
+expected_steps <- sum(N[1, ])
+
+# Output result
+print("Fundamental Matrix N:")
+print(N)
+cat("\nTheoretical Expected Attempts:", expected_steps, "\n")
+
+
+
+#8
+
+# Parameters from the problem
+n <- 1500           # Sample size
+p_true <- 0.15      # Population proportion
+threshold <- 0.16   # Value to compare (p-hat >= 0.16)
+iterations <- 100000 # Number of Monte Carlo simulations
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Perform Monte Carlo simulation
+# rbinom generates the number of 'Yes' responses in each trial
+successes <- rbinom(iterations, size = n, prob = p_true)
+
+# Calculate sample proportions (p-hat) for each iteration
+p_hat_sim <- successes / n
+
+# Estimate the probability P(p-hat >= 0.16)
+estimated_prob <- mean(p_hat_sim >= threshold)
+
+# Output the result
+cat("Estimated Probability P(p-hat >= 0.16):", estimated_prob, "\n")
+
+# Optional: Comparison with theoretical Normal Distribution
+# Using the provided mean (0.15) and standard deviation (0.0092)
+theoretical_prob <- pnorm(threshold, mean = 0.15, sd = 0.0092, lower.tail = FALSE)
+cat("Theoretical Probability (Normal Approx):", theoretical_prob, "\n")
+
+
+#9
+
+# Probability distribution data from the image
+x <- 0:5
+p <- c(0.03, 0.16, 0.30, 0.23, 0.17, 0.11)
+
+# Number of simulations (sample size)
+iterations <- 100000
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Monte Carlo simulation: 
+# Randomly sampling from 'x' with given probabilities 'p'
+samples <- sample(x, size = iterations, replace = TRUE, prob = p)
+
+# 1. Estimated Mean (Expected Value)
+mc_mean <- mean(samples)
+
+# 2. Estimated Standard Deviation
+mc_sd <- sd(samples)
+
+# --- Results ---
+cat("Monte Carlo Mean (E[X]):", mc_mean, "\n")
+cat("Monte Carlo SD (sigma):", mc_sd, "\n")
+
+# --- Theoretical values for comparison ---
+theo_mean <- sum(x * p)
+theo_var <- sum((x - theo_mean)^2 * p)
+theo_sd <- sqrt(theo_var)
+
+cat("\nTheoretical Mean:", theo_mean, "\n")
+cat("Theoretical SD:", theo_sd, "\n")
+
+
+#10
+
+
+# Parameters
+iterations <- 100000  # Number of families to simulate
+max_children <- 4     # Limit: up to 4 children
+p_girl <- 0.5         # Probability of having a girl
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Function to simulate one family
+simulate_family <- function() {
+  count <- 0
+  for (i in 1:max_children) {
+    count <- count + 1
+    # Check if the child is a girl (1 for girl, 0 for boy)
+    if (runif(1) < p_girl) {
+      break # Stop having children if a girl is born
+    }
+  }
+  return(count)
+}
+
+# Run simulation using replicate
+# This will return a vector of the number of children for each family
+results <- replicate(iterations, simulate_family())
+
+# 1. Estimated Mean Number of Children
+avg_children <- mean(results)
+
+# Improved Result Calculation
+cat("Estimated Average Number of Children:", avg_children, "\n")
+
+# --- Theoretical Probability Distribution for Comparison ---
+# P(1) = 0.5
+# P(2) = 0.5 * 0.5 = 0.25
+# P(3) = 0.5 * 0.5 * 0.5 = 0.125
+# P(4) = 0.5 * 0.5 * 0.5 * 1 = 0.125 (Reached max limit)
+theo_mean <- (1 * 0.5) + (2 * 0.25) + (3 * 0.125) + (4 * 0.125)
+cat("Theoretical Average Number of Children:", theo_mean, "\n")
+
+
+#11
+
+
+# Setup the jar (Urn)
+# 1: Red (8), 2: White (5), 3: Yellow (7)
+jar <- c(rep(1, 8), rep(2, 5), rep(3, 7))
+
+# Number of simulations
+iterations <- 100000
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Function for a single trial
+# Drawing 3 balls without replacement
+draw_balls <- function() {
+  selection <- sample(jar, size = 3, replace = FALSE)
+  
+  # Check if condition is met: 2 Red (1s) and 1 White (2s)
+  red_count <- sum(selection == 1)
+  white_count <- sum(selection == 2)
+  
+  return(red_count == 2 && white_count == 1)
+}
+
+# Run simulation
+results <- replicate(iterations, draw_balls())
+
+# Estimated Probability
+estimated_prob <- mean(results)
+
+# --- Results ---
+cat("Estimated Probability (2 Red, 1 White):", estimated_prob, "\n")
+
+# --- Theoretical Probability (Hypergeometric) ---
+# (8C2 * 5C1 * 7C0) / 20C3
+theo_prob <- (choose(8, 2) * choose(5, 1) * choose(7, 0)) / choose(20, 3)
+cat("Theoretical Probability:", theo_prob, "\n")
+
+
+
+#12
+
+
+
+# Parameters
+L <- 1          # Length of needle
+d <- 1          # Distance between lines
+N <- 100000     # Number of tosses
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Simulation
+# x: distance from center to nearest line (0 to d/2)
+# theta: angle (0 to pi/2)
+x <- runif(N, min = 0, max = d/2)
+theta <- runif(N, min = 0, max = pi/2)
+
+# Condition: x <= (L/2) * sin(theta)
+hits <- sum(x <= (L/2) * sin(theta))
+
+# Estimate Pi
+# P = hits / N = (2*L) / (d*pi)
+# pi = (2*L*N) / (d*hits)
+pi_estimate <- (2 * L * N) / (d * hits)
+
+cat("Estimated Pi:", pi_estimate, "\n")
+cat("Actual Pi:", pi, "\n")
+
+
+
+# Parameters
+L <- 1            # Needle length
+d <- 1            # Distance between lines
+N <- 10000        # Tosses per experiment
+experiments <- 5000 # Number of simulations to see the distribution of Pi
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Function to estimate one Pi from N tosses
+estimate_pi <- function(n_tosses, length_l, dist_d) {
+  x <- runif(n_tosses, min = 0, max = dist_d/2)
+  theta <- runif(n_tosses, min = 0, max = pi/2)
+  hits <- sum(x <= (length_l/2) * sin(theta))
+  p_hat <- hits / n_tosses
+  pi_hat <- (2 * length_l) / (dist_d * p_hat)
+  return(pi_hat)
+}
+
+# Run multiple experiments
+pi_results <- replicate(experiments, estimate_pi(N, L, d))
+
+# 1. Empirical (Simulated) Standard Error
+simulated_se <- sd(pi_results)
+
+# 2. Theoretical Standard Error (using Delta Method)
+# Formula: pi * sqrt((pi - 2) / (2 * N))
+theoretical_se <- pi * sqrt((pi - 2) / (2 * N))
+
+# Output Results
+cat("Average of Estimated Pi:", mean(pi_results), "\n")
+cat("Simulated Standard Error:", simulated_se, "\n")
+cat("Theoretical Standard Error:", theoretical_se, "\n")
+
+# Visualization
+hist(pi_results, breaks = 50, prob = TRUE, 
+     main = "Buffon's Needle: Distribution of Estimated Pi",
+     xlab = "Estimated Pi")
+curve(dnorm(x, mean = pi, sd = theoretical_se), 
+      add = TRUE, col = "blue", lwd = 2)
