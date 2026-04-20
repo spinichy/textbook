@@ -3151,6 +3151,8 @@ curve(dweibull(x, shape = k_est, scale = lambda_est),
 
 
 #2
+
+
 str(flights2)
 
 
@@ -3225,3 +3227,137 @@ plot(summary_table$n, summary_table$Mean_Bootstrap_SE, type = "b",
      xlab = "Sample Size (n)", ylab = "Bootstrap Standard Error",
      main = "Effect of Sample Size on Estimation Accuracy")
 grid()
+
+
+
+#3
+
+
+x_values <- c(
+  4.128788049, 7.329166647, 4.714593474, 1.579997982, 1.769276205,
+  0.435153006, 1.22258145, -0.092540617, 5.256441222, 2.088095533,
+  4.513045143, -0.379066716, 1.572029638, 5.896332218, -1.991089963,
+  -1.81700082, 2.538225058, 4.161650535, 2.626234275, 1.314020723,
+  2.953864007, 3.337840011, 1.241610897, 1.734479516, 2.852503486,
+  1.914709533, 3.170270252, 1.660092741, 1.688060558, 0.984618801
+)
+
+# Convert to a data frame for easier manipulation
+df <- data.frame(x = x_values)
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Number of bootstrap replications
+B <- 10000
+n <- length(x_values)
+
+# Initialize vectors to store results
+theta1_boot <- numeric(B)
+theta2_boot <- numeric(B)
+
+# Bootstrap procedure
+for(i in 1:B) {
+  # Resample with replacement
+  resample <- sample(df$x, size = n, replace = TRUE)
+  
+  # Calculate estimators for each resample
+  theta1_boot[i] <- mean(resample)^2
+  theta2_boot[i] <- var(resample)
+}
+
+# Calculate observed estimators from original data
+theta1_obs <- mean(x_values)^2
+theta2_obs <- var(x_values)
+
+# Results for theta1
+bias_theta1 <- mean(theta1_boot) - theta1_obs
+se_theta1 <- sd(theta1_boot)
+
+# Results for theta2
+bias_theta2 <- mean(theta2_boot) - theta2_obs
+se_theta2 <- sd(theta2_boot)
+
+# Display results for (a)
+cat("--- Non-parametric Bootstrap Results ---\n")
+cat("Theta1 (mean^2) - Bias:", bias_theta1, "/ SE:", se_theta1, "\n")
+cat("Theta2 (s^2)    - Bias:", bias_theta2, "/ SE:", se_theta2, "\n\n")
+
+
+
+
+# Estimate parameter mu from the original data
+mu_hat <- mean(x_values)
+
+# Initialize vectors
+theta1_para_boot <- numeric(B)
+theta2_para_boot <- numeric(B)
+
+# Parametric Bootstrap procedure
+for(i in 1:B) {
+  # Generate samples from N(mu_hat, mu_hat^2)
+  # Since standard deviation = mu, we use mu_hat for both mean and sd
+  para_sample <- rnorm(n, mean = mu_hat, sd = abs(mu_hat))
+  
+  # Calculate estimators
+  theta1_para_boot[i] <- mean(para_sample)^2
+  theta2_para_boot[i] <- var(para_sample)
+}
+
+# Results for (b)
+bias_p_theta1 <- mean(theta1_para_boot) - theta1_obs
+se_p_theta1 <- sd(theta1_para_boot)
+
+bias_p_theta2 <- mean(theta2_para_boot) - theta2_obs
+se_p_theta2 <- sd(theta2_para_boot)
+
+# Display results for (b)
+cat("--- Parametric Bootstrap Results (Normal assumption) ---\n")
+cat("Theta1 (mean^2) - Bias:", bias_p_theta1, "/ SE:", se_p_theta1, "\n")
+cat("Theta2 (s^2)    - Bias:", bias_p_theta2, "/ SE:", se_p_theta2, "\n")
+
+
+
+
+#4
+
+
+
+
+library(fitdistrplus)
+
+# Prepare frequency data
+v_vals <- c(0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5)
+freqs  <- c(6421, 14246, 11953, 7463, 2322, 659, 120, 11, 3)
+raw_v  <- rep(v_vals, freqs)
+
+# MLE estimation for Weibull parameters
+fit <- fitdist(raw_v, "weibull")
+k_hat <- fit$estimate["shape"]
+l_hat <- fit$estimate["scale"]
+
+# Function for mean output h(lambda, k)
+h_func <- function(l, k) {
+  ev1 <- l * gamma(1 + 1/k)
+  ev2 <- l^2 * gamma(1 + 2/k)
+  ev3 <- l^3 * gamma(1 + 3/k)
+  return(1 - 2*ev1 + ev2 - 0.05*ev3)
+}
+
+# Bootstrap for Bias and SE of theta_MLE
+theta_mle_obs <- h_func(l_hat, k_hat)
+boot_results  <- numeric(100) # Number of reps can be adjusted
+
+for(i in 1:100) {
+  # Generate samples from the estimated Weibull model
+  b_samp <- rweibull(length(raw_v), shape = k_hat, scale = l_hat)
+  b_fit  <- fitdist(b_samp, "weibull")
+  boot_results[i] <- h_func(b_fit$estimate["scale"], b_fit$estimate["shape"])
+}
+
+# Final metrics
+final_se   <- sd(boot_results)
+final_bias <- mean(boot_results) - theta_mle_obs
+
+final_se
+final_bias
