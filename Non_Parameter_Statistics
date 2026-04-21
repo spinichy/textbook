@@ -4204,4 +4204,108 @@ abline(v=m_obs, col="red", lwd=2, lty=2)
 
 
 
+##exercise.9
+
+
+#2
+
+
+# 1. Parameter Setup
+set.seed(123)
+theta0 <- 100         # Null Hypothesis: theta = 100
+n <- 30               # Sample size
+B <- 2000             # Number of bootstrap replicates
+alpha <- 0.05         # Significance level
+
+# 2. Function for Bootstrap P-value
+get_bootstrap_p <- function(data, t0) {
+  x_bar <- mean(data)
+  s_obs <- x_bar - t0
+  
+  # Centering for non-parametric bootstrap: x* - mean(x)
+  # This mimics the null distribution
+  boot_dist <- replicate(B, {
+    x_star <- sample(data, size = length(data), replace = TRUE)
+    mean(x_star) - x_bar
+  })
+  
+  # Calculate P-value (Right-tailed: H1: theta > theta0)
+  p_val <- sum(boot_dist >= s_obs) / B
+  return(list(p = p_val, s_obs = s_obs, dist = boot_dist))
+}
+
+# --- Case (a) & (b): When H0 is TRUE (theta = 100) ---
+data_h0 <- rnorm(n, mean = 100, sd = 10)
+res_h0 <- get_bootstrap_p(data_h0, theta0)
+
+# Visualization for (a)
+par(mfrow = c(1, 2))
+hist(res_h0$dist, breaks = 30, col = "skyblue", border = "white",
+     main = "(a) Null Dist by Bootstrap", xlab = "S* (x_bar* - x_bar)")
+abline(v = res_h0$s_obs, col = "red", lwd = 2, lty = 2)
+legend("topright", legend = "Observed S", col = "red", lty = 2)
+
+# --- Case (c): Power Analysis (theta = 105, 110, 120) ---
+# Testing how rejection rate changes as theta1 increases
+thetas <- c(100, 105, 110, 115) # 100 is for Type I Error check
+powers <- sapply(thetas, function(t_true) {
+  rejections <- replicate(100, { # 100 simulations for each theta
+    sim_data <- rnorm(n, mean = t_true, sd = 10)
+    test <- get_bootstrap_p(sim_data, theta0)
+    test$p <= alpha
+  })
+  mean(rejections)
+})
+
+# Visualization for (c)
+plot(thetas, powers, type = "b", pch = 19, col = "darkblue",
+     main = "(c) Power Curve (theta1 -> inf)",
+     xlab = "True Theta (theta1)", ylab = "Rejection Rate (Power)")
+abline(h = 0.05, col = "red", lty = 3) # Alpha level
+text(102, 0.1, "Type I Error (0.05)", col = "red")
+
+# Print Results
+cat("--- Simulation Results ---\n")
+cat("At H0 (theta=100), P-value:", res_h0$p, "\n")
+cat("Power Analysis Table:\n")
+
+
+
+#3
+
+
+
+# 1. Dataset (ALL, AML)
+ge_values <- c(328, 295, 276, 182, 266, 24, 142, 252, 174, 142, 177, 129, 146, 211, 180, 68, 237, 152, 270, 172, 88, 283, 309, 12, 168, 71, 55, -2, 268, 219, 82, 25, 173, 243, 149, 257, 301, 78, 207, 218, 132, -24, -36, 255, 316, 54, 81, 38, 309, 170, 314, 319, 178, 340, 31, 396, 141, 95, 146, 431, 9, 101, 132, 318, 325, 392, 241, 193, 312, 230, 330, 337)
+labels <- c(rep("ALL", 47), rep("AML", 25))
+x <- ge_values[labels == "ALL"]
+y <- ge_values[labels == "AML"]
+delta_obs <- mean(y) - mean(x)
+
+# 2. Bootstrap for 95% Confidence Interval (Percentile Method)
+set.seed(123)
+B <- 2000
+boot_delta <- replicate(B, {
+  res_x <- sample(x, replace = TRUE)
+  res_y <- sample(y, replace = TRUE)
+  mean(res_y) - mean(res_x)
+})
+ci_95 <- quantile(boot_delta, probs = c(0.025, 0.975))
+
+# 3. Bootstrap for Hypothesis Testing (Centering for H0: delta = 0)
+grand_mean <- mean(c(x, y))
+x_prime <- x - mean(x) + grand_mean
+y_prime <- y - mean(y) + grand_mean
+
+boot_null <- replicate(B, {
+  null_x <- sample(x_prime, replace = TRUE)
+  null_y <- sample(y_prime, replace = TRUE)
+  mean(null_y) - mean(null_x)
+})
+p_value <- (1 + sum(abs(boot_null) >= abs(delta_obs))) / (B + 1)
+
+# 4. Results Summary
+cat("Observed Difference (Delta):", delta_obs, "\n")
+cat("95% Bootstrap CI:", ci_95, "\n")
+cat("Hypothesis Test P-value:", p_value, "\n")
 
