@@ -3361,3 +3361,460 @@ final_bias <- mean(boot_results) - theta_mle_obs
 
 final_se
 final_bias
+
+
+
+##example.8
+
+
+#1
+
+
+data <- read.csv(file = "TeamFortress2.csv")
+
+# Setup for normal-approximated bootstrap C.I.
+set.seed(123)
+B <- 10000
+n <- length(data$x)
+theta_boot <- numeric(B)
+
+# Bootstrap procedure
+for(i in 1:B) {
+  resample <- sample(data$x, size = n, replace = TRUE)
+  theta_boot[i] <- mean(resample) # Example: Estimating the mean
+}
+
+# 1. Point estimate from original data
+theta_hat <- mean(data$x)
+
+# 2. Calculate Bootstrap Standard Error and Bias
+se_boot <- sd(theta_boot)
+bias_boot <- mean(theta_boot) - theta_hat
+
+# 3. Calculate 95% Normal-Approximated C.I.
+z_val <- qnorm(0.975) # 1.96 for 95% confidence level
+lower_ci <- (theta_hat - bias_boot) - z_val * se_boot
+upper_ci <- (theta_hat - bias_boot) + z_val * se_boot
+
+# Display results
+
+hist(theta_boot)
+
+cat("Lower CI:", lower_ci, "\n")
+cat("Upper CI:", upper_ci, "\n")
+
+
+
+#2
+
+
+
+# ---------------------------------------------------------
+# Basic (Pivotal) Bootstrap Confidence Interval
+# ---------------------------------------------------------
+
+# Set seed for reproducibility
+set.seed(123)
+
+# 1. Prepare the data 
+
+n <- length(data$x)
+B <- 10000 # Number of bootstrap replications
+
+# 2. Calculate the observed point estimate (theta_hat)
+theta_hat <- mean(data$x)
+
+# 3. Perform Bootstrap Resampling
+theta_boot <- numeric(B)
+for(i in 1:B) {
+  # Resample with replacement
+  resample <- sample(data$x, size = n, replace = TRUE)
+  theta_boot[i] <- mean(resample)
+}
+
+# 4. Calculate the bootstrap error distribution: delta* = theta* - theta_hat
+# This represents the empirical distribution 'H' of the errors
+delta_star <- theta_boot - theta_hat
+
+# 5. Find the quantiles of the error distribution (H_inv)
+alpha <- 0.05
+# Quantiles for a 95% confidence interval
+d_lower <- quantile(delta_star, probs = alpha / 2)       # 2.5% quantile
+d_upper <- quantile(delta_star, probs = 1 - (alpha / 2)) # 97.5% quantile
+
+# 6. Construct the Basic Bootstrap CI (The Pivotal Method)
+# Formula: [theta_hat - delta*(1-alpha/2), theta_hat - delta*(alpha/2)]
+# Equivalently: [2*theta_hat - theta*(1-alpha/2), 2*theta_hat - theta*(alpha/2)]
+ci_lower <- theta_hat - d_upper
+ci_upper <- theta_hat - d_lower
+
+# ---------------------------------------------------------
+# Results Output
+# ---------------------------------------------------------
+cat("=== Basic Bootstrap Confidence Interval ===\n")
+cat("Observed Estimate (theta_hat):", theta_hat, "\n")
+cat("Bootstrap SE:", sd(theta_boot), "\n")
+cat("95% Basic CI Lower:", ci_lower, "\n")
+cat("95% Basic CI Upper:", ci_upper, "\n")
+
+
+
+
+#3
+
+
+
+# ---------------------------------------------------------
+# 1. Mean and 2. Proportion (Formula-based SE)
+# ---------------------------------------------------------
+
+x_values <- data$x
+
+set.seed(123)
+B <- 5000
+
+# Function to calculate final CI from t-star distribution
+get_boot_t_ci <- function(t_stars, theta_hat, se_hat, alpha = 0.05) {
+  # 1. Get quantiles in ascending order: 0.025, 0.975
+  t_qs <- quantile(t_stars, probs = c(alpha/2, 1 - alpha/2), na.rm = TRUE)
+  
+  # 2. Apply pivot formula (Lower = theta - t_high, Upper = theta - t_low)
+  ci_lower <- theta_hat - t_qs[2] * se_hat
+  ci_upper <- theta_hat - t_qs[1] * se_hat
+  
+  # 3. Create a clean result with proper names
+  result <- c(ci_lower, ci_upper)
+  names(result) <- c("Lower_CI", "Upper_CI")
+  return(result)
+}
+
+
+# [1] Mean Example
+n_m <- length(x_values)
+theta_hat_m <- mean(x_values)
+se_hat_m <- sd(x_values) / sqrt(n_m)
+t_star_m <- numeric(B)
+
+for(i in 1:B) {
+  resample <- sample(x_values, replace = TRUE)
+  # Calculate SE using formula: s / sqrt(n)
+  t_star_m[i] <- (mean(resample) - theta_hat_m) / (sd(resample) / sqrt(n_m))
+}
+
+
+get_boot_t_ci(t_stars = t_star_m, 
+              theta_hat = theta_hat_m, 
+              se_hat = se_hat_m, 
+              alpha = 0.05)
+
+
+# [2] Proportion Example (Binary data: 1 for Success, 0 for Failure)
+y_bin <- c(rep(1, 12), rep(0, 18)) # n=30, p_hat = 0.4
+n_p <- length(y_bin)
+p_hat <- mean(y_bin)
+se_hat_p <- sqrt(p_hat * (1 - p_hat) / n_p)
+t_star_p <- numeric(B)
+
+for(i in 1:B) {
+  resample <- sample(y_bin, replace = TRUE)
+  p_star <- mean(resample)
+  # Calculate SE using formula: sqrt(p(1-p)/n)
+  # Adding small constant to denominator to avoid division by zero
+  se_star <- sqrt(p_star * (1 - p_star) / n_p) + 1e-6
+  t_star_p[i] <- (p_star - p_hat) / se_star
+}
+
+
+get_boot_t_ci(t_stars = t_star_p, 
+              theta_hat = p_hat, 
+              se_hat = se_hat_p, 
+              alpha = 0.05)
+
+
+
+# ---------------------------------------------------------
+# 3. Median and 4. Correlation (Double Bootstrap-based SE)
+# ---------------------------------------------------------
+C <- 50 # Inner loop for Double Bootstrap
+
+# [3] Median Example
+theta_hat_med <- median(x_values)
+t_star_med <- numeric(B)
+B_se <- 1000 
+se_hat_med <- sd(replicate(B_se, median(sample(x_values, replace = TRUE))))
+
+for(i in 1:B) {
+  sample_outer <- sample(x_values, replace = TRUE)
+  theta_star <- median(sample_outer)
+  
+  # Inner Loop to find SE* of the Median
+  r_grandsons <- replicate(C, median(sample(sample_outer, replace = TRUE)))
+  se_star <- sd(r_grandsons) + 1e-6
+  
+  t_star_med[i] <- (theta_star - theta_hat_med) / se_star
+}
+
+
+get_boot_t_ci(t_stars = t_star_med, 
+              theta_hat = theta_hat_med, 
+              se_hat = se_hat_med,
+              alpha = 0.05)
+
+
+
+# [4] Correlation Example
+y_values <- x_values * 0.5 + rnorm(length(x_values), sd = 2)
+data_orig <- data.frame(x = x_values, y = y_values)
+
+r_obs <- cor(data_orig$x, data_orig$y)
+t_star_cor <- numeric(B)
+
+B_se <- 1000 
+se_hat_cor <- sd(replicate(B_se, {
+  s_tmp <- data_orig[sample(1:nrow(data_orig), replace = TRUE), ]
+  cor(s_tmp$x, s_tmp$y)
+}))
+
+
+for(i in 1:B) {
+  idx_outer <- sample(1:nrow(data_orig), replace = TRUE)
+  sample_outer <- data_orig[idx_outer, ]
+  r_star <- cor(sample_outer$x, sample_outer$y)
+  
+  # Inner Loop to find SE* of the Correlation
+  r_grandsons <- replicate(C, {
+    sample_inner <- sample_outer[sample(1:nrow(sample_outer), replace = TRUE), ]
+    cor(sample_inner$x, sample_inner$y)
+  })
+  se_star <- sd(r_grandsons) + 1e-6
+  
+  t_star_cor[i] <- (r_star - r_obs) / se_star
+}
+
+get_boot_t_ci(t_stars = t_star_cor, 
+              theta_hat = r_obs, 
+              se_hat = se_hat_cor,
+              alpha = 0.05)
+
+
+
+
+#4
+
+
+
+
+
+
+# 1. Generate skewed data (Exponential distribution)
+set.seed(123)
+data <- data$x
+
+# 2. Define Bootstrap function
+# Function to calculate the mean of resampled data
+boot_mean <- function(x) {
+  resample <- sample(x, replace = TRUE)
+  return(mean(resample))
+}
+
+# 3. Perform Bootstrapping (1,000 iterations)
+boot_results <- replicate(1000, boot_mean(data))
+
+# 4. Calculate Percentile Confidence Interval (Original Scale)
+# This uses the 'ranking' of the bootstrap distribution
+lower_orig <- quantile(boot_results, 0.025)
+upper_orig <- quantile(boot_results, 0.975)
+
+# 5. Verify Invariance Property with a Monotonic Transformation (Log)
+# Log transformation is a monotonically increasing function (phi)
+phi_boot <- log(boot_results)
+
+# Calculate percentiles in the 'transformed world'
+lower_phi <- quantile(phi_boot, 0.025)
+upper_phi <- quantile(phi_boot, 0.975)
+
+# 6. Back-transform to the original scale (Inverse phi)
+# Taking the exponent (exp) to return to original scale
+lower_inv <- exp(lower_phi)
+upper_inv <- exp(upper_phi)
+
+# 7. Print Results
+cat("--- Bootstrap Percentile CI Results ---\n")
+cat("Original Scale CI: [", lower_orig, ",", upper_orig, "]\n")
+cat("Back-transformed CI: [", lower_inv, ",", upper_inv, "]\n")
+cat("\nIs Rank Preserved? ", all.equal(lower_orig, lower_inv, tolerance = 0.01))
+
+
+
+#5
+
+
+
+library(boot)
+
+# 1. Data Preparation
+# Using the user-provided data characterized by extreme right-skewness
+# Summary: Min 0.1, Median 4.4, Mean 70.64, Max 3503.0
+sample_data <- data 
+
+# 2. Define the Statistic Function
+# This function calculates the mean of the resampled indices
+# It must accept (data, indices) as required by the boot function
+get_mean <- function(data, indices) {
+  # Return the mean of the subsetted data
+  return(mean(data[indices]))
+}
+
+# 3. Execution of Non-parametric Bootstrapping
+# R = 2000 iterations is recommended for stable BCa interval estimation
+set.seed(42) # Ensure reproducibility
+boot_results <- boot(data = sample_data, statistic = get_mean, R = 2000)
+
+
+# Calculate z0 manually
+# t0 is the original mean, t is the 2000 bootstrap means
+p_hat <- mean(boot_results$t < boot_results$t0)
+z0 <- qnorm(p_hat) 
+
+cat("Calculated z0 (Bias-correction):", z0, "\n")
+
+
+# 4. Handle Potential Numerical Instability for 'a' (Acceleration)
+# Due to extreme outliers (Max 3503), the automatic calculation of 'a' may fail.
+# We manually extract the empirical influence values (L) using the Jackknife method.
+L_values <- empinf(boot_results, type = "jack")
+
+
+# Calculate acceleration 'a' using the L_values (Jackknife influence)
+sum_L3 <- sum(L_values^3)
+sum_L2 <- sum(L_values^2)
+a <- sum_L3 / (6 * (sum_L2^1.5))
+
+cat("Calculated a (Acceleration):", a, "\n")
+
+# 5. Calculate Confidence Intervals
+# We compute both Percentile and BCa (Bias-Corrected and accelerated) intervals.
+# Passing L_values explicitly helps prevent the 'a is not finite' error.
+boot_ci <- boot.ci(boot_results, 
+                   type = c("perc", "bca"), 
+                   L = L_values)
+
+# 6. Display Results
+# Compare the Percentile method with the BCa method to see the effect of z0 and a.
+cat("--- Bootstrap Confidence Interval Analysis ---\n")
+print(boot_ci)
+
+# 7. Diagnostic: Check Internal BCa Parameters
+# z0 represents bias-correction and 'a' represents acceleration (skewness adjustment)
+# Note: These values explain why the BCa interval shifts relative to the Percentile interval.
+
+
+
+##exercise.8
+
+
+#5
+
+
+library(boot)
+
+# 1. Load data
+data <- read.csv(file = "TeamFortress2.csv")
+x <- data$x
+
+# 2. Define the statistic function for Studentized intervals
+# To calculate 'stud' intervals, the function returns: c(statistic, variance)
+iqr_stat_stud <- function(data, indices) {
+  d <- data[indices]
+  iqr_val <- as.numeric(quantile(d, 0.75) - quantile(d, 0.25))
+  
+  # Estimate variance of IQR using a simple inner bootstrap (loop)
+  # This is necessary for the 'stud' interval
+  inner_reps <- replicate(30, {
+    d_sub <- sample(d, replace = TRUE)
+    as.numeric(quantile(d_sub, 0.75) - quantile(d_sub, 0.25))
+  })
+  var_iqr <- var(inner_reps)
+  
+  return(c(iqr_val, var_iqr))
+}
+
+# 3. Perform Bootstrap resampling
+set.seed(42)
+boot_results <- boot(data = x, statistic = iqr_stat_stud, R = 2000)
+
+# 4. Calculate Confidence Intervals
+# Note: 'bca' is excluded because sum_L2 = 0 (no variation in jackknife samples)
+# This data's ties make BCa mathematically impossible.
+# We include: Normal, Basic, Studentized, and Percentile.
+boot_ci <- boot.ci(boot_results, 
+                   type = c("norm", "basic", "stud", "perc"))
+
+# 5. Display results
+print(boot_ci)
+
+
+
+
+#6
+
+
+
+library(boot)
+library(fitdistrplus)
+
+# 1. Load data
+data <- read.csv(file = "TeamFortress2.csv")
+x <- data$x
+
+# 2. Initial MLE fitting
+fit_init <- fitdist(x, "weibull")
+mle_initial <- fit_init$estimate
+
+# 3. Enhanced Statistic Function for 'stud' interval
+# Returns both the mean (theta_hat) and its variance estimate
+weibull_stat_all <- function(data) {
+  # Fit model to the current bootstrap sample
+  fit <- fitdist(data, "weibull")
+  k <- fit$estimate["shape"]
+  lambda <- fit$estimate["scale"]
+  
+  # Calculate theta_hat (Mean)
+  theta_hat <- lambda * gamma(1 + 1/k)
+  
+  # Estimate variance of theta_hat using delta method or inner bootstrap
+  # For simplicity in this exercise, we use a small inner bootstrap
+  inner_reps <- replicate(20, {
+    d_sub <- rweibull(length(data), shape = k, scale = lambda)
+    f_sub <- fitdist(d_sub, "weibull")
+    f_sub$estimate["scale"] * gamma(1 + 1/f_sub$estimate["shape"])
+  })
+  var_theta <- var(inner_reps)
+  
+  return(c(theta_hat, var_theta))
+}
+
+# 4. Data generation function (Parametric)
+weibull_gen <- function(data, mle) {
+  rweibull(n = length(data), shape = mle[1], scale = mle[2])
+}
+
+# 5. Perform Parametric Bootstrap
+set.seed(42)
+boot_param <- boot(data = x, 
+                   statistic = weibull_stat_all, 
+                   R = 1000, 
+                   sim = "parametric", 
+                   ran.gen = weibull_gen, 
+                   mle = mle_initial)
+
+# 6. Calculate all 5 types of Confidence Intervals
+# Note: BCa for parametric bootstrap often requires manual L values or 
+# specific influence functions which can be complex for Weibull MLE.
+# If BCa fails, use the other 4 robust types.
+boot_ci <- boot.ci(boot_param, 
+                   type = c("norm", "basic", "stud", "perc"))
+
+print(boot_ci)
+
+
