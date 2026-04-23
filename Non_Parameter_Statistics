@@ -4313,3 +4313,1093 @@ cat("Hypothesis Test P-value:", p_value, "\n")
 
 #Part 8 --------------------------------------------------------------------------------------------------------------
 
+
+##example
+
+
+#1
+
+data <- read.csv(file = "worldbank2020.csv")
+str(data)
+
+# 1. Data Setup
+x <- data$GDP.per.capita
+y <- data$Score
+
+# 2. Calculate the Observed Regression Coefficient (Slope)
+# Extracting the slope from the linear model (lm)
+fit_obs <- lm(y ~ x)
+obs_slope <- coef(fit_obs)[2] # The second coefficient is the slope for x
+
+# 3. Permutation Test Setup
+n_iterations <- 1999
+perm_slopes <- numeric(n_iterations)
+
+set.seed(123) # For reproducibility
+
+# 4. Run the Permutation Loop
+for (i in 1:n_iterations) {
+  # Shuffle the dependent variable (y) to break the relationship with x
+  y_permuted <- sample(y)
+  
+  # Fit the model with permuted y and record the new slope
+  fit_perm <- lm(y_permuted ~ x)
+  perm_slopes[i] <- coef(fit_perm)[2]
+}
+
+# 5. Calculate the P-value
+# Proportion of permuted slopes more extreme than the observed slope
+# Two-tailed test: comparing absolute values
+p_value <- (sum(abs(perm_slopes) >= abs(obs_slope)) + 1) / (n_iterations + 1)
+
+# 6. Visualization
+hist(perm_slopes, breaks = 40, col = "lightgray",
+     main = "Permutation Distribution of Regression Coefficient",
+     xlab = "Permuted Slopes",
+     xlim = range(c(perm_slopes, obs_slope)))
+abline(v = obs_slope, col = "red", lwd = 2, lty = 2) # Observed slope marker
+
+# 7. Print Results
+cat("--- Permutation Test Results ---\n")
+cat("Observed Slope (Beta 1):", obs_slope, "\n")
+cat("Number of Iterations:", n_iterations, "\n")
+cat("Permutation P-value:", p_value, "\n")
+
+summary(fit_obs)
+
+
+# 8. Bootstrap-t Setup
+n_bootstrap <- 2000
+boot_t_stats <- numeric(n_bootstrap)
+
+# Note: obs_slope and summary(fit_obs) from previous code are used
+obs_se <- summary(fit_obs)$coefficients[2, 2] # Standard Error of observed slope
+
+set.seed(123) # For reproducibility
+
+# 9. Run the Bootstrap Loop
+for (j in 1:n_bootstrap) {
+  # Resample indices with replacement (Pairwise Bootstrap)
+  indices <- sample(1:nrow(data), replace = TRUE)
+  boot_sample <- data[indices, ]
+  
+  # Fit model on bootstrap sample
+  fit_boot <- lm(Score ~ GDP.per.capita, data = boot_sample)
+  
+  boot_slope <- coef(fit_boot)[2]
+  boot_se <- summary(fit_boot)$coefficients[2, 2]
+  
+  # Calculate bootstrap t-statistic
+  # (boot_slope - obs_slope) / boot_se
+  boot_t_stats[j] <- (boot_slope - obs_slope) / boot_se
+}
+
+# 10. Calculate Bootstrap-t Confidence Interval (95%)
+alpha <- 0.05
+# Get quantiles from the bootstrap t-distribution
+t_quantiles <- quantile(boot_t_stats, probs = c(1 - alpha/2, alpha/2))
+
+# CI Formula: [obs_slope - t_upper * obs_se, obs_slope - t_lower * obs_se]
+boot_t_ci <- obs_slope - (t_quantiles * obs_se)
+names(boot_t_ci) <- c("2.5%", "97.5%")
+
+# 11. Print Bootstrap Results
+cat("\n--- Bootstrap-t Results ---\n")
+cat("Observed Slope:", obs_slope, "\n")
+cat("95% Bootstrap-t CI:", boot_t_ci[1], "to", boot_t_ci[2], "\n")
+
+# 12. Visualization of Bootstrap-t Distribution
+hist(boot_t_stats, breaks = 40, col = "lightblue",
+     main = "Distribution of Bootstrap t-statistics",
+     xlab = "t-stats")
+
+
+
+#residual
+
+
+# 0. Load Data
+# data <- read.csv(file = "worldbank2020.csv") # Uncomment to use your file
+# For demonstration, using placeholder logic if data is loaded
+x <- data$GDP.per.capita
+y <- data$Score
+
+# 1. Observed Model Fit
+fit_obs <- lm(y ~ x)
+obs_slope <- coef(fit_obs)[2]
+obs_se <- summary(fit_obs)$coefficients[2, 2]
+fitted_values <- fitted(fit_obs)
+residuals_obs <- residuals(fit_obs)
+
+# ---------------------------------------------------------
+# 2. Permutation Test (Relationship testing)
+# ---------------------------------------------------------
+n_perm <- 1999
+perm_slopes <- numeric(n_perm)
+
+set.seed(123) # For reproducibility
+for (i in 1:n_perm) {
+  y_permuted <- sample(y)
+  fit_perm <- lm(y_permuted ~ x)
+  perm_slopes[i] <- coef(fit_perm)[2]
+}
+
+p_value <- (sum(abs(perm_slopes) >= abs(obs_slope)) + 1) / (n_perm + 1)
+
+# ---------------------------------------------------------
+# 3. Residual Bootstrap-t (Confidence Interval)
+# ---------------------------------------------------------
+n_boot <- 2000
+boot_t_stats <- numeric(n_boot)
+
+set.seed(123)
+for (j in 1:n_boot) {
+  # Step A: Resample residuals with replacement
+  boot_resids <- sample(residuals_obs, replace = TRUE)
+  
+  # Step B: Create new synthetic y values (y* = fitted + resampled_resid)
+  y_star <- fitted_values + boot_resids
+  
+  # Step C: Fit model to synthetic data
+  fit_star <- lm(y_star ~ x)
+  boot_slope <- coef(fit_star)[2]
+  boot_se <- summary(fit_star)$coefficients[2, 2]
+  
+  # Step D: Calculate bootstrap t-statistic
+  # (boot_slope - obs_slope) / boot_se
+  boot_t_stats[j] <- (boot_slope - obs_slope) / boot_se
+}
+
+# 95% Confidence Interval calculation
+alpha <- 0.05
+t_quantiles <- quantile(boot_t_stats, probs = c(1 - alpha/2, alpha/2))
+boot_t_ci <- obs_slope - (t_quantiles * obs_se)
+names(boot_t_ci) <- c("2.5%", "97.5%")
+
+# ---------------------------------------------------------
+# 4. Visualization & Results
+# ---------------------------------------------------------
+par(mfrow = c(1, 2)) # Set plot layout
+
+# Plot 1: Permutation Distribution
+hist(perm_slopes, breaks = 40, col = "lightgray", border = "white",
+     main = "Permutation Test", xlab = "Permuted Slopes")
+abline(v = obs_slope, col = "red", lwd = 2, lty = 2)
+
+# Plot 2: Bootstrap-t Distribution
+hist(boot_t_stats, breaks = 40, col = "lightblue", border = "white",
+     main = "Residual Bootstrap-t", xlab = "t-statistics")
+
+# Output Summary
+cat("--- Analysis Results ---\n")
+cat("Observed Slope (Beta 1):", obs_slope, "\n")
+cat("Permutation P-value:", p_value, "\n")
+cat("95% Residual Bootstrap-t CI:", boot_t_ci[1], "to", boot_t_ci[2], "\n")
+
+
+
+
+#2
+
+
+
+# 0. Data Setup
+# Assuming 'data' contains Score and other 6 independent variables
+# y <- data$Score
+# x_vars <- data[, c("GDP.per.capita", "Social.support", "Healthy.life.expectancy", 
+#                    "Freedom.to.make.life.choices", "Generosity", "Perceptions.of.corruption")]
+
+# 1. Observed Multiple Regression Fit
+# Fitting the model with all independent variables
+fit_obs <- lm(Score ~ GDP.per.capita + Social.support + Healthy.life.expectancy + 
+                Freedom.to.make.life.choices + Generosity + Perceptions.of.corruption, 
+              data = data)
+
+# Select target coefficient (e.g., Index 2 is GDP.per.capita)
+target_idx <- 2 
+obs_slope <- coef(fit_obs)[target_idx]
+obs_se <- summary(fit_obs)$coefficients[target_idx, 2]
+
+# Store fitted values and residuals for residual bootstrapping
+fitted_values <- fitted(fit_obs)
+residuals_obs <- residuals(fit_obs)
+
+# ---------------------------------------------------------
+# 2. Permutation Test for GDP.per.capita
+# ---------------------------------------------------------
+n_perm <- 1999
+perm_slopes <- numeric(n_perm)
+
+set.seed(123) # For reproducibility
+for (i in 1:n_perm) {
+  # Shuffle Y to break the relationship with all X variables (Global Null)
+  y_permuted <- sample(data$Score)
+  
+  # Refit the model with permuted Y
+  fit_perm <- lm(y_permuted ~ GDP.per.capita + Social.support + Healthy.life.expectancy + 
+                   Freedom.to.make.life.choices + Generosity + Perceptions.of.corruption, 
+                 data = data)
+  
+  perm_slopes[i] <- coef(fit_perm)[target_idx]
+}
+
+# Calculate Two-tailed Permutation P-value
+p_value <- (sum(abs(perm_slopes) >= abs(obs_slope)) + 1) / (n_perm + 1)
+
+# ---------------------------------------------------------
+# 3. Residual Bootstrap-t for GDP.per.capita CI
+# ---------------------------------------------------------
+n_boot <- 2000
+boot_t_stats <- numeric(n_boot)
+
+set.seed(123)
+for (j in 1:n_boot) {
+  # Step A: Resample residuals with replacement
+  boot_resids <- sample(residuals_obs, replace = TRUE)
+  
+  # Step B: Create synthetic Y* (Keep X fixed)
+  y_star <- fitted_values + boot_resids
+  
+  # Step C: Fit model to synthetic data
+  fit_star <- lm(y_star ~ GDP.per.capita + Social.support + Healthy.life.expectancy + 
+                   Freedom.to.make.life.choices + Generosity + Perceptions.of.corruption, 
+                 data = data)
+  
+  boot_slope <- coef(fit_star)[target_idx]
+  boot_se <- summary(fit_star)$coefficients[target_idx, 2]
+  
+  # Step D: Calculate studentized bootstrap t-statistic
+  boot_t_stats[j] <- (boot_slope - obs_slope) / boot_se
+}
+
+# Calculate 95% Bootstrap-t Confidence Interval
+alpha <- 0.05
+t_quantiles <- quantile(boot_t_stats, probs = c(1 - alpha/2, alpha/2))
+boot_t_ci <- obs_slope - (t_quantiles * obs_se)
+names(boot_t_ci) <- c("2.5%", "97.5%")
+
+# ---------------------------------------------------------
+# 4. Final Output and Visualization
+# ---------------------------------------------------------
+cat("--- Multiple Regression Analysis Results ---\n")
+cat("Target Variable:", names(coef(fit_obs))[target_idx], "\n")
+cat("Observed Coefficient:", obs_slope, "\n")
+cat("Permutation P-value:", p_value, "\n")
+cat("95% Residual Bootstrap-t CI:", boot_t_ci[1], "to", boot_t_ci[2], "\n\n")
+
+# Display OLS summary for comparison
+summary(fit_obs)
+
+# Optional Visuals
+par(mfrow = c(1, 2))
+hist(perm_slopes, main = "Permutation Distribution", xlab = "Permuted Slopes", col = "gray")
+abline(v = obs_slope, col = "red", lty = 2)
+hist(boot_t_stats, main = "Bootstrap-t Distribution", xlab = "t-stats", col = "skyblue")
+
+
+
+#3
+
+
+
+library(MASS)
+# Load the Belgian phones data
+data(phones)
+
+# 1. OLS (Ordinary Least Squares) 
+# Equivalent to M-estimation with psi(r) = r
+fit_ols <- lm(calls ~ year, data = phones)
+
+# 2. Huber M-estimator
+# Psi(r) is linear near 0 and constant for large residuals
+# Default k = 1.345
+fit_huber <- rlm(calls ~ year, data = phones, psi = psi.huber)
+
+# 3. Tukey's Biweight (Bisquare) M-estimator
+# Psi(r) is 'redescending' and becomes 0 for large residuals
+# Default k = 4.685
+fit_tukey <- rlm(calls ~ year, data = phones, psi = psi.bisquare)
+
+# --- Comparison of Coefficients ---
+print("Coefficients Comparison:")
+summary_table <- rbind(OLS = coef(fit_ols), 
+                       Huber = coef(fit_huber), 
+                       Tukey = coef(fit_tukey))
+print(summary_table)
+
+# --- Visualization ---
+plot(phones$year, phones$calls, pch = 16, col = "darkgray",
+     main = "M-estimators on Phones Data (Outlier Impact)",
+     xlab = "Year", ylab = "Number of Calls")
+
+# Add regression lines
+abline(fit_ols, col = "red", lwd = 2, lty = 1)      # OLS: Heavily pulled by outliers
+abline(fit_huber, col = "blue", lwd = 2, lty = 2)    # Huber: Less sensitive
+abline(fit_tukey, col = "darkgreen", lwd = 2, lty = 4) # Tukey: Most robust
+
+legend("topleft", legend = c("OLS (Linear)", "Huber (Limited)", "Tukey (Redescending)"),
+       col = c("red", "blue", "darkgreen"), lty = c(1, 2, 4), lwd = 2)
+
+# --- Weight Analysis ---
+# Inspecting how much weight was given to the outliers
+huber_weights <- fit_huber$w
+tukey_weights <- fit_tukey$w
+
+# Last few years (1964-1969) are the known outliers
+data.frame(Year = phones$year, 
+           Huber_W = huber_weights, 
+           Tukey_W = tukey_weights)
+
+
+
+
+# 0. Data Setup
+library(MASS) # For the phones data
+x <- phones$year - min(phones$year) # Center year for stability
+y <- phones$calls
+n <- length(y)
+
+# 1. OLS (Initial Step)
+fit_ols <- lm(y ~ x)
+beta <- coef(fit_ols)
+
+# 2. IRLS Function for M-estimation
+# psi_type: "huber" or "tukey"
+run_m_estimator <- function(x, y, psi_type = "huber", max_iter = 50, acc = 1e-6) {
+  # Initial beta from OLS
+  current_beta <- coef(lm(y ~ x))
+  
+  for (i in 1:max_iter) {
+    # Calculate residuals
+    y_hat <- current_beta[1] + current_beta[2] * x
+    resids <- y - y_hat
+    
+    # Scale estimation (Robust version of SD: MAD)
+    # Scale is needed to make the tuning constant k meaningful
+    sigma_hat <- median(abs(resids - median(resids))) / 0.6745
+    u <- resids / sigma_hat
+    
+    # Define Weights (w) based on Psi function
+    if (psi_type == "huber") {
+      k <- 1.345
+      # w(u) = psi(u)/u
+      weights <- ifelse(abs(u) <= k, 1, k / abs(u))
+    } else if (psi_type == "tukey") {
+      k <- 4.685
+      # w(u) = (1-(u/k)^2)^2 if |u|<=k, else 0
+      weights <- ifelse(abs(u) <= k, (1 - (u/k)^2)^2, 0)
+    }
+    
+    # Weighted Least Squares (WLS) manually
+    # Beta_new = (X'WX)^-1 X'Wy
+    new_fit <- lm(y ~ x, weights = weights)
+    new_beta <- coef(new_fit)
+    
+    # Check convergence
+    if (sum((new_beta - current_beta)^2) < acc) break
+    current_beta <- new_beta
+  }
+  return(list(beta = current_beta, weights = weights, iter = i))
+}
+
+# 3. Execute
+res_huber <- run_m_estimator(x, y, "huber")
+res_tukey <- run_m_estimator(x, y, "tukey")
+
+# 4. Results Comparison
+cat("--- Coefficients (Intercept, Slope) ---\n")
+cat("OLS:  ", coef(fit_ols), "\n")
+cat("Huber:", res_huber$beta, "(Converged in", res_huber$iter, "iters)\n")
+cat("Tukey:", res_tukey$beta, "(Converged in", res_tukey$iter, "iters)\n")
+
+# 5. Visualization
+plot(x, y, pch = 16, col = "gray", main = "Manual M-estimation (IRLS)")
+abline(coef(fit_ols), col = "red", lwd = 2) # OLS
+abline(res_huber$beta, col = "blue", lwd = 2, lty = 2) # Huber
+abline(res_tukey$beta, col = "darkgreen", lwd = 2, lty = 4) # Tukey
+legend("topleft", legend=c("OLS", "Huber", "Tukey"), 
+       col=c("red", "blue", "darkgreen"), lty=1:3, lwd=2)
+
+
+
+library(MASS)
+library(boot)
+
+# Load data
+data(phones)
+set.seed(123) # For reproducibility
+B <- 1999
+
+# Convert to data.frame explicitly to avoid dimension errors
+phones_df <- as.data.frame(phones)
+
+# Define the function to be bootstrapped
+boot_m_coeffs <- function(data, indices) {
+  # Robust subsetting: ensures the result is always a data frame
+  d <- data[indices, , drop = FALSE]
+  
+  # Use tryCatch to handle cases where rlm might fail to converge in a bootstrap sample
+  res <- tryCatch({
+    # Fit models
+    fit_ols   <- lm(calls ~ year, data = d)
+    fit_huber <- rlm(calls ~ year, data = d, psi = psi.huber, maxit = 200)
+    fit_tukey <- rlm(calls ~ year, data = d, psi = psi.bisquare, maxit = 200)
+    
+    # Return coefficients
+    c(OLS = coef(fit_ols)[2], 
+      Huber = coef(fit_huber)[2], 
+      Tukey = coef(fit_tukey)[2])
+  }, error = function(e) {
+    # Return NA if a particular bootstrap sample causes failure
+    return(c(OLS = NA, Huber = NA, Tukey = NA))
+  })
+  
+  return(res)
+}
+
+# Perform Case Bootstrap
+# Using the explicitly defined data frame
+boot_out <- boot(data = phones_df, statistic = boot_m_coeffs, R = B)
+
+# Remove rows with NA if any models failed to converge during bootstrapping
+# (rlm can be sensitive to specific resampled datasets)
+if(any(is.na(boot_out$t))) {
+  warning("Some bootstrap replicates failed to converge and were removed.")
+}
+
+# Function to extract Normal, Percentile, and BCa CIs
+extract_all_ci <- function(boot_obj, idx) {
+  # Normal Approximation
+  norm_res <- boot.ci(boot_obj, type = "norm", index = idx)
+  # Percentile
+  perc_res <- boot.ci(boot_obj, type = "perc", index = idx)
+  # BCa (Bias-Corrected and Accelerated)
+  bca_res  <- boot.ci(boot_obj, type = "bca", index = idx)
+  
+  return(c(Norm_L = norm_res$normal[2],   Norm_U = norm_res$normal[3],
+           Perc_L = perc_res$percent[4],  Perc_U = perc_res$percent[5],
+           BCa_L  = bca_res$bca[4],       BCa_U  = bca_res$bca[5]))
+}
+
+
+# Consolidate results for comparison
+ci_comparison <- rbind(
+  OLS   = extract_all_ci(boot_out, 1),
+  Huber = extract_all_ci(boot_out, 2),
+  Tukey = extract_all_ci(boot_out, 3)
+)
+
+# Display results
+cat("--- Comprehensive Bootstrap CI Comparison (B =", B, ") ---\n")
+print(round(ci_comparison, 4))
+
+
+
+
+#4
+
+
+
+library(MASS)
+data(phones)
+
+# Setting the null hypothesis value
+mu_0 <- 15
+calls_data <- phones$calls
+
+# 1. t-test (Parametric)
+# Assumes normality. Sensitive to outliers.
+t_test_res <- t.test(calls_data, mu = mu_0)
+
+# 2. Wilcoxon Signed-Rank Test (Non-parametric)
+# Assumes symmetry but not normality. Ranks the magnitude of differences.
+wilcox_res <- wilcox.test(calls_data, mu = mu_0, conf.int = TRUE)
+
+# 3. Sign Test (Non-parametric)
+# Only considers the direction (sign) of the difference. 
+# Most robust but least powerful.
+# There is no built-in 'signtest' in base R, so we use Binomial Test logic.
+plus_signs <- sum(calls_data > mu_0)
+total_n <- sum(calls_data != mu_0) # Exclude values exactly equal to mu_0
+sign_test_res <- binom.test(plus_signs, total_n, p = 0.5)
+
+# --- Results Comparison ---
+cat("--- Hypothesis Test Results (mu = 15) ---\n")
+cat("1. t-test P-value:          ", t_test_res$p.value, "\n")
+cat("2. Wilcoxon Test P-value:    ", wilcox_res$p.value, "\n")
+cat("3. Sign Test P-value:        ", sign_test_res$p.value, "\n")
+
+# --- Visual Check for Skewness ---
+hist(calls_data, main = "Distribution of Phone Calls", xlab = "Calls", col = "lightgray")
+abline(v = mu_0, col = "red", lwd = 2, lty = 2)
+legend("topright", legend = paste("H0: mu =", mu_0), col = "red", lty = 2)
+
+
+
+
+
+#5
+
+
+
+
+# Check if the package is installed, then load it
+library(mblm)
+
+# 1. Correlation Test (Pearson)
+# Testing the linear relationship between GDP per capita and Score
+cor_test_result <- cor.test(data$GDP.per.capita, data$Score, method = "pearson")
+print(cor_test_result)
+
+# 2. Theil-Sen Estimator
+# Performing robust linear regression using the Median-Based Linear Model
+ts_model <- mblm(Score ~ GDP.per.capita, dataframe = data)
+
+# Summary of the Theil-Sen regression results
+summary(ts_model)
+
+# 3. Visualization (Optional)
+plot(data$GDP.per.capita, data$Score, 
+     main = "GDP per capita vs Score (Theil-Sen)",
+     xlab = "GDP per capita", ylab = "Score", pch = 19, col = "darkblue")
+
+# Add the Theil-Sen regression line
+abline(ts_model, col = "red", lwd = 2)
+
+
+
+
+# 1. Correlation Test
+# Testing the linear relationship between GDP and Score
+cor_result <- cor.test(data$GDP.per.capita, data$Score)
+print(cor_result)
+
+# 2. Manual Implementation of Theil-Sen Estimator
+n <- nrow(data)
+slopes <- c()
+
+# Calculate slopes for all possible pairs (i, j) where i < j
+for (i in 1:(n - 1)) {
+  for (j in (i + 1):n) {
+    # Avoid division by zero if x values are identical
+    if (data$GDP.per.capita[j] != data$GDP.per.capita[i]) {
+      slope_ij <- (data$Score[j] - data$Score[i]) / 
+        (data$GDP.per.capita[j] - data$GDP.per.capita[i])
+      slopes <- c(slopes, slope_ij)
+    }
+  }
+}
+
+# Theil-Sen Slope (Beta): Median of all pairwise slopes
+beta_ts <- median(slopes)
+
+# Theil-Sen Intercept (Alpha): Median of (y - beta * x)
+intercepts <- data$Score - (beta_ts * data$GDP.per.capita)
+alpha_ts <- median(intercepts)
+
+# Output results
+cat("Theil-Sen Slope (Beta):", beta_ts, "\n")
+cat("Theil-Sen Intercept (Alpha):", alpha_ts, "\n")
+
+# 3. Plotting the results
+plot(data$GDP.per.capita, data$Score, 
+     main = "Theil-Sen Estimation (Manual Calculation)",
+     xlab = "GDP per capita", ylab = "Score", 
+     pch = 21, bg = "lightblue")
+
+# Add the calculated manual Theil-Sen line
+abline(a = alpha_ts, b = beta_ts, col = "darkred", lwd = 2)
+
+
+
+
+# 1. Required Package for Exact Kendall Quantiles
+library(SuppDists)
+
+x <- data$GDP.per.capita
+y <- data$Score
+n <- length(x)
+alpha <- 0.05
+
+# 2. Calculate and Sort All Pairwise Slopes (Order Statistics)
+slopes <- c()
+for (i in 1:(n - 1)) {
+  for (j in (i + 1):n) {
+    if (x[j] != x[i]) {
+      slopes <- c(slopes, (y[j] - y[i]) / (x[j] - x[i]))
+    }
+  }
+}
+slopes_sorted <- sort(slopes)
+N <- length(slopes_sorted)
+
+# 3. Find the Critical Value using Kendall's Distribution
+# qKendall gives the upper tail critical value for Kendall's S statistic
+# For a two-sided test, we use 1 - alpha/2
+ca <- qKendall(1 - alpha / 2, n)
+
+# 4. Determine the Ranks for the Confidence Interval
+# The interval is [S_(M1), S_(M2)] where:
+# M1 = (N - Ca) / 2
+# M2 = (N + Ca) / 2 + 1
+rank_l <- floor((N - ca) / 2)
+rank_u <- ceiling((N + ca) / 2) + 1
+
+# 5. Extract the Confidence Interval from Sorted Slopes
+ci_lower <- slopes_sorted[max(1, rank_l)]
+ci_upper <- slopes_sorted[min(N, rank_u)]
+beta_ts <- median(slopes_sorted)
+
+# Output results
+cat("Kendall's S Critical Value (Ca):", ca, "\n")
+cat("Rank indices [L, U]:", rank_l, ",", rank_u, "\n")
+cat("Theil-Sen Slope:", beta_ts, "\n")
+cat(sprintf("%.0f%% Exact CI: [%f, %f]\n", (1 - alpha) * 100, ci_lower, ci_upper))
+
+
+
+
+# 1. Preparation
+x <- data$GDP.per.capita
+y <- data$Score
+n <- length(x)
+alpha <- 0.05 # 95% Confidence Level
+
+# 2. Calculate all pairwise slopes and sort them
+slopes <- c()
+for (i in 1:(n - 1)) {
+  for (j in (i + 1):n) {
+    if (x[j] != x[i]) {
+      slopes <- c(slopes, (y[j] - y[i]) / (x[j] - x[i]))
+    }
+  }
+}
+slopes_sorted <- sort(slopes)
+N <- length(slopes_sorted) # Total number of pairs (N = n*(n-1)/2)
+
+# 3. Calculate the critical value (K) using Kendall's Tau distribution
+# For large n, Kendall's S follows a normal distribution: Var(S) = n(n-1)(2n+5)/18
+var_s <- n * (n - 1) * (2 * n + 5) / 18
+z_critical <- qnorm(1 - alpha / 2) # Approximately 1.96 for 95% CI
+
+# Calculate the displacement (k) from the median rank
+k <- z_critical * sqrt(var_s)
+
+# 4. Determine the rank of lower and upper bounds
+# Rank for lower bound (L) and upper bound (U)
+rank_l <- round((N - k) / 2)
+rank_u <- round((N + k) / 2) + 1
+
+# 5. Extract Confidence Interval
+ci_lower <- slopes_sorted[rank_l]
+ci_upper <- slopes_sorted[rank_u]
+beta_ts <- median(slopes_sorted)
+
+# Output results
+cat("Theil-Sen Slope (Point Estimate):", beta_ts, "\n")
+cat(sprintf("%.0f%% Confidence Interval: [%f, %f]\n", (1 - alpha) * 100, ci_lower, ci_upper))
+
+
+
+
+#6
+
+
+
+
+# 1. Data Preparation
+x1 <- data$GDP.per.capita
+x2 <- data$Healthy.life.expectancy
+y <- data$Score
+n <- length(y)
+
+# 2. Initial Values (from OLS)
+ols_init <- lm(y ~ x1 + x2)
+beta0 <- coef(ols_init)[1]
+beta1 <- coef(ols_init)[2]
+beta2 <- coef(ols_init)[3]
+
+# Function for Simple Theil-Sen Slope
+# This function finds the median of all pairwise slopes
+get_ts_slope <- function(x_vec, y_vec) {
+  n_vec <- length(x_vec)
+  slopes <- c()
+  for (i in 1:(n_vec - 1)) {
+    for (j in (i + 1):n_vec) {
+      if (x_vec[j] != x_vec[i]) {
+        slopes <- c(slopes, (y_vec[j] - y_vec[i]) / (x_vec[j] - x_vec[i]))
+      }
+    }
+  }
+  return(median(slopes))
+}
+
+# 3. Iterative Estimation (Coordinate Descent)
+max_iter <- 20
+tol <- 1e-6
+
+for (iter in 1:max_iter) {
+  beta1_old <- beta1
+  beta2_old <- beta2
+  
+  # Update Beta 1: Fix Beta 2 and Intercept
+  # y_adj = y - beta0 - beta2 * x2
+  y_adj1 <- y - beta0 - beta2 * x2
+  beta1 <- get_ts_slope(x1, y_adj1)
+  
+  # Update Beta 2: Fix Beta 1 and Intercept
+  y_adj2 <- y - beta0 - beta1 * x1
+  beta2 <- get_ts_slope(x2, y_adj2)
+  
+  # Update Intercept (Beta 0): Median of residuals
+  beta0 <- median(y - beta1 * x1 - beta2 * x2)
+  
+  # Check for convergence
+  diff <- abs(beta1 - beta1_old) + abs(beta2 - beta2_old)
+  cat(sprintf("Iteration %d: Beta1 = %.4f, Beta2 = %.4f, Diff = %.6f\n", 
+              iter, beta1, beta2, diff))
+  
+  if (diff < tol) break
+}
+
+# 4. Final Results
+cat("\n--- Final Iterative Theil-Sen Estimates ---\n")
+cat("Intercept (Beta0):", beta0, "\n")
+cat("GDP Slope (Beta1):", beta1, "\n")
+cat("Health Slope (Beta2):", beta2, "\n")
+summary(ols_init)
+
+
+
+
+
+# 1. Functionalize the Iterative Theil-Sen (to use in bootstrap)
+get_iterative_ts <- function(df, indices) {
+  # Bootstrap resampling
+  d <- df[indices, ]
+  x1 <- d$GDP.per.capita
+  x2 <- d$Healthy.life.expectancy
+  y <- d$Score
+  n_sub <- length(y)
+  
+  # Initial values
+  b1 <- 0; b2 <- 0; b0 <- median(y)
+  
+  # Inner function for slope
+  get_slope <- function(xv, yv) {
+    s <- c()
+    # To speed up bootstrap, we can sample pairs or use all
+    # For n=153, all pairs are manageable
+    for (i in 1:(length(xv)-1)) {
+      for (j in (i+1):length(xv)) {
+        if (xv[j] != xv[i]) s <- c(s, (yv[j]-yv[i])/(xv[j]-xv[i]))
+      }
+    }
+    return(median(s))
+  }
+  
+  # Iteration (reduced for speed in bootstrap)
+  for (iter in 1:10) {
+    b1 <- get_slope(x1, y - b0 - b2*x2)
+    b2 <- get_slope(x2, y - b0 - b1*x1)
+    b0 <- median(y - b1*x1 - b2*x2)
+  }
+  return(c(b0, b1, b2))
+}
+
+# 2. Run Bootstrap
+if (!require(boot)) install.packages("boot")
+library(boot)
+
+set.seed(123) # For reproducibility
+# Warning: This may take a minute due to nested loops (n*(n-1)/2 pairs * iterations * R)
+boot_results <- boot(data = data, statistic = get_iterative_ts, R = 5) #lots of time
+
+# 3. View Confidence Intervals
+# Index 1: Intercept, 2: GDP(x1), 3: Health(x2)
+cat("\n--- Bootstrap Confidence Intervals (95%) ---\n")
+print(boot.ci(boot_results, type = "perc", index = 2)) # GDP
+print(boot.ci(boot_results, type = "perc", index = 3)) # Health
+
+
+
+
+
+#7
+
+
+
+
+# 1. Load Required Package
+if (!require(robustbase)) install.packages("robustbase")
+library(robustbase)
+
+# 2. LTS Regression
+# Using Score as Y, GDP and Health as X variables
+lts_model <- ltsReg(Score ~ GDP.per.capita + Healthy.life.expectancy, data = data)
+
+# 3. View Results
+summary(lts_model)
+
+# 4. Identify Trimmed Observations
+# Observations with weight 0 are those 'trimmed' by the algorithm
+trimmed_indices <- which(lts_model$lts.wt == 0)
+cat("Number of trimmed countries:", length(trimmed_indices), "\n")
+cat("Trimmed countries:", paste(data$Country.or.region[trimmed_indices], collapse=", "), "\n")
+
+
+
+
+
+
+#8
+
+
+
+
+# 1. Load the necessary library
+# If the package is not installed, run: install.packages("robustbase")
+library(robustbase)
+
+# 2. Load the dataset
+# Ensure the file 'worldbank2020.csv' is in your working directory
+data <- read.csv("worldbank2020.csv")
+
+# 3. Fit the MM-estimator model
+# Dependent Variable: Score
+# Independent Variables: GDP.per.capita, Social.support, Healthy.life.expectancy, 
+#                       Freedom.to.make.life.choices, Generosity, Perceptions.of.corruption
+# Setting 'KS2014' ensures a high breakdown point (50%) and high efficiency (95%)
+mm_model <- lmrob(Score ~ GDP.per.capita + Social.support + 
+                    Healthy.life.expectancy + Freedom.to.make.life.choices + 
+                    Generosity + Perceptions.of.corruption, 
+                  data = data, 
+                  setting = "KS2014")
+
+# 4. Display the detailed summary of the MM-estimator
+# This output includes the robust scale estimate (s) and robustness weights
+summary(mm_model)
+
+# 5. Fit an Ordinary Least Squares (OLS) model for comparison
+ols_model <- lm(Score ~ GDP.per.capita + Social.support + 
+                  Healthy.life.expectancy + Freedom.to.make.life.choices + 
+                  Generosity + Perceptions.of.corruption, 
+                data = data)
+
+# 6. Compare coefficients between OLS and MM-estimator
+# Check for significant changes in estimates due to leverage points or outliers
+cat("--- OLS Coefficients ---\n")
+print(summary(ols_model)$coefficients)
+
+cat("\n--- MM-Estimator Coefficients ---\n")
+print(summary(mm_model)$coefficients)
+
+# 7. Identify outliers based on robustness weights
+# Points with weight close to 0 are considered outliers by the MM-estimator
+weights <- data.frame(Country = data$Country.or.region, Weight = mm_model$rweights)
+outliers <- weights[weights$Weight < 0.5, ]
+print(outliers)
+
+
+
+# 1. Load the MASS library
+library(MASS)
+
+# 2. Fit the MM-estimator model using rlm
+# Note: You must specify method = "MM"
+mm_model_rlm <- rlm(Score ~ GDP.per.capita + Social.support + 
+                      Healthy.life.expectancy + Freedom.to.make.life.choices + 
+                      Generosity + Perceptions.of.corruption, 
+                    data = data, 
+                    method = "MM")
+
+# 3. Display the summary
+summary(mm_model_rlm)
+
+# 4. Compare with the previous lmrob results
+# (Optional) extract coefficients
+coef(mm_model_rlm)
+
+
+
+
+
+
+# 1. Load data
+data <- read.csv("worldbank2020.csv")
+y <- data$Score
+x_vars <- as.matrix(data[, c("GDP.per.capita", "Social.support", "Healthy.life.expectancy", 
+                             "Freedom.to.make.life.choices", "Generosity", "Perceptions.of.corruption")])
+x <- cbind(Intercept = 1, x_vars) # Add intercept
+n <- nrow(data)
+p <- ncol(x)
+
+# 2. S-estimation Step (Simplified: Finding robust scale s)
+# We will draw random samples to find the best candidate that minimizes scale
+set.seed(123)
+n_iter <- 500
+best_s <- Inf
+best_beta_s <- NULL
+
+for(i in 1:n_iter) {
+  # Randomly select p points (Minimal set for p dimensions)
+  idx <- sample(1:n, p)
+  fit_temp <- try(solve(t(x[idx,]) %*% x[idx,]) %*% t(x[idx,]) %*% y[idx], silent = TRUE)
+  
+  if(!inherits(fit_temp, "try-error")) {
+    res <- y - x %*% fit_temp
+    # Calculate robust scale (using Median Absolute Deviation as a proxy for speed)
+    current_s <- median(abs(res - median(res)))
+    if(current_s < best_s) {
+      best_s <- current_s
+      best_beta_s <- fit_temp
+    }
+  }
+}
+
+# 3. Final M-estimation Step (Using fixed scale s from S-step)
+# We use Iteratively Reweighted Least Squares (IRLS)
+fixed_s <- best_s
+beta_mm <- best_beta_s # Start from S-estimate
+tuning_c <- 4.685 # Tuning constant for Tukey's Biweight (95% efficiency)
+
+for(j in 1:20) {
+  res <- y - x %*% beta_mm
+  u <- res / fixed_s
+  
+  # Tukey's Biweight Weight Function
+  weights <- ifelse(abs(u) <= tuning_c, (1 - (u/tuning_c)^2)^2, 0)
+  
+  # Weighted Least Squares
+  W <- diag(as.vector(weights))
+  beta_mm <- solve(t(x) %*% W %*% x) %*% t(x) %*% W %*% y
+}
+
+# 4. Result Output
+cat("--- MM-Estimator Coefficients (Base R) ---\n")
+print(beta_mm)
+
+# 5. Outlier Detection
+data$weights <- weights
+outliers <- data[data$weights < 0.1, c("Country.or.region", "weights")]
+cat("\n--- Detected Outliers (Weight < 0.1) ---\n")
+print(outliers)
+
+
+
+# 1. Load the necessary library
+library(robustbase)
+
+# 2. Preparation: Data and Variables
+# Assuming 'data' is already loaded from 'worldbank2020.csv'
+# Using Score as dependent and others as independent variables
+formula_mm <- Score ~ GDP.per.capita + Social.support + 
+  Healthy.life.expectancy + Freedom.to.make.life.choices + 
+  Generosity + Perceptions.of.corruption
+
+# 3. Calculate Original MM-Estimates
+orig_fit <- lmrob(formula_mm, data = data, setting = "KS2014")
+orig_beta <- coef(orig_fit)
+orig_se <- summary(orig_fit)$coefficients[, "Std. Error"]
+summary(orig_fit)$coefficients
+# 4. Observations Bootstrap (Case Resampling)
+set.seed(123)
+n_boot <- 500  # Number of bootstrap iterations (1000+ recommended for research)
+n_obs <- nrow(data)
+p_vars <- length(orig_beta)
+
+# Storage for T-statistics: (beta_boot - beta_orig) / se_boot
+t_stats <- matrix(NA, nrow = n_boot, ncol = p_vars)
+
+for(i in 1:n_boot) {
+  # Resampling rows with replacement (Observations Bootstrap)
+  boot_idx <- sample(1:n_obs, replace = TRUE)
+  boot_data <- data[boot_idx, ]
+  
+  # Fit MM-estimator on bootstrap sample
+  # Using try() to handle potential convergence issues in resampled data
+  boot_fit <- try(lmrob(formula_mm, data = boot_data, setting = "KS2014"), silent = TRUE)
+  
+  if(!inherits(boot_fit, "try-error")) {
+    boot_beta <- coef(boot_fit)
+    boot_se <- summary(boot_fit)$coefficients[, "Std. Error"]
+    
+    # Calculate Studentized T-statistic for each coefficient
+    t_stats[i, ] <- (boot_beta - orig_beta) / boot_se
+  }
+}
+
+# 5. Calculate Bootstrap-t Confidence Intervals (95%)
+alpha <- 0.05
+ci_t <- matrix(NA, nrow = p_vars, ncol = 2)
+colnames(ci_t) <- c("Lower", "Upper")
+rownames(ci_t) <- names(orig_beta)
+
+for(j in 1:p_vars) {
+  # Get relevant T-statistics, excluding NAs from convergence failures
+  current_t <- na.omit(t_stats[, j])
+  
+  # Find quantiles of the bootstrap T-distribution
+  t_quantiles <- quantile(current_t, probs = c(1 - alpha/2, alpha/2))
+  
+  # Construct interval: [orig_beta - t(1-a/2)*orig_se, orig_beta - t(a/2)*orig_se]
+  ci_t[j, 1] <- orig_beta[j] - t_quantiles[1] * orig_se[j]
+  ci_t[j, 2] <- orig_beta[j] - t_quantiles[2] * orig_se[j]
+}
+
+# 6. Final Results Output
+cat("--- 95% Bootstrap-t Confidence Intervals for MM-Estimator ---\n")
+print(round(ci_t, 4))
+
+
+
+
+
+# 1. Load the necessary library
+library(robustbase)
+
+# 2. Setup Variables
+# Using Score as dependent and GDP.per.capita as the target independent variable
+target_var <- "GDP.per.capita"
+formula_mm <- Score ~ GDP.per.capita + Social.support + 
+  Healthy.life.expectancy + Freedom.to.make.life.choices + 
+  Generosity + Perceptions.of.corruption
+
+# 3. Calculate the Original MM-coefficient for the target variable
+orig_fit <- lmrob(formula_mm, data = data, setting = "KS2014")
+orig_beta_target <- coef(orig_fit)[target_var]
+
+# 4. Permutation Test
+set.seed(123)
+n_perm <- 500
+perm_betas <- numeric(n_perm)
+
+for(i in 1:n_perm) {
+  # Create a copy of the data
+  perm_data <- data
+  
+  # Shuffle ONLY the target independent variable to break the relationship
+  perm_data[[target_var]] <- sample(perm_data[[target_var]])
+  
+  # Fit MM-estimator on the shuffled data
+  perm_fit <- try(lmrob(formula_mm, data = perm_data, setting = "KS2014"), silent = TRUE)
+  
+  if(!inherits(perm_fit, "try-error")) {
+    perm_betas[i] <- coef(perm_fit)[target_var]
+  }
+}
+
+# 5. Calculate p-value (Two-tailed)
+# Proportion of shuffled betas that are more extreme than the original beta
+p_val_perm <- mean(abs(perm_betas) >= abs(orig_beta_target), na.rm = TRUE)
+
+# 6. Results Output
+cat("Original MM-Beta for", target_var, ":", orig_beta_target, "\n")
+cat("Permutation p-value:", p_val_perm, "\n")
+
+# 7. Visualization
+hist(perm_betas, breaks = 30, main = paste("Permutation Distribution of", target_var),
+     xlab = "Permuted Beta Values", col = "lightblue")
+abline(v = orig_beta_target, col = "red", lwd = 2, lty = 2) # Mark the actual beta
+
+
