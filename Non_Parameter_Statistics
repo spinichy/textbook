@@ -5403,3 +5403,246 @@ hist(perm_betas, breaks = 30, main = paste("Permutation Distribution of", target
 abline(v = orig_beta_target, col = "red", lwd = 2, lty = 2) # Mark the actual beta
 
 
+
+
+##exercise
+
+
+#5
+
+
+# Load necessary libraries
+library(MASS)
+library(boot)
+
+# Load the phones data
+# This dataset typically contains the number of telephone calls in Belgium (1950-1973)
+data(phones)
+x <- phones$calls
+
+# Define a function for M-estimation (Huber M-estimator)
+# We use the huber() function from MASS to get the location estimate mu
+m_est_fun <- function(data, indices) {
+  sample_data <- data[indices]
+  # return the mu estimate
+  return(huber(sample_data)$mu)
+}
+
+# 1. BCa (Bias-Corrected and Accelerated) Confidence Interval
+# Using the boot package for efficient calculation
+set.seed(123) # For reproducibility
+boot_results <- boot(data = x, statistic = m_est_fun, R = 2000)
+
+# Get BCa confidence interval
+bca_ci <- boot.ci(boot_results, conf = 0.95, type = "bca")
+
+# 2. Bootstrap-t Confidence Interval using MAD as SE
+# The problem specifies using MAD because the standard formula for SE is unavailable
+boot_t_fun <- function(data, indices) {
+  sample_data <- data[indices]
+  
+  # Calculate current estimate (theta_star)
+  mu_star <- huber(sample_data)$mu
+  
+  # Calculate the estimate of the standard error using MAD
+  # scale = 1.4826 is often used to make it a consistent estimator for normal distribution
+  se_star <- mad(sample_data) 
+  
+  return(c(mu_star, se_star^2)) # boot package expects (estimate, variance)
+}
+
+set.seed(123)
+boot_t_results <- boot(data = x, statistic = boot_t_fun, R = 2000)
+
+# Get Bootstrap-t confidence interval
+t_ci <- boot.ci(boot_t_results, conf = 0.95, type = "stud")
+
+# --- Print Results ---
+cat("--- 95% Confidence Interval Results ---\n")
+print(bca_ci)
+cat("\n")
+print(t_ci)
+
+
+
+
+
+# ---------------------------------------------------------
+# 1. Environment Setup and Data Loading
+# ---------------------------------------------------------
+library(MASS)
+data(phones)
+x <- phones$calls
+n <- length(x)
+
+# ---------------------------------------------------------
+# 2. Manual Huber M-estimator Function
+# ---------------------------------------------------------
+my_huber <- function(x, k = 1.345, tol = 1e-6) {
+  mu <- median(x)
+  sigma <- mad(x)
+  if (sigma == 0) return(mu)
+  repeat {
+    mu_old <- mu
+    res <- (x - mu) / sigma
+    psi_res <- pmax(-k, pmin(k, res))
+    mu <- mu_old + sigma * mean(psi_res)
+    if (abs(mu - mu_old) < tol) break
+  }
+  return(mu)
+}
+
+# ---------------------------------------------------------
+# 3. Step 1: Bootstrap Replicates
+# ---------------------------------------------------------
+R <- 2000
+boot_theta <- numeric(R)
+theta_hat <- my_huber(x) # Original estimate
+
+set.seed(123)
+for(i in 1:R) {
+  boot_theta[i] <- my_huber(sample(x, replace = TRUE))
+}
+
+# ---------------------------------------------------------
+# 4. Step 2: Calculate Bias-Correction (z0)
+# ---------------------------------------------------------
+# Proportion of bootstrap estimates less than the original estimate
+p_less <- mean(boot_theta < theta_hat)
+z0 <- qnorm(p_less)
+
+# ---------------------------------------------------------
+# 5. Step 3: Calculate Acceleration (a) using Jackknife
+# ---------------------------------------------------------
+# Jackknife: compute estimate by leaving one observation out each time
+jack_theta <- numeric(n)
+for(i in 1:n) {
+  jack_theta[i] <- my_huber(x[-i])
+}
+mean_jack <- mean(jack_theta)
+
+# Acceleration formula based on skewness of jackknife estimates
+num <- sum((mean_jack - jack_theta)^3)
+den <- 6 * (sum((mean_jack - jack_theta)^2))^1.5
+accel <- num / den
+
+# ---------------------------------------------------------
+# 6. Step 4: Adjust Quantile Levels
+# ---------------------------------------------------------
+alpha <- 0.05
+z_alpha1 <- qnorm(alpha / 2)      # e.g., -1.96 for 95%
+z_alpha2 <- qnorm(1 - alpha / 2)  # e.g., 1.96 for 95%
+
+# BCa adjustment formula for percentile points
+adj_prob1 <- pnorm(z0 + (z0 + z_alpha1) / (1 - accel * (z0 + z_alpha1)))
+adj_prob2 <- pnorm(z0 + (z0 + z_alpha2) / (1 - accel * (z0 + z_alpha2)))
+
+# ---------------------------------------------------------
+# 7. Step 5: Final CI from Adjusted Quantiles
+# ---------------------------------------------------------
+bca_lower <- quantile(boot_theta, adj_prob1)
+bca_upper <- quantile(boot_theta, adj_prob2)
+
+# ---------------------------------------------------------
+# 8. Results Output
+# ---------------------------------------------------------
+cat("--- Manual BCa Confidence Interval ---\n")
+cat("Original Estimate: ", theta_hat, "\n")
+cat("Bias-Correction (z0): ", z0, "\n")
+cat("Acceleration (a):    ", accel, "\n")
+cat("Adjusted Probabilities: ", adj_prob1, " and ", adj_prob2, "\n")
+cat("95% BCa CI: [", bca_lower, ",", bca_upper, "]\n")
+
+
+
+# ---------------------------------------------------------
+# 1. Environment Setup and Data Loading
+# ---------------------------------------------------------
+library(MASS)
+data(phones)
+x <- phones$calls
+n <- length(x)
+
+# ---------------------------------------------------------
+# 2. Manual Huber M-estimator (Matches MASS::huber logic)
+# ---------------------------------------------------------
+# This function updates mu using a robust scale (sigma)
+my_huber_full <- function(x, k = 1.345, tol = 1e-6) {
+  mu <- median(x)
+  sigma <- mad(x)
+  
+  # Return early if scale is zero to avoid division by zero
+  if (sigma == 0) return(list(mu = mu, sigma = 0))
+  
+  repeat {
+    mu_old <- mu
+    # Standardize residuals and apply Huber's psi (Winsorizing)
+    res <- (x - mu) / sigma
+    psi_res <- pmax(-k, pmin(k, res))
+    
+    # Update location estimate mu
+    mu <- mu_old + sigma * mean(psi_res)
+    
+    # Convergence check
+    if (abs(mu - mu_old) < tol) break
+  }
+  return(list(mu = mu, sigma = sigma))
+}
+
+# ---------------------------------------------------------
+# 3. Calculate Original Estimates
+# ---------------------------------------------------------
+orig_est <- my_huber_full(x)
+theta_hat <- orig_est$mu
+se_hat <- orig_est$sigma  # Using MAD as the Scale (SE proxy)
+
+# ---------------------------------------------------------
+# 4. Manual Bootstrap-t (Studentized) Implementation
+# ---------------------------------------------------------
+R <- 2000
+boot_t_star <- numeric(R)
+set.seed(123)
+
+for(i in 1:R) {
+  # Non-parametric Resampling with replacement
+  resample_idx <- sample(1:n, size = n, replace = TRUE)
+  x_star <- x[resample_idx]
+  
+  # Calculate mu* and se* (sigma*) for each bootstrap sample
+  est_star <- my_huber_full(x_star)
+  mu_star <- est_star$mu
+  se_star <- est_star$sigma
+  
+  # Critical Step: If se_star is 0, t-statistic is undefined.
+  # We mark these as NA to prevent the CI from collapsing to a single point.
+  if(se_star > 1e-6) {
+    boot_t_star[i] <- (mu_star - theta_hat) / se_star
+  } else {
+    boot_t_star[i] <- NA
+  }
+}
+
+# ---------------------------------------------------------
+# 5. Quantiles and Final Confidence Interval Calculation
+# ---------------------------------------------------------
+# Calculate 2.5% and 97.5% percentiles of the t-distribution
+# Studentized CI Formula: [theta - q(0.975)*se, theta - q(0.025)*se]
+quantiles <- quantile(boot_t_star, probs = c(0.975, 0.025), na.rm = TRUE)
+
+lower_bound <- theta_hat - quantiles[1] * se_hat
+upper_bound <- theta_hat - quantiles[2] * se_hat
+
+# ---------------------------------------------------------
+# 6. Print Final Results
+# ---------------------------------------------------------
+cat("--- Manual Bootstrap-t Result (English Comments) ---\n")
+cat("Original Estimate (mu): ", theta_hat, "\n")
+cat("Original Scale (MAD):    ", se_hat, "\n")
+cat("t-Quantile (0.025):     ", quantiles[2], "\n")
+cat("t-Quantile (0.975):     ", quantiles[1], "\n")
+cat("95% Confidence Interval: [", lower_bound, ",", upper_bound, "]\n")
+
+
+
+
+#Part 9 --------------------------------------------------------------------------------------------------------------
