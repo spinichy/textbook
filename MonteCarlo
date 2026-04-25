@@ -2075,4 +2075,214 @@ cat("Acceptance Rate:", n_target / total_trials, "\n")
 
 
 
+#7
+
+
+
+windows()
+
+# Set parameters
+r <- 3
+s <- 2
+n_samples <- 10000
+
+# 1. Generate independent Gamma random variables
+# Using rate = 1 as the scale parameter (lambda) cancels out in the ratio
+u <- rgamma(n_samples, shape = r, rate = 1)
+v <- rgamma(n_samples, shape = s, rate = 1)
+
+# 2. Transform to Beta distribution
+beta_samples <- u / (u + v)
+
+# 3. Visualization and Verification
+hist(beta_samples, breaks = 50, probability = TRUE, 
+     col = "lightblue", main = "Beta(3,2) Generation via Gamma Ratio",
+     xlab = "x", ylab = "Density")
+
+# Overlay the theoretical Beta(3,2) density curve
+x_vals <- seq(0, 1, length.out = 100)
+lines(x_vals, dbeta(x_vals, shape1 = r, shape2 = s), 
+      col = "darkred", lwd = 2)
+
+# Legend
+legend("topleft", legend = c("Generated", "Theoretical"), 
+       fill = c("lightblue", NA), border = c("black", NA),
+       lty = c(NA, 1), col = c(NA, "darkred"), lwd = c(NA, 2))
+
+
+
+#7.1
+
+
+
+# Set parameters
+m <- 10           # Degrees of freedom
+n_samples <- 10000
+
+# 1. Generate independent Z and V
+z <- rnorm(n_samples, mean = 0, sd = 1)
+v <- rchisq(n_samples, df = m)
+
+# 2. Transform to t-distribution
+t_samples <- z / sqrt(v / m)
+
+# 3. Visualization and Verification
+hist(t_samples, breaks = 50, probability = TRUE, 
+     col = "thistle", main = paste("t-distribution (df =", m, ") Generation"),
+     xlab = "t", ylab = "Density", xlim = c(-5, 5))
+
+# Overlay the theoretical t-density curve
+x_vals <- seq(-5, 5, length.out = 200)
+lines(x_vals, dt(x_vals, df = m), col = "darkblue", lwd = 2)
+
+# Legend
+legend("topright", legend = c("Generated", "Theoretical"), 
+       fill = c("thistle", NA), border = c("black", NA),
+       lty = c(NA, 1), col = c(NA, "darkblue"), lwd = c(NA, 2))
+
+
+
+
+#7.2
+
+
+
+# Set parameters
+set.seed(42)
+n_sim <- 100000  # Number of simulations
+k <- 3           # Degrees of freedom
+
+# 1. Generate data: Sum of k squared standard normals
+z_matrix <- matrix(rnorm(n_sim * k), ncol = k)
+z_squared_sum <- rowSums(z_matrix^2)
+z_squared_sum
+# 2. Calculate Statistics
+sample_mean <- mean(z_squared_sum)
+sample_var  <- var(z_squared_sum)
+theory_mean <- k
+theory_var  <- 2 * k
+
+# 3. Visualization
+# Increase ylim to make space for the text
+hist(z_squared_sum, breaks = 60, probability = TRUE, 
+     main = paste("Chi-square (df =", k, ") Simulation"),
+     xlab = "Value", col = "lightblue", border = "white",
+     xlim = c(0, 15), ylim = c(0, 0.35))
+
+# Add theoretical density line
+x_vals <- seq(0, 15, length.out = 200)
+lines(x_vals, dchisq(x_vals, df = k), col = "darkred", lwd = 2)
+
+# 4. Add Text to the Plot
+# text(x, y, label) - x and y coordinates are based on the axis scales
+text(x = 8, y = 0.25, adj = 0, labels = paste(
+  "Theoretical Mean:", theory_mean, "\n",
+  "Simulated Mean:", round(sample_mean, 4), "\n\n",
+  "Theoretical Var:", theory_var, "\n",
+  "Simulated Var:", round(sample_var, 4)
+), cex = 0.9, font = 2)
+
+# Add Legend
+legend("topright", legend = c("Simulated Hist", "Theoretical Density"),
+       fill = c("lightblue", NA), border = c("white", NA),
+       lty = c(NA, 1), col = c(NA, "darkred"), lwd = c(NA, 2), bty = "n")
+
+
+
+#7.3
+
+
+# Set parameters
+set.seed(777)
+n_sim <- 100000  # Number of simulations
+n <- 5           # Number of exponential variables to sum (shape)
+lambda <- 2      # Rate parameter (lambda)
+
+# 1. Generate data: Sum of n independent Exponential variables
+# Each row contains n independent Exp(lambda) samples
+exp_matrix <- matrix(rexp(n_sim * n, rate = lambda), ncol = n)
+exp_sum <- rowSums(exp_matrix)
+
+# 2. Calculate Statistics
+sample_mean <- mean(exp_sum)
+sample_var  <- var(exp_sum)
+
+theory_mean <- n / lambda
+theory_var  <- n / (lambda^2)
+
+# 3. Visualization
+hist(exp_sum, breaks = 60, probability = TRUE, 
+     main = paste("Sum of", n, "Exponentials (rate =", lambda, ")"),
+     xlab = "Value", col = "thistle", border = "white",
+     ylim = c(0, 0.4))
+
+# Add theoretical Gamma density line
+x_vals <- seq(0, max(exp_sum), length.out = 200)
+lines(x_vals, dgamma(x_vals, shape = n, rate = lambda), 
+      col = "purple", lwd = 2)
+
+# 4. Add Text to the Plot
+text(x = 4, y = 0.3, adj = 0, labels = paste(
+  "Theoretical Mean (n/lambda):", theory_mean, "\n",
+  "Simulated Mean:", round(sample_mean, 4), "\n\n",
+  "Theoretical Var (n/lambda^2):", theory_var, "\n",
+  "Simulated Var:", round(sample_var, 4)
+), cex = 0.9, font = 2)
+
+# Add Legend
+legend("topright", legend = c("Simulated Sum", "Gamma(shape=n, rate=lambda)"),
+       col = c("thistle", "purple"), lwd = c(10, 2), bty = "n")
+
+
+
+#8
+
+
+windows()
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Number of simulations
+n <- 100000
+
+# 1. Generate random variables
+x1 <- rnorm(n, mean = 0, sd = 1)
+x2 <- rnorm(n, mean = 3, sd = 1)
+
+# 2. Compute the sum (Convolution)
+s <- x1 + x2
+
+# 3. Visualization
+# Increase ylim to accommodate all curves
+hist(s, breaks = 50, probability = TRUE, col = "grey90", border = "white",
+     main = "Convolution of Two Normal Distributions",
+     xlab = "Value", ylim = c(0, 0.45), xlim = c(-4, 8))
+
+# Plot Theoretical S: N(3, 2) - Solid Red Line
+curve(dnorm(x, mean = 3, sd = sqrt(2)), add = TRUE, col = "red", lwd = 2)
+
+# Plot Theoretical X1: N(0, 1) - Dashed Blue Line
+curve(dnorm(x, mean = 0, sd = 1), add = TRUE, col = "blue", lwd = 2, lty = 2)
+
+# Plot Theoretical X2: N(3, 1) - Dashed Green Line
+curve(dnorm(x, mean = 3, sd = 1), add = TRUE, col = "darkgreen", lwd = 2, lty = 2)
+
+# 4. Updated Legend with Histogram info
+legend("topright", 
+       legend = c("Simulated S (Histogram)", "Theoretical S ~ N(3, 2)", "X1 ~ N(0, 1)", "X2 ~ N(3, 1)"),
+       col = c("grey90", "red", "blue", "darkgreen"), 
+       lwd = c(8, 2, 2, 2), # Using thicker line for histogram representation
+       lty = c(1, 1, 2, 2),
+       bg = "white",
+       cex = 0.8) # Adjust text size slightly to fit all items
+
+
+
+
+
+
+
+
+
 
