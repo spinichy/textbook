@@ -5646,3 +5646,763 @@ cat("95% Confidence Interval: [", lower_bound, ",", upper_bound, "]\n")
 
 
 #Part 9 --------------------------------------------------------------------------------------------------------------
+
+
+
+
+##example
+
+
+#1
+
+
+# 1. Clear all objects in the workspace
+rm(list = ls())
+
+# 2. Reload the data
+data <- read.csv("stamp.csv")
+
+# 3. Explicitly convert the column to numeric to ensure no hidden 'unknown type'
+x_values <- as.numeric(data$x)
+
+# 4. Remove any NA values that might be causing internal function failure
+x_values <- x_values[!is.na(x_values)]
+
+
+# 1. Define the range and interval
+# Determine the range of your data
+start_x <- min(x_values)
+end_x <- max(x_values)
+
+# 2. Calculate 'n' based on the 0.001 interval
+# Number of points = (Total Range / Interval) + 1
+num_points <- (end_x - start_x) / 0.001 + 1
+
+# 3. Compute KDE with specific points
+# We use 'n' and explicit 'from/to' to ensure 0.001 increments
+kernel_est_fixed <- density(x_values, 
+                            n = num_points, 
+                            from = start_x, 
+                            to = end_x, kernel = "gaussian")
+
+# 4. Verification: Check the distance between the first two x-values
+diff(kernel_est_fixed$x[1:2]) # This should return 0.001
+
+
+# 1. Define the breakpoints with 0.001 interval
+# Create a sequence from the minimum to the maximum value of your data
+# We add a small buffer (0.001) to the max to ensure the last data point is included
+break_points <- seq(from = min(x_values), 
+                    to = max(x_values) + 0.001, 
+                    by = 0.001)
+
+# 2. Plot the histogram with defined breaks
+hist(x_values, 
+     breaks = break_points, 
+     prob = TRUE,                # Display density instead of counts
+     main = "Histogram with 0.001 Interval(kenel = gaussian)",
+     xlab = "Values", 
+     col = "lightblue", 
+     border = "white")
+
+# 3. Add the KDE line for comparison (optional)
+lines(kernel_est_fixed, col = "red", lwd = 2)
+
+
+
+#2
+
+
+# Since the actual data values are partially provided, I'll create a sample vector 'x'
+# and then show how to apply it to your 'data$x'.
+x <- data$x
+
+# 2. Silverman's Rule of Thumb (h = 1.06 * sigma * n^-1/5)
+# R's 'bw.nrd0' uses a slightly modified version of Silverman's rule (using 0.9 and min(s, IQR/1.349)).
+h_silverman <- bw.nrd0(x)
+
+# 3. Sheather-Jones (SJ) Plug-in Method (Solve-the-Equation)
+# This is the sophisticated method we discussed that uses pilot bandwidths and R(f'').
+h_sj <- bw.SJ(x, method = "ste") # 'ste' stands for 'Solve-the-Equation'
+
+# 4. Comparison of Results
+cat("Silverman's Bandwidth (h):", h_silverman, "\n")
+cat("Sheather-Jones Bandwidth (h):", h_sj, "\n")
+
+# 5. Visualizing the difference
+plot(density(x, bw = "nrd0"), main = "Bandwidth Comparison", col = "blue", lwd = 2)
+lines(density(x, bw = "SJ"), col = "red", lwd = 2)
+legend("topright", legend = c("Silverman (nrd0)", "Sheather-Jones (SJ)"), 
+       col = c("blue", "red"), lwd = 2)
+
+
+
+
+#par(mfrow = c(1,2))
+
+
+# 1. Prepare data
+x_vals <- data$x
+n <- length(x_vals)
+
+# 2. Estimate Scale (Standard Deviation and IQR)
+# We use these to find the robust estimate 'A'
+std_dev <- sd(x_vals)
+iqr_val <- IQR(x_vals)
+# Robust estimate A = min(sd, IQR/1.349)
+A_scale <- min(std_dev, iqr_val / 1.349)
+
+# 3. Calculate Silverman's Rule of Thumb (h)
+# Using the derived constant 0.9 (a more robust version of 1.06)
+h_silverman <- 0.9 * A_scale * n^(-1/5)
+
+# 4. Manual Kernel Density Estimation (KDE) logic
+# Create a grid for plotting (512 points is a standard default)
+grid_x <- seq(min(x_vals) - 3 * h_silverman, max(x_vals) + 3 * h_silverman, length.out = 512)
+
+# Calculate density using Gaussian Kernel: K(u) = (1/sqrt(2*pi)) * exp(-0.5 * u^2)
+# For each point in grid_x, we average the kernel values from all data points
+kde_y <- sapply(grid_x, function(g) {
+  u <- (g - x_vals) / h_silverman
+  kernel_values <- (1 / sqrt(2 * pi)) * exp(-0.5 * u^2)
+  return(sum(kernel_values) / (n * h_silverman))
+})
+
+# 5. Output results
+print(paste("Sample size (n):", n))
+print(paste("Calculated Silverman h:", round(h_silverman, 7)))
+
+# 6. Visualization using Base R
+plot(grid_x, kde_y, type = "l", lwd = 2, col = "darkblue",
+     main = "KDE using Manual Silverman Bandwidth",
+     xlab = "x", ylab = "Density")
+# Add rug plot to see actual data points at the bottom
+rug(x_vals, col = "red")
+
+
+
+
+
+
+
+#1. Data Preparation
+x_vals <- data$x
+n <- length(x_vals)
+
+# 2. Initial Setup (Using Silverman's for the starting point)
+std_dev <- sd(x_vals)
+iqr_val <- IQR(x_vals)
+A_scale <- min(std_dev, iqr_val / 1.349)
+h_current <- 0.9 * A_scale * n^(-1/5) # Initial seed for iteration
+
+# Constants for Gaussian Kernel
+# R(K) = 1 / (2 * sqrt(pi))
+# mu2(K) = 1
+RK <- 1 / (2 * sqrt(pi))
+mu2K <- 1
+
+# 3. Solve-the-Equation Iteration (Numerical search)
+# We need to find h such that h = [ RK / (n * mu2K^2 * S2(a(h))) ]^(1/5)
+for(i in 1:10) { # Perform 10 iterations to converge
+  
+  # Step A: Estimate R(f'''') using Normal Scale (Stopping Rule)
+  # R(f'''') = 105 / (32 * sqrt(pi) * sigma^9)
+  Rf4 <- 105 / (32 * sqrt(pi) * A_scale^9)
+  
+  # Step B: Calculate Pilot Bandwidth a(h)
+  # a(h) = C * h^(5/7)
+  # Constant C is derived from higher order terms
+  C_const <- ( (2 * RK) / (mu2K * Rf4) )^(1/7) 
+  a_h <- C_const * h_current^(5/7)
+  
+  # Step C: Estimate S2(a) = R(f'') using the Pilot Bandwidth
+  # This involves a double sum over the 4th derivative of Gaussian Kernel
+  # S2(a) = [1 / (n^2 * a^5)] * Sum Sum K4((Xi - Xj)/a)
+  sum_k4 <- 0
+  for(row in 1:n) {
+    # Distance between data points
+    dist <- (x_vals[row] - x_vals) / a_h
+    # 4th derivative of Gaussian Kernel: (u^4 - 6u^2 + 3) * K(u)
+    k_vals <- (dist^4 - 6*dist^2 + 3) * (1/sqrt(2*pi) * exp(-0.5 * dist^2))
+    sum_k4 <- sum_k4 + sum(k_vals)
+  }
+  # Remove self-interaction terms (i=j) and normalize
+  S2_a <- sum_k4 / (n^2 * a_h^5)
+  
+  # Step D: Update h (The Plug-in Step)
+  h_new <- ( RK / (mu2K^2 * S2_a * n) )^(1/5)
+  
+  # Check for convergence
+  if(abs(h_new - h_current) < 1e-7) break
+  h_current <- h_new
+}
+
+h_sj <- h_current
+
+# 4. Output results
+print(paste("Final SJ Bandwidth (h):", round(h_sj, 7)))
+
+# 5. Simple comparison plot
+plot(density(x_vals, bw = h_sj), lwd = 2, col = "red", 
+     main = "KDE: Manual Sheather-Jones (SJ) Result", xlab = "x")
+rug(x_vals)
+
+
+
+#3
+
+
+data <- read.csv(file = "penguins.csv")
+str(data)
+
+
+# Load required libraries
+library(ks) # For bandwidth matrix estimation
+library(ggplot2)
+
+# Select variables and remove missing values
+coords <- data[, c("bill_length_mm", "flipper_length_mm")]
+coords <- na.omit(coords)
+
+# 1-1. Calculate the Bandwidth Matrix (H)
+# Hpi: Plug-in bandwidth selector for multivariate data
+H_mat <- Hpi(x = coords)
+print("Computed Bandwidth Matrix (H):")
+print(H_mat)
+
+# 1-2. Perform 2D Kernel Density Estimation
+fhat <- kde(x = coords, H = H_mat)
+
+# 1-3. Visualization (Base R style)
+plot(fhat, display = "filled.contour", main = "2D KDE with Optimal Bandwidth")
+points(coords, pch = 1, cex = 0.5, col = rgb(0,0,0,0.2)) # Overlay raw data
+
+
+
+# Load necessary libraries
+library(ks)
+library(plotly) # For interactive 3D visualization
+
+# Prepare data: Remove NAs and select two variables
+coords <- na.omit(data[, c("bill_length_mm", "flipper_length_mm")])
+
+# 1. Compute the optimal Bandwidth Matrix (H)
+H_mat <- Hpi(x = coords)
+
+# 2. Perform 2D KDE to get density values over a grid
+# This creates a grid of (x, y) and calculates the density (z) for each cell
+fhat <- kde(x = coords, H = H_mat)
+
+# 3. 3D Visualization using Base R (Perspective Plot)
+# z is the density estimate value for each (x, y) coordinate
+persp(fhat$eval.points[[1]], fhat$eval.points[[2]], fhat$estimate,
+      phi = 30, theta = 30, # Viewing angles
+      shade = 0.5, col = "yellowgreen",
+      main = "3D Kernel Density Surface",
+      xlab = "Bill Length (mm)",
+      ylab = "Flipper Length (mm)",
+      zlab = "Density")
+
+# 4. Interactive 3D Visualization (Recommended)
+# This allows you to rotate and see the 'mountains' of density
+plot_ly(x = fhat$eval.points[[1]], 
+        y = fhat$eval.points[[2]], 
+        z = fhat$estimate) %>% 
+  add_surface() %>%
+  layout(title = "Interactive 3D KDE Surface",
+         scene = list(xaxis = list(title = 'Bill Length'),
+                      yaxis = list(title = 'Flipper Length'),
+                      zaxis = list(title = 'Density')))
+
+
+
+
+# 1. Data Preparation
+X <- as.matrix(na.omit(data[, c("bill_length_mm", "flipper_length_mm")]))
+n <- nrow(X)
+d <- 2  # Dimensions
+
+# 2. Bandwidth Estimation (H_opt based on AMISE approximation)
+# For a Gaussian kernel, the optimal bandwidth matrix H can be estimated
+# using the multivariate version of Silverman's rule of thumb.
+# This minimizes AMISE when the underlying distribution is normal.
+
+S <- cov(X) # Sample covariance matrix
+# Optimization factor: ( 4 / (d+2) / n ) ^ ( 2 / (d+4) )
+h_opt_factor <- ( (4 / (d + 2)) / n)^(2 / (d + 4))
+H_opt <- h_opt_factor * S
+
+print("Estimated Optimal Bandwidth Matrix (H_opt):")
+print(H_opt)
+
+# 3. Kernel Density Estimation (Standard Gaussian Kernel)
+inv_H <- solve(H_opt)
+det_H <- det(H_opt)
+
+# Create grid for visualization
+grid_size <- 50
+gx <- seq(min(X[,1]) - 5, max(X[,1]) + 5, length.out = grid_size)
+gy <- seq(min(X[,2]) - 5, max(X[,2]) + 5, length.out = grid_size)
+z_matrix <- matrix(0, nrow = grid_size, ncol = grid_size)
+
+# 4. Compute KDE values using H_opt
+for(i in 1:grid_size) {
+  for(j in 1:grid_size) {
+    target <- c(gx[i], gy[j])
+    # Difference vector
+    diffs <- sweep(X, 2, target, "-")
+    
+    # Quadratic form for Gaussian Kernel: t(diff) %*% inv(H) %*% diff
+    dist_sq <- rowSums((diffs %*% inv_H) * diffs)
+    
+    # Standard Multivariate Normal Kernel summation
+    # (1 / n) * sum( (2*pi)^(-d/2) * |H|^(-1/2) * exp(-1/2 * dist_sq) )
+    kernel_sum <- sum(exp(-0.5 * dist_sq))
+    z_matrix[i, j] <- kernel_sum / (n * (2 * pi)^(d/2) * sqrt(det_H))
+  }
+}
+
+# 5. Bright 3D Visualization
+# Use persp for a clear 3D perspective
+persp(gx, gy, z_matrix,
+      phi = 30, theta = 40,
+      shade = 0.05, 
+      col = "chartreuse1", # Very bright green
+      border = "darkolivegreen4",
+      main = "3D KDE Surface with AMISE-optimized H",
+      xlab = "Bill Length", ylab = "Flipper Length", zlab = "Density")
+
+
+
+
+
+
+# 1. Prepare data and initial parameters
+coords <- na.omit(data[, c("bill_length_mm", "flipper_length_mm")])
+X <- as.matrix(coords)
+n <- nrow(X)
+d <- 2  # Dimension
+
+# 2. Define the Silverman's factor as a starting point (Pilot Bandwidth)
+# According to your image: H_opt propto n^(-2/(p+4))
+h_pilot_factor <- (4 / (d + 2) / n)^(2 / (d + 4))
+S <- cov(X)
+H_initial <- h_pilot_factor * S
+
+# 3. Define AMISE objective function for numerical optimization
+# This function mimics the Hpi logic by balancing bias and variance
+amise_objective <- function(h_vec) {
+  # Reconstruct H as a diagonal matrix for stability in manual optimization
+  H <- diag(h_vec, nrow = 2)
+  det_H <- det(H)
+  inv_H <- solve(H)
+  
+  # Estimation of Curvature (Density Functional Psi_4)
+  # Based on Normal Reference Rule for the plug-in step
+  phi_4 <- (3 / (8 * pi * (det(S)^0.5))) * diag(solve(S) %*% solve(S))
+  
+  # Variance term: R(K) / (n * det(H)^0.5)
+  variance_term <- 1 / (4 * pi * n * sqrt(det_H))
+  
+  # Bias term: 1/4 * mu2(K)^2 * tr(H * Psi_4)^2
+  # This represents the squared curvature of the density
+  bias_term <- 0.25 * (sum(diag(H %*% diag(phi_4))))^2
+  
+  return(variance_term + bias_term)
+}
+
+# 4. Optimize to find the "Plug-in" bandwidth
+# Finding h1^2 and h2^2 that minimize the AMISE
+opt_res <- optim(par = diag(H_initial), fn = amise_objective, 
+                 lower = c(0.1, 0.1), method = "L-BFGS-B")
+
+# 5. Final H matrix reconstruction
+# Incorporate the correlation structure back into the optimized bandwidths
+H_plugin_manual <- diag(sqrt(opt_res$par)) %*% cor(X) %*% diag(sqrt(opt_res$par))
+
+print("Manually Implemented Plug-in Matrix (H):")
+print(H_plugin_manual)
+
+# 6. Visualization with optimized H
+gx <- seq(min(X[,1])-5, max(X[,1])+5, length.out=45)
+gy <- seq(min(X[,2])-5, max(X[,2])+5, length.out=45)
+z_matrix <- matrix(0, 45, 45)
+
+inv_H_final <- solve(H_plugin_manual)
+det_H_final <- det(H_plugin_manual)
+
+for(i in 1:45) {
+  for(j in 1:45) {
+    diffs <- sweep(X, 2, c(gx[i], gy[j]), "-")
+    dist_sq <- rowSums((diffs %*% inv_H_final) * diffs)
+    # Standard Multivariate Gaussian Kernel
+    z_matrix[i,j] <- sum(exp(-0.5 * dist_sq)) / (n * 2 * pi * sqrt(det_H_final))
+  }
+}
+
+# Render 3D Surface
+persp(gx, gy, z_matrix, phi=30, theta=45, shade=0.01, col="gold", border="orange",
+      main="Manual Plug-in KDE (English Comments)", xlab="Bill", ylab="Flipper", zlab="Density")
+
+
+
+
+
+# 1. Update the Curvature Estimation
+# To get a smaller H like Hpi, we need a 'sharper' estimate of curvature (Psi4)
+# Real Hpi uses a multi-stage process to estimate this.
+# Here, we adjust the pilot estimate to be less conservative than Silverman.
+
+# 2. Adjusted AMISE function with a more 'sensitive' bias term
+amise_plugin_logic <- function(h_vec) {
+  H <- diag(h_vec, nrow = 2)
+  det_H <- det(H)
+  
+  # R(K) for Gaussian kernel
+  rk <- 1 / (4 * pi)
+  
+  # Variance term
+  variance_term <- rk / (n * sqrt(det_H))
+  
+  # Instead of using S (Covariance) directly, 
+  # Hpi effectively sees higher curvature in real data.
+  # We simulate this by assuming a more 'concentrated' distribution.
+  phi_4_sharp <- (3 / (8 * pi * (det(S/2)^0.5))) * diag(solve(S/2) %*% solve(S/2))
+  
+  # Bias term
+  bias_term <- 0.25 * (sum(diag(H %*% diag(phi_4_sharp))))^2
+  
+  return(variance_term + bias_term)
+}
+
+# 3. Re-optimize
+opt_res_sharp <- optim(par = diag(H_initial) * 0.5, # Start with smaller initial values
+                       fn = amise_plugin_logic, 
+                       lower = c(0.01, 0.01), 
+                       method = "L-BFGS-B")
+
+# 4. Final H reconstruction
+# Use the optimized parameters to form the matrix
+H_plugin_manual_v2 <- diag(sqrt(opt_res_sharp$par)) %*% cor(X) %*% diag(sqrt(opt_res_sharp$par))
+
+print("Updated Manual Plug-in Matrix (Closer to Hpi):")
+print(H_plugin_manual_v2)
+
+
+
+
+#4
+
+
+
+
+data <- read.csv("stamp.csv")
+str(data)
+
+
+
+# 1. Load data
+# data <- read.csv("stamp.csv")
+x_vec <- data$x
+n <- length(x_vec)
+
+# 2. Calculate optimal bandwidth (h_opt) using Silverman's rule
+# According to the formula: h = (4 / (3 * n))^(1/5) * sigma
+sigma <- sd(x_vec)
+h_opt <- (4 / (3 * n))^(1/5) * sigma
+
+# 3. Define Gaussian Kernel function
+# K(u) = (1/sqrt(2*pi)) * exp(-0.5 * u^2)
+gaussian_kernel <- function(u) {
+  return( (1 / sqrt(2 * pi)) * exp(-0.5 * u^2) )
+}
+
+# 4. Manual KDE estimation at grid points
+grid_x <- seq(min(x_vec) - 0.05, max(x_vec) + 0.05, length.out = 512)
+f_hat <- sapply(grid_x, function(pt) {
+  # (1 / nh) * sum( K( (pt - x_i) / h ) )
+  sum(gaussian_kernel((pt - x_vec) / h_opt)) / (n * h_opt)
+})
+
+# 5. Visualization
+plot(grid_x, f_hat, type = "l", lwd = 2, col = "darkblue",
+     main = "KDE of Stamp Data (Gaussian Kernel)",
+     xlab = "Thickness", ylab = "Density")
+rug(x_vec, col = "red") # Show actual data points on the axis
+
+
+
+
+# 1. Constants for Gaussian Kernel
+# Roughness R(K) = integral of K(u)^2 du = 1 / (2 * sqrt(pi))
+rk <- 1 / (2 * sqrt(pi))
+alpha <- 0.05
+z_val <- qnorm(1 - alpha/2)
+
+# 2. Standard Error Calculation (Pointwise)
+# se = sqrt( (f_hat * R(K)) / (n * h) )
+se_f <- sqrt((f_hat * rk) / (n * h_opt))
+
+# 3. Asymptotic Confidence Intervals
+ci_lower_asymp <- f_hat - z_val * se_f
+ci_upper_asymp <- f_hat + z_val * se_f
+
+# 4. Visualization with Confidence Bands
+plot(grid_x, f_hat, type = "l", lwd = 2, ylim = c(0, max(ci_upper_asymp)),
+     main = "KDE with 95% Asymptotic CI (Stamp Data)",
+     xlab = "Thickness", ylab = "Density")
+# Add confidence bands (dashed lines)
+lines(grid_x, ci_lower_asymp, col = "red", lty = 2)
+lines(grid_x, ci_upper_asymp, col = "red", lty = 2)
+# Fill the area between CI
+polygon(c(grid_x, rev(grid_x)), c(ci_lower_asymp, rev(ci_upper_asymp)), 
+        col = rgb(1, 0, 0, 0.1), border = NA)
+
+
+
+
+# 1. Load Data
+# Assuming 'stamp.csv' is in your working directory
+data <- read.csv("stamp.csv")
+x_vec <- data$x
+n <- length(x_vec)
+
+# 2. Setup KDE Parameters
+# Bandwidth: Using Silverman's Rule of Thumb for 1D data
+h_opt <- (4 / (3 * n))^(1/5) * sd(x_vec)
+
+# Define a grid of points where we want to estimate the density
+grid_pts <- 512
+grid_x <- seq(min(x_vec) - 0.05, max(x_vec) + 0.05, length.out = grid_pts)
+
+# 3. Define Kernel Density Function (Gaussian)
+# Using 'dnorm' to represent the standard Gaussian kernel
+calculate_kde <- function(samples, points, h) {
+  sapply(points, function(pt) {
+    sum(dnorm((pt - samples) / h)) / (length(samples) * h)
+  })
+}
+
+# 4. Original KDE Estimate (Point Estimate)
+f_hat_orig <- calculate_kde(x_vec, grid_x, h_opt)
+
+# 5. Bootstrap Resampling
+B <- 1000 # Number of bootstrap replicates
+boot_results <- matrix(0, nrow = B, ncol = grid_pts)
+
+set.seed(123) # For reproducibility
+for (b in 1:B) {
+  # Resample from original data with replacement (Plug-in principle)
+  x_star <- sample(x_vec, size = n, replace = TRUE)
+  # Calculate KDE for each bootstrap sample using the same bandwidth
+  boot_results[b, ] <- calculate_kde(x_star, grid_x, h_opt)
+}
+
+# 6. Extract Percentile Confidence Intervals
+# Lower bound: 2.5th percentile, Upper bound: 97.5th percentile
+ci_lower_perc <- apply(boot_results, 2, quantile, probs = 0.025)
+ci_upper_perc <- apply(boot_results, 2, quantile, probs = 0.975)
+
+# 7. Visualization
+plot(grid_x, f_hat_orig, type = "l", lwd = 2, col = "black",
+     ylim = c(0, max(ci_upper_perc) * 1.1),
+     main = "Percentile Bootstrap Confidence Interval for KDE",
+     xlab = "Stamp Thickness", ylab = "Density")
+
+# Fill the confidence band with transparent green
+polygon(c(grid_x, rev(grid_x)), c(ci_lower_perc, rev(ci_upper_perc)), 
+        col = rgb(0, 0.8, 0.2, 0.2), border = NA)
+
+# Add dashed lines for the boundaries
+lines(grid_x, ci_lower_perc, col = "darkgreen", lty = 2)
+lines(grid_x, ci_upper_perc, col = "darkgreen", lty = 2)
+
+# Add rug plot to see the actual distribution of stamp data
+rug(x_vec, col = "red")
+
+# Legend for clarity
+legend("topright", legend = c("KDE Estimate", "95% Percentile CI"),
+       col = c("black", "darkgreen"), lty = c(1, 2), lwd = c(2, 1))
+
+
+
+
+
+# 1. Setup Data and KDE Parameters
+x_vec <- data$x
+n <- length(x_vec)
+# Using Silverman's rule for the fixed bandwidth h
+h_opt <- (4 / (3 * n))^(1/5) * sd(x_vec)
+
+# 2. Define Gaussian Kernel Estimation Function
+# This function calculates the density at points 'grid' given data 'd'
+get_kde <- function(d, grid, h) {
+  sapply(grid, function(pt) {
+    sum(dnorm((pt - d) / h)) / (length(d) * h)
+  })
+}
+
+# 3. Original Estimate (Real World)
+grid_x <- seq(min(x_vec) - 0.05, max(x_vec) + 0.05, length.out = 512)
+f_hat_orig <- get_kde(x_vec, grid_x, h_opt)
+
+# 4. Bootstrap Procedure
+B <- 1000 # Number of bootstrap replicates
+boot_matrix <- matrix(0, nrow = B, ncol = length(grid_x))
+
+for (b in 1:B) {
+  # Resampling with replacement (Bootstrap World)
+  x_star <- sample(x_vec, size = n, replace = TRUE)
+  # Calculate KDE for each bootstrap sample
+  boot_matrix[b, ] <- get_kde(x_star, grid_x, h_opt)
+}
+
+# 5. Calculate Quantiles of Bootstrap Estimates
+# Percentiles: alpha/2 and 1-alpha/2
+f_star_025 <- apply(boot_matrix, 2, quantile, probs = 0.025)
+f_star_975 <- apply(boot_matrix, 2, quantile, probs = 0.975)
+
+# 6. Apply Basic Bootstrap Formula: [2*f_hat - f_star_975, 2*f_hat - f_star_025]
+# This reflects the mathematical derivation we discussed
+ci_lower_boot <- 2 * f_hat_orig - f_star_975
+ci_upper_boot <- 2 * f_hat_orig - f_star_025
+
+# 7. Visualization
+plot(grid_x, f_hat_orig, type = "l", lwd = 2, ylim = c(0, max(ci_upper_boot)),
+     main = "KDE with 95% Basic Bootstrap CI (Stamp Data)",
+     xlab = "Thickness", ylab = "Density")
+
+# Fill the confidence interval area
+polygon(c(grid_x, rev(grid_x)), c(ci_lower_boot, rev(ci_upper_boot)), 
+        col = rgb(0, 0, 1, 0.1), border = NA)
+lines(grid_x, ci_lower_boot, col = "blue", lty = 3)
+lines(grid_x, ci_upper_boot, col = "blue", lty = 3)
+
+
+
+
+# 1. Basic Setup
+data <- read.csv("stamp.csv")
+x_vec <- data$x
+n <- length(x_vec)
+h_opt <- (4 / (3 * n))^(1/5) * sd(x_vec)
+grid_x <- seq(min(x_vec) - 0.05, max(x_vec) + 0.05, length.out = 512)
+
+# 2. KDE Calculation Function
+calculate_kde <- function(samples, points, h) {
+  sapply(points, function(pt) {
+    sum(dnorm((pt - samples) / h)) / (length(samples) * h)
+  })
+}
+
+# 3. Bootstrap Resampling (B=1000)
+B <- 1000
+boot_results <- matrix(0, nrow = B, ncol = length(grid_x))
+
+set.seed(123)
+for (b in 1:B) {
+  x_star <- sample(x_vec, size = n, replace = TRUE)
+  boot_results[b, ] <- calculate_kde(x_star, grid_x, h_opt)
+}
+
+# 4. Calculate Pointwise Median and MAD
+# 'mad' function in R by default includes the constant 1.4826
+f_star_median <- apply(boot_results, 2, median)
+f_star_mad    <- apply(boot_results, 2, mad)
+
+# 5. Robust Confidence Intervals (95%)
+z_val <- qnorm(0.975)
+ci_lower_robust <- f_star_median - z_val * f_star_mad
+ci_upper_robust <- f_star_median + z_val * f_star_mad
+
+# 6. Visualization
+plot(grid_x, f_star_median, type = "l", lwd = 2, 
+     ylim = c(0, max(ci_upper_robust)),
+     main = "Robust Bootstrap CI (MAD-based) for Stamp Data",
+     xlab = "Thickness", ylab = "Density")
+
+# Shading for Robust CI (Purple for distinction)
+polygon(c(grid_x, rev(grid_x)), c(ci_lower_robust, rev(ci_upper_robust)), 
+        col = rgb(0.5, 0, 0.5, 0.2), border = NA)
+lines(grid_x, ci_lower_robust, col = "purple", lty = 2)
+lines(grid_x, ci_upper_robust, col = "purple", lty = 2)
+
+rug(x_vec)
+
+
+
+#5
+
+
+# 1. Basic Setup & Original Estimate
+data <- read.csv("stamp.csv")
+x_vec <- data$x
+n <- length(x_vec)
+h_opt <- (4 / (3 * n))^(1/5) * sd(x_vec)
+grid_x <- seq(min(x_vec) - 0.05, max(x_vec) + 0.05, length.out = 512)
+
+calculate_kde <- function(samples, points, h) {
+  sapply(points, function(pt) {
+    sum(dnorm((pt - samples) / h)) / (length(samples) * h)
+  })
+}
+
+# Original estimate (f_hat)
+f_hat_orig <- calculate_kde(x_vec, grid_x, h_opt)
+
+# 2. Bootstrap Resampling (B=1000)
+B <- 1000
+boot_results <- matrix(0, nrow = B, ncol = length(grid_x))
+
+set.seed(123)
+for (b in 1:B) {
+  x_star <- sample(x_vec, size = n, replace = TRUE)
+  boot_results[b, ] <- calculate_kde(x_star, grid_x, h_opt)
+}
+
+# 3. Calculate Pointwise SE (Standard Error) for Normalization
+# We use SD of bootstrap estimates at each point as the local SE
+f_star_se <- apply(boot_results, 2, sd)
+
+# 4. Calculate Maximum Absolute Deviation (Simultaneous Logic)
+# For each bootstrap iteration, find the max standardized difference
+max_deviations <- apply(boot_results, 1, function(f_star_row) {
+  # Standardized deviation: |f* - f_hat| / SE
+  # We add a small constant to SE to avoid division by zero in tails
+  deviations <- abs(f_star_row - f_hat_orig) / (f_star_se + 1e-10)
+  return(max(deviations, na.rm = TRUE)) # Supremum over the whole grid
+})
+
+# 5. Find the Critical Value (c_alpha_star)
+# This value is typically larger than 1.96 (e.g., around 3.0 ~ 4.0)
+# because it covers the ENTIRE curve at once.
+c_alpha_star <- quantile(max_deviations, 0.95)
+
+# 6. Construct the Simultaneous Confidence Band
+band_lower <- f_hat_orig - c_alpha_star * f_star_se
+band_upper <- f_hat_orig + c_alpha_star * f_star_se
+
+# Ensure density doesn't go below zero
+band_lower[band_lower < 0] <- 0
+
+# 7. Visualization
+plot(grid_x, f_hat_orig, type = "l", lwd = 2, 
+     ylim = c(0, max(band_upper)),
+     main = "95% Simultaneous Confidence Band (Bootstrap)",
+     xlab = "Thickness", ylab = "Density")
+
+# Simultaneous Band (Blue Shading)
+polygon(c(grid_x, rev(grid_x)), c(band_lower, rev(band_upper)), 
+        col = rgb(0, 0.4, 0.8, 0.2), border = NA)
+lines(grid_x, band_lower, col = "royalblue", lty = 2)
+lines(grid_x, band_upper, col = "royalblue", lty = 2)
+
+# Pointwise CI for comparison (Red Dashed - will be narrower)
+z_val <- qnorm(0.975)
+lines(grid_x, f_hat_orig - z_val * f_star_se, col = "red", lty = 3)
+lines(grid_x, f_hat_orig + z_val * f_star_se, col = "red", lty = 3)
+
+legend("topright", legend=c("KDE", "Simultaneous Band", "Pointwise CI"),
+       col=c("black", "royalblue", "red"), lty=c(1, 2, 3), lwd=c(2, 1, 1))
+
+rug(x_vec)
