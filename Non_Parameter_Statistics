@@ -6406,3 +6406,586 @@ legend("topright", legend=c("KDE", "Simultaneous Band", "Pointwise CI"),
        col=c("black", "royalblue", "red"), lty=c(1, 2, 3), lwd=c(2, 1, 1))
 
 rug(x_vec)
+
+
+
+
+
+#Part 10 --------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+##example
+
+
+#1
+data <- read.delim2(file = "US-Biden-Joe-Favorable-poll-responses-clean.tsv", header = TRUE)
+str(data)
+
+
+# 1. Data Preprocessing
+# Convert start_date to Date object
+data$start_date <- as.Date(data$start_date)
+
+# Convert Favorable to numeric
+data$Favorable <- as.numeric(data$Favorable)
+
+# Remove rows with NA values (if any) generated during conversion
+data <- na.omit(data[c("start_date", "Favorable")])
+
+# Sort by date for proper line plotting
+data <- data[order(data$start_date), ]
+
+# 2. Basic Scatter Plot
+plot(data$start_date, data$Favorable, 
+     pch = 16, col = "gray", 
+     xlab = "Start Date", ylab = "Favorable (%)",
+     main = "Biden Favorable: Linear vs Kernel Regression")
+
+# 3. Linear Regression (Global Model)
+model_lm <- lm(Favorable ~ start_date, data = data)
+abline(model_lm, col = "red", lw = 2)
+
+# 4. Kernel Regression (Nadaraya-Watson)
+# Using 'ksmooth' function for kernel regression
+# 'bandwidth' (h) controls the smoothness
+
+# h = 10 (Very sensitive to local fluctuations)
+fit_10 <- ksmooth(data$start_date, data$Favorable, 
+                  kernel = "normal", 
+                  bandwidth = 10)
+lines(fit_10, col = "black", lwd = 2)
+
+# h = 100 (Moderate smoothing)
+fit_100 <- ksmooth(data$start_date, data$Favorable, 
+                   kernel = "normal", 
+                   bandwidth = 100)
+lines(fit_100, col = "blue", lwd = 2)
+
+# h = 300 (Very smooth, close to a straight line or global mean)
+fit_300 <- ksmooth(data$start_date, data$Favorable, 
+                   kernel = "normal", 
+                   bandwidth = 300)
+lines(fit_300, col = "green", lwd = 2)
+
+# 5. Add Legend
+legend("topleft", 
+       legend = c("Linear", "Kernel h=10", "Kernel h=100", "Kernel h=300"),
+       col = c("red", "black", "blue", "green"), 
+       lwd = 2, cex = 0.8)
+
+
+# 1. Preprocessing (Same as before)
+data$start_date <- as.Date(data$start_date)
+data$Favorable <- as.numeric(data$Favorable)
+data <- na.omit(data[c("start_date", "Favorable")])
+data <- data[order(data$start_date), ]
+
+# Extract x and y as numeric vectors
+# Date must be converted to numeric (seconds/days) for calculation
+x_raw <- as.numeric(data$start_date)
+y_raw <- data$Favorable
+
+# 2. Define Gaussian Kernel Function
+# K(u) = (1/sqrt(2*pi)) * exp(-0.5 * u^2)
+gaussian_kernel <- function(u) {
+  return( (1/sqrt(2 * pi)) * exp(-0.5 * u^2) )
+}
+
+# 3. Define Nadaraya-Watson Estimator Function
+# x_eval: the point where we want to estimate m(x)
+# h: bandwidth
+my_kernel_regression <- function(x_eval, x_data, y_data, h) {
+  # Calculate weights: K((x_eval - x_i) / h)
+  # Note: Kernel density is scaled by h, but in NW estimator, 
+  # the 1/h terms in numerator and denominator cancel out.
+  z <- (x_eval - x_data) / h
+  weights <- gaussian_kernel(z)
+  
+  # m(x) = sum(w_i * y_i) / sum(w_i)
+  sum_weights <- sum(weights)
+  
+  if (sum_weights == 0) return(NA) # Avoid division by zero
+  return(sum(weights * y_data) / sum_weights)
+}
+
+# 4. Apply Estimation for multiple h values
+# Create evaluation points (a sequence of dates)
+x_seq <- seq(min(x_raw), max(x_raw), length.out = 200)
+
+get_curve <- function(h) {
+  sapply(x_seq, function(ev) my_kernel_regression(ev, x_raw, y_raw, h))
+}
+
+y_h10  <- get_curve(10)
+y_h100 <- get_curve(100)
+y_h300 <- get_curve(300)
+
+# 5. Visualization
+plot(data$start_date, data$Favorable, 
+     pch = 16, col = "gray80", 
+     xlab = "Date", ylab = "Favorable (%)",
+     main = "Manual Implementation of Kernel Regression")
+
+# Convert x_seq back to Date for plotting
+plot_dates <- as.Date(x_seq, origin = "1970-01-01")
+
+lines(plot_dates, y_h10,  col = "red", lwd = 2)
+lines(plot_dates, y_h100, col = "blue", lwd = 2)
+lines(plot_dates, y_h300, col = "darkgreen", lwd = 2)
+
+legend("topright", 
+       legend = c("h=10", "h=100", "h=300"),
+       col = c("red", "blue", "darkgreen"), 
+       lwd = 2)
+
+
+
+
+#2
+
+
+
+# 1. Data Preparation
+# (Assuming data is already loaded and formatted as per your description)
+data <- data[order(data$start_date), ]
+x_raw <- as.numeric(data$start_date)
+y_raw <- data$Favorable
+
+# 2. Define Local Polynomial Regression Function
+# p: degree of polynomial (0=Constant, 1=Linear, 2=Quadratic)
+# h: bandwidth (fixed at 100)
+local_poly_reg <- function(x_eval, x_data, y_data, p, h = 100) {
+  # Gaussian Kernel Weighting
+  z <- (x_data - x_eval) / h
+  weights <- (1/sqrt(2 * pi)) * exp(-0.5 * z^2)
+  W <- diag(weights)
+  
+  # Construct Design Matrix (X_x)
+  # The first column is always 1s, subsequent columns are (x_i - x_eval)^j
+  X_x <- matrix(1, nrow = length(x_data), ncol = p + 1)
+  if (p > 0) {
+    for (j in 1:p) {
+      X_x[, j + 1] <- (x_data - x_eval)^j
+    }
+  }
+  
+  # Solve Normal Equation: beta = (X'WX)^-1 X'WY
+  # Use solve() for matrix inversion
+  XTW <- t(X_x) %*% W
+  XTWX <- XTW %*% X_x
+  XTWY <- XTW %*% y_data
+  
+  # Check if matrix is singular (to avoid errors)
+  beta <- tryCatch(solve(XTWX, XTWY), error = function(e) return(NA))
+  
+  if (any(is.na(beta))) return(NA)
+  
+  # The estimated value m(x) is the first element (beta_0)
+  return(beta[1])
+}
+
+# 3. Apply Estimation for p = 0, 1, 2
+x_seq <- seq(min(x_raw), max(x_raw), length.out = 200)
+
+y_p0 <- sapply(x_seq, function(ev) local_poly_reg(ev, x_raw, y_raw, p = 0, h = 100))
+y_p1 <- sapply(x_seq, function(ev) local_poly_reg(ev, x_raw, y_raw, p = 1, h = 100))
+y_p2 <- sapply(x_seq, function(ev) local_poly_reg(ev, x_raw, y_raw, p = 2, h = 100))
+
+# 4. Visualization
+plot(data$start_date, data$Favorable, 
+     pch = 16, col = "gray85", 
+     xlab = "Date", ylab = "Favorable (%)",
+     main = "Local Polynomial Regression (h=100)")
+
+plot_dates <- as.Date(x_seq, origin = "1970-01-01")
+
+lines(plot_dates, y_p0, col = "red", lwd = 2)    # Local Constant (NW)
+lines(plot_dates, y_p1, col = "blue", lwd = 2)   # Local Linear
+lines(plot_dates, y_p2, col = "darkgreen", lwd = 2) # Local Quadratic
+
+legend("topright", 
+       legend = c("p=0 (Constant)", "p=1 (Linear)", "p=2 (Quadratic)"),
+       col = c("red", "blue", "darkgreen"), 
+       lwd = 2)
+
+
+
+#3
+str(data)
+
+
+# 1. Data Preparation
+# Convert Date object to numeric values (representing days)
+x <- as.numeric(data$start_date)
+y <- data$Favorable
+n <- length(x)
+
+# 2. Kernel Constants (Gaussian Kernel)
+# Based on García-Portugués' theoretical framework for AMISE minimization
+# R_K: Roughness of the kernel, mu2_K: Second moment of the kernel
+R_K <- 1 / (2 * sqrt(pi))
+mu2_K <- 1
+
+# 3. Estimate Curvature Term R(f'') 
+# To follow García-Portugués Theorem, we need the integral of the squared second derivative.
+# Use stats::density to avoid conflict with other packages.
+# The 'bw' argument is set to 'nrd0' (Silverman's rule) as a pilot bandwidth.
+dens <- stats::density(x, bw = "nrd0") 
+f <- dens$y
+dx <- dens$x[2] - dens$x[1]
+
+# Numerical Second Derivative calculation
+# Approximating f''(x) to measure the curvature of the data distribution
+f_prime_prime <- diff(diff(f) / dx) / dx
+
+# Calculate R(f''): Integral of [f''(x)]^2
+# This represents the total curvature of the estimated density
+R_f_double_prime <- sum(f_prime_prime^2) * dx
+
+# 4. Calculate Final Optimal Bandwidth (h)
+# Applying the direct formula from García-Portugués Theorem
+# h_opt = [ R(K) / (n * mu2(K)^2 * R(f'')) ]^(1/5)
+h_opt_GP <- ( R_K / (n * (mu2_K^2) * R_f_double_prime) )^(1/5)
+
+# 5. Display the result
+print(paste("García-Portugués Optimized h:", h_opt_GP))
+
+
+
+
+
+
+# 1. Data Setup
+# Convert Date to numeric (days) and target variable
+x <- as.numeric(data$start_date)
+y <- data$Favorable
+n <- length(x)
+
+# 2. Preliminary Step: Estimate Variance (sigma^2)
+# Using residuals from a global quartic fit as a robust variance estimate
+global_fit <- lm(y ~ poly(x, 4, raw = TRUE))
+sigma_sq_hat <- sum(residuals(global_fit)^2) / (n - 5)
+
+# 3. Step-by-Step Plug-in logic (Simplified 2-stage)
+# Step A: Estimate high-order roughness (Psi_6) 
+# to find the pilot bandwidth for curvature (Psi_4)
+# Here we use a robust scale for the first pilot bandwidth
+h_pilot <- 1.06 * sd(x) * n^(-1/7) 
+
+# Step B: Compute Curvature (Psi_4)
+# We use the second derivative of the density (f'') to determine optimal h
+# This is where the "Plug-in" happens
+dens_pilot <- stats::density(x, bw = h_pilot)
+f_vals <- dens_pilot$y
+grid_dx <- dens_pilot$x[2] - dens_pilot$x[1]
+
+# Numerical approximation of the 2nd derivative
+f_double_prime <- diff(diff(f_vals) / grid_dx) / grid_dx
+psi_4_hat <- sum(f_double_prime^2) * grid_dx
+
+# 4. Final Bandwidth Calculation (The García-Portugués / RSW Result)
+# Formula: h_opt = [ R(K) * sigma_sq / (mu2(K)^2 * psi_4 * n) ]^(1/5)
+R_K <- 1 / (2 * sqrt(pi))
+mu2_K <- 1
+
+h_opt_Plug <- ( (R_K * sigma_sq_hat) / (mu2_K^2 * psi_4_hat * n) )^(1/5)
+
+# 5. Output Result
+cat("Plug-in Optimized h:", h_opt_Plug , "\n")
+
+
+
+
+
+
+# 1. Data Preparation
+x <- as.numeric(data$start_date)
+y <- data$Favorable
+n <- length(x)
+
+# 2. Define the Cross-Validation Function
+# This function calculates the total prediction error for a given h
+get_cv_score <- function(h, x, y) {
+  n_points <- length(x)
+  errors <- numeric(n_points)
+  
+  for(i in 1:n_points) {
+    # Leave-One-Out: Remove the i-th observation
+    x_train <- x[-i]
+    y_train <- y[-i]
+    x_test  <- x[i]
+    y_test  <- y[i]
+    
+    # Local Linear Regression or Nadaraya-Watson at x_test
+    # Using Gaussian Kernel for weights
+    weights <- exp(-0.5 * ((x_train - x_test) / h)^2)
+    
+    # Avoid division by zero if h is too small
+    if(sum(weights) < 1e-10) {
+      errors[i] <- (y_test - mean(y_train))^2
+    } else {
+      y_hat <- sum(weights * y_train) / sum(weights)
+      errors[i] <- (y_test - y_hat)^2
+    }
+  }
+  return(mean(errors)) # Mean Squared Error (MSE)
+}
+
+# 3. Define the Search Range for h
+# We use the previous Silverman/DPI results as a center point
+h_min <- 5
+h_max <- 200
+h_candidates <- seq(h_min, h_max, length.out = 30)
+
+# 4. Search for the h that minimizes the CV Score
+cv_scores <- sapply(h_candidates, get_cv_score, x = x, y = y)
+
+# Find the best h
+h_opt_CV <- h_candidates[which.min(cv_scores)]
+
+# 5. Visualization of the CV Curve
+plot(h_candidates, cv_scores, type = "b", pch = 19, col = "blue",
+     main = "Cross-Validation Score for Bandwidth Selection",
+     xlab = "Bandwidth (h)", ylab = "CV Score (MSE)")
+abline(v = h_opt, col = "red", lty = 2)
+
+cat("Optimal h selected by Cross-Validation:", h_opt_CV , "\n")
+
+
+
+
+
+
+# Load required libraries
+if (!require("ggplot2")) install.packages("ggplot2")
+if (!require("tidyr")) install.packages("tidyr")
+library(ggplot2)
+library(tidyr)
+
+# 1. Store the calculated h values
+h_values <- c(
+  GP = 97.13825,
+  PlugIn = 250.69,
+  CV = 45.34483
+)
+
+# 2. Define Local Linear Regression function
+# Using a Gaussian kernel for weight calculation
+local_linear_fit <- function(target_x, train_x, train_y, h) {
+  sapply(target_x, function(x0) {
+    # Calculate Gaussian weights
+    weights <- exp(-0.5 * ((train_x - x0) / h)^2)
+    
+    # Fit weighted least squares (Local Linear)
+    # y ~ beta0 + beta1 * (x - x0)
+    fit <- lm(train_y ~ I(train_x - x0), weights = weights)
+    return(coef(fit)[1]) # Predicted value at x0
+  })
+}
+
+# 3. Generate predictions for each h
+x_range <- seq(min(x), max(x), length.out = 300)
+df_preds <- data.frame(start_date_num = x_range)
+
+df_preds$García_Portugués <- local_linear_fit(x_range, x, y, h_values["GP"])
+df_preds$PlugIn <- local_linear_fit(x_range, x, y, h_values["PlugIn"])
+df_preds$Cross_Validation <- local_linear_fit(x_range, x, y, h_values["CV"])
+
+
+# 4. Prepare data for ggplot
+df_long <- pivot_longer(df_preds, cols = -start_date_num, 
+                        names_to = "Method", values_to = "Favorable")
+df_long$Date <- as.Date(df_long$start_date_num, origin = "1970-01-01")
+
+# 5. Plotting
+ggplot() +
+  # Original Data Points
+  geom_point(data = data, aes(x = start_date, y = Favorable), 
+             alpha = 0.2, color = "black", size = 1.5) +
+  # Smoothing Lines for each h
+  geom_line(data = df_long, aes(x = Date, y = Favorable, color = Method), 
+            size = 1.2) +
+  # Highlight the differences
+  scale_color_manual(values = c(
+    "García_Portugués" = "#E41A1C", # Red
+    "PlugIn" = "#377EB8",           # Blue
+    "Cross_Validation" = "#4DAF4A"  # Green
+  )) +
+  labs(
+    title = "Local Linear Regression: Comparison of Bandwidths (h)",
+    subtitle = paste0("GP(97.1) vs Plug-in(250.7) vs CV(45.3)"),
+    x = "Date", y = "Favorable (%)",
+    color = "Method (Bandwidth h)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "top", title = element_text(face = "bold"))
+
+
+
+
+#4
+
+
+str(data)
+
+
+
+# 2. Universal Local Polynomial Function with CI (Fixed)
+get_lp_ci <- function(target_x, train_x, train_y, h, p) {
+  res <- t(sapply(target_x, function(x0) {
+    # Gaussian Kernel Weights
+    weights <- exp(-0.5 * ((train_x - x0) / h)^2)
+    
+    # Check degree p
+    if (p == 0) {
+      # Local Constant (Nadaraya-Watson): y ~ 1 (Intercept only)
+      fit <- lm(train_y ~ 1, weights = weights)
+    } else {
+      # Local Polynomial (Linear, Quadratic, etc.)
+      fit <- lm(train_y ~ poly(train_x - x0, p, raw = TRUE), weights = weights)
+    }
+    
+    # Extract Intercept (beta_0) and its Standard Error
+    sum_fit <- coef(summary(fit))
+    pred <- sum_fit[1, 1]
+    se   <- sum_fit[1, 2]
+    
+    return(c(fit = pred, lwr = pred - 1.96 * se, upr = pred + 1.96 * se))
+  }))
+  return(as.data.frame(res))
+}
+
+# 3. Calculate for p = 0, 1, 2
+# Now p=0 will run smoothly without the 'degree' error
+df_p0 <- get_lp_ci(x_range, x, y, h, 0)
+df_p1 <- get_lp_ci(x_range, x, y, h, 1)
+df_p2 <- get_lp_ci(x_range, x, y, h, 2)
+
+
+
+# Load required library
+library(ggplot2)
+
+# 1. Integrate result data for plotting
+# Assign dates and degree labels to each calculated dataframe
+df_p0$Date <- as.Date(x_range, origin = "1970-01-01")
+df_p0$Degree <- "p=0 (Local Constant)"
+
+df_p1$Date <- as.Date(x_range, origin = "1970-01-01")
+df_p1$Degree <- "p=1 (Local Linear)"
+
+df_p2$Date <- as.Date(x_range, origin = "1970-01-01")
+df_p2$Degree <- "p=2 (Local Quadratic)"
+
+# Combine all results into a single dataframe
+plot_all <- rbind(df_p0, df_p1, df_p2)
+
+# 2. Visualization using ggplot2
+ggplot() +
+  # Plot raw data points as background (semi-transparent)
+  geom_point(data = data, aes(x = start_date, y = Favorable), 
+             alpha = 0.1, color = "grey20", size = 1) +
+  # Plot 95% Pointwise Confidence Interval ribbons
+  geom_ribbon(data = plot_all, aes(x = Date, ymin = lwr, ymax = upr, fill = Degree), 
+              alpha = 0.3) +
+  # Plot estimated regression lines (connecting intercepts beta_0)
+  geom_line(data = plot_all, aes(x = Date, y = fit, color = Degree), 
+            size = 1.2) +
+  # Separate plots by the degree of polynomial
+  facet_wrap(~ Degree, ncol = 1) +
+  # Apply color aesthetics
+  scale_fill_brewer(palette = "Set1") +
+  scale_color_brewer(palette = "Set1") +
+  # Labels and titles
+  labs(
+    title = "Comparison of Local Polynomial Degrees (p)",
+    subtitle = paste0("Fixed Bandwidth h = ", h, " | Pointwise 95% Confidence Intervals"),
+    x = "Date", y = "Favorable (%)",
+    caption = "Intercept-based estimation (beta_0) at each point x0"
+  ) +
+  # Theme settings for a clean look
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 12, face = "bold"),
+    plot.title = element_text(size = 16, face = "bold")
+  )
+
+
+
+
+#5
+
+
+
+
+# 1. Setup Parameters
+B <- 500                # Number of bootstrap repetitions
+n <- nrow(data)         # Original sample size
+h_val <- 100            # Bandwidth
+p_val <- 1              # Polynomial degree (e.g., Local Linear)
+x_range <- seq(min(x), max(x), length.out = 200)
+
+# 2. Storage for bootstrap intercept estimates (beta_0)
+# Each column represents one bootstrap sample's curve
+boot_fits <- matrix(NA, nrow = length(x_range), ncol = B)
+
+# 3. Perform Bootstrap Resampling
+set.seed(123)           # For reproducibility
+for (b in 1:B) {
+  # Step A: Resample indices with replacement
+  boot_idx <- sample(1:n, size = n, replace = TRUE)
+  d_star <- data[boot_idx, ]
+  
+  x_star <- as.numeric(d_star$start_date)
+  y_star <- d_star$Favorable
+  
+  # Step B: Fit local regression for each point in x_range
+  boot_fits[, b] <- sapply(x_range, function(x0) {
+    w <- exp(-0.5 * ((x_star - x0) / h_val)^2)
+    # Using degree p_val
+    m <- lm(y_star ~ poly(x_star - x0, p_val, raw = TRUE), weights = w)
+    return(coef(m)[1]) # Extract intercept (beta_0)
+  })
+}
+
+# 4. Calculate original estimate (Point Estimate)
+orig_fit <- sapply(x_range, function(x0) {
+  w <- exp(-0.5 * ((x - x0) / h_val)^2)
+  m <- lm(y ~ poly(x - x0, p_val, raw = TRUE), weights = w)
+  return(coef(m)[1])
+})
+
+# 5. Compute Confidence Intervals
+# Percentile Method: Using 2.5th and 97.5th percentiles of bootstrap distribution
+perc_lwr <- apply(boot_fits, 1, quantile, probs = 0.025)
+perc_upr <- apply(boot_fits, 1, quantile, probs = 0.975)
+
+# Normal (Basic) Method: Using point estimate and bootstrap standard deviation
+boot_se <- apply(boot_fits, 1, sd)
+norm_lwr <- orig_fit - 1.96 * boot_se
+norm_upr <- orig_fit + 1.96 * boot_se
+
+# 6. Prepare Data for Visualization
+df_boot_comp <- rbind(
+  data.frame(Date = as.Date(x_range, origin = "1970-01-01"), fit = orig_fit, 
+             lwr = perc_lwr, upr = perc_upr, Method = "Percentile Bootstrap"),
+  data.frame(Date = as.Date(x_range, origin = "1970-01-01"), fit = orig_fit, 
+             lwr = norm_lwr, upr = norm_upr, Method = "Normal Bootstrap")
+)
+
+# 7. Visualization using ggplot2
+ggplot() +
+  geom_point(data = data, aes(x = start_date, y = Favorable), alpha = 0.1) +
+  geom_ribbon(data = df_boot_comp, aes(x = Date, ymin = lwr, ymax = upr, fill = Method), alpha = 0.3) +
+  geom_line(data = df_boot_comp, aes(x = Date, y = fit, color = Method), size = 1) +
+  facet_wrap(~ Method) +
+  scale_fill_manual(values = c("blue", "red")) +
+  scale_color_manual(values = c("blue", "red")) +
+  labs(title = "Comparison of Bootstrap Confidence Intervals",
+       subtitle = paste0("h = ", h_val, ", p = ", p_val, ", B = ", B),
+       x = "Date", y = "Favorable (%)") +
+  theme_minimal()
