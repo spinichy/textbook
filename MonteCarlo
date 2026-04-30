@@ -2279,6 +2279,503 @@ legend("topright",
 
 
 
+# Set the number of simulations
+n <- 10000
+
+# 1. Generate k from Bernoulli(1/2)
+# rbinom(n, size, prob) generates binomial random variables
+# Here, size=1 represents a Bernoulli trial
+k <- rbinom(n, size = 1, prob = 0.5)
+
+# 2. Generate random variable x based on the value of k
+# If k = 1, sample from N(0, 1)
+# If k = 0, sample from N(3, 1)
+x <- ifelse(k == 1, rnorm(n, mean = 0, sd = 1), rnorm(n, mean = 3, sd = 1))
+
+# Optional: Visualization to check the mixture distribution
+hist(x, breaks = 50, probability = TRUE, 
+     main = "Histogram of 50% Normal Mixture",
+     col = "lightblue", border = "white")
+lines(density(x), col = "red", lwd = 2)
+
+
+
+#8.1
+
+
+# Set the number of simulations
+n <- 100000
+
+# Define parameters for Gamma(shape, rate)
+# Note: R's rgamma uses 'rate' as the second argument by default
+shape1 <- 2; rate1 <- 2
+shape2 <- 2; rate2 <- 4
+
+# 1. Convolution (X + Y)
+# Sum of two independent gamma random variables
+g1 <- rgamma(n, shape = shape1, rate = rate1)
+g2 <- rgamma(n, shape = shape2, rate = rate2)
+convolution_result <- g1 + g2
+
+# 2. Mixture (0.5*f1 + 0.5*f2)
+# Randomly choose between g1 and g2 with 50% probability
+k <- rbinom(n, size = 1, prob = 0.5)
+mixture_result <- ifelse(k == 1, 
+                         rgamma(n, shape = shape1, rate = rate1), 
+                         rgamma(n, shape = shape2, rate = rate2))
+
+# Comparison Visualization
+par(mfrow = c(1, 2))
+
+# Plot Convolution
+hist(convolution_result, breaks = 50, prob = TRUE, 
+     main = "Convolution (X + Y)", col = "coral", border = "white")
+lines(density(convolution_result), lwd = 2)
+
+# Plot Mixture
+hist(mixture_result, breaks = 50, prob = TRUE, 
+     main = "Mixture (0.5F1 + 0.5F2)", col = "seagreen", border = "white")
+lines(density(mixture_result), lwd = 2)
+
+
+
+#8.2
+
+
+
+# Setting the seed for reproducibility
+set.seed(123)
+
+# Number of samples to generate
+n <- 10000
+
+# Parameters for Gamma components
+r_param <- 3
+thetas <- (1:5) / 15  # Using the linear weights from previous step
+
+# 1. Generate a vector k = (k1, ..., kn) where P(k) = theta_k
+k_vector <- sample(1:5, size = n, replace = TRUE, prob = thetas)
+
+# 2. Set the rate as a vector lambda = (lambda_k) of length n
+# Here, lambda_k = 1/k, so rates will be 1, 0.5, 0.33, 0.25, 0.2
+rate_vector <- 1/k_vector
+
+# 3. Generate a gamma sample of size n with shape r and rate vector
+x_samples <- rgamma(n, shape = r_param, rate = rate_vector)
+
+# --- Verification & Visualization ---
+
+# sequence for density plot
+x_seq <- seq(0, 60, length.out = 1000)
+lambda_candidates <- 1 / (1:5)
+
+# Calculate theoretical mixture density
+# dgamma(x, shape, rate)
+dens_matrix <- sapply(lambda_candidates, function(l) dgamma(x_seq, 
+                                                            shape = r_param,
+                                                            rate = l))
+mixture_density <- dens_matrix %*% thetas
+
+# Plotting
+hist(x_samples, breaks = 70, probability = TRUE, 
+     main = "Gamma Mixture Simulation: r=3, lambda=1/k",
+     xlab = "Value", col = "skyblue", border = "white",
+     xlim = c(0, 60))
+
+# Individual weighted component densities (theta_j * f_j)
+colors <- c("#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00")
+for (j in 1:5) {
+  lines(x_seq, thetas[j] * dens_matrix[, j], col = colors[j], lty = 2, lwd = 1.5)
+}
+
+# Final Mixture Density (Thick line)
+lines(x_seq, mixture_density, col = "darkblue", lwd = 4)
+
+legend("topright", 
+       legend = c(paste0("k=", 1:5, " (rate=", round(lambda_candidates, 2), ")"), "Mixture"),
+       col = c(colors, "darkblue"), 
+       lty = c(rep(2, 5), 1), 
+       lwd = c(rep(1.5, 5), 4),
+       cex = 0.8, bty = "n")
+
+
+
+
+#8.3
+
+
+
+# Set the number of simulations
+n <- 100000
+
+# 1. Define Gamma parameters (the 'prior' for lambda)
+# Let's use shape (r) and scale (theta = 1/rate)
+# Note: r_gamma here is not the 'r' of Negative Binomial yet.
+r_gamma <- 3 
+theta_gamma <- 2  # Mean of lambda will be r * theta = 6
+
+# 2. Generate n different lambdas from Gamma distribution
+# Each 'system' has its own event frequency (rate)
+lambda_samples <- rgamma(n, shape = r_gamma, scale = theta_gamma)
+
+# 3. Generate Poisson samples using the randomized lambdas
+# This is the 'Poisson-Gamma Mixture'
+pg_mixture_samples <- rpois(n, lambda = lambda_samples)
+
+# 4. Generate Negative Binomial samples directly for comparison
+# The relationship: NB(size = r, prob = 1/(1+theta))
+# or NB(size = r, mu = r*theta) in R's rnbinom
+nb_samples <- rnbinom(n, size = r_gamma, mu = r_gamma * theta_gamma)
+
+# --- Visualization & Verification ---
+
+# Comparison of Mean and Variance
+cat("Mixture Mean:", mean(pg_mixture_samples), "\n")
+cat("NegBinom Mean:", mean(nb_samples), "\n")
+cat("Mixture Var:", var(pg_mixture_samples), "\n")
+cat("NegBinom Var:", var(nb_samples), "\n")
+
+# Plotting the distributions
+par(mfrow = c(1, 2))
+
+hist(pg_mixture_samples, breaks = 50, prob = TRUE, 
+     main = "Poisson-Gamma Mixture", col = "skyblue", border = "white")
+lines(density(pg_mixture_samples), col = "blue", lwd = 2)
+
+hist(nb_samples, breaks = 50, prob = TRUE, 
+     main = "Negative Binomial (Direct)", col = "salmon", border = "white")
+lines(density(nb_samples), col = "red", lwd = 2)
+
+
+
+#9
+
+
+
+
+# 1. Set parameters for the 3x3 Wishart distribution
+# Degrees of freedom (df > dimension - 1, so df > 2)
+df <- 10
+
+# Define a 3x3 positive-definite scale matrix
+# This represents the underlying covariance structure
+sigma <- matrix(c(1, 0.3, 0.2, 
+                  0.3, 1, 0.5, 
+                  0.2, 0.5, 1), nrow = 3)
+
+# 2. Generate 3x3 random samples
+set.seed(456)
+n_samples <- 1
+wishart_sample_3x3 <- rWishart(n = n_samples, df = df, Sigma = sigma)
+
+# 3. Print the result
+# Extract the first 3x3 matrix from the array
+print("Generated 3x3 Wishart Matrix:")
+print(wishart_sample_3x3[,,1])
+
+# 4. Verification of Expected Value (E[X] = df * Sigma)
+print("Theoretical Expected Value (df * Sigma):")
+print(df * sigma)
+
+
+
+
+
+# 1. Set parameters
+# Number of dimensions (p = 3)
+p <- 3
+# Degrees of freedom (must be > p - 1)
+df <- 10
+
+# 2. Define a 3x3 Scale Matrix (Sigma)
+# We create a positive-definite matrix
+sigma <- matrix(c(1.0, 0.5, 0.2,
+                  0.5, 1.0, 0.3,
+                  0.2, 0.3, 1.0), nrow = 3)
+
+# 3. Cholesky Decomposition
+# To transform standard normal variables into ones with covariance Sigma
+L <- chol(sigma)
+
+# 4. Generate random data and calculate Wishart matrix
+# We generate 'df' number of random vectors from N(0, Sigma)
+# Then sum their outer products: W = sum(Z_i %*% t(Z_i))
+set.seed(789)
+wishart_manual <- matrix(0, nrow = p, ncol = p)
+
+for (i in 1:df) {
+  # Generate a standard normal vector Z ~ N(0, I)
+  z_standard <- rnorm(p)
+  
+  # Transform to Z ~ N(0, Sigma) using Cholesky factor
+  # Note: L is upper triangular in R's chol(), so we use z %*% L
+  z_sigma <- z_standard %*% L
+  
+  # Accumulate the outer product
+  wishart_manual <- wishart_manual + t(z_sigma) %*% z_sigma
+}
+
+# 5. Display the result
+print("Manually Generated 3x3 Wishart Matrix:")
+print(wishart_manual)
+
+# 6. Compare with Theoretical Mean (df * Sigma)
+print("Theoretical Mean:")
+print(df * sigma)
+
+
+
+
+
+
+
+# 1. Simulation Setup
+p <- 3 # 3x3 Matrix (3 variables)
+# True Scale Matrix (The relationship we want to recover)
+true_sigma <- matrix(c(1.0, 0.6, 0.4,
+                       0.6, 1.0, 0.7,
+                       0.4, 0.7, 1.0), nrow = 3)
+
+# 2. Simulation Function
+# This function calculates the error between simulated mean and true Sigma
+run_wishart_sim <- function(df_value, n_iter = 500) {
+  # Generate n_iter samples of Wishart matrices
+  samples <- rWishart(n = n_iter, df = df_value, Sigma = true_sigma)
+  
+  # Calculate the empirical mean matrix: E[W] = df * Sigma, so we divide by df
+  empirical_sigma_hat <- apply(samples, 1:2, mean) / df_value
+  
+  # Calculate Mean Squared Error (MSE) from true_sigma
+  mse <- mean((empirical_sigma_hat - true_sigma)^2)
+  return(mse)
+}
+
+# 3. Running simulation for different degrees of freedom
+# We test df from 5 to 500
+df_list <- c(5, 10, 20, 50, 100, 500)
+results <- sapply(df_list, run_wishart_sim)
+
+# 4. Results Visualization (Basic R Plot)
+plot(df_list, results, type = "b", pch = 19, col = "blue",
+     main = "Simulation: Wishart Convergence",
+     xlab = "Degrees of Freedom (df)",
+     ylab = "Mean Squared Error (MSE)",
+     sub = "As df increases, the sample covariance converges to true Sigma")
+
+# 5. Comparing a small df result vs large df result
+set.seed(1)
+small_df_sample <- rWishart(n = 1, df = 5, Sigma = true_sigma)[,,1] / 5
+large_df_sample <- rWishart(n = 1, df = 500, Sigma = true_sigma)[,,1] / 500
+
+print("Target Sigma:")
+print(true_sigma)
+print("Estimated Sigma with df=5 (High variance):")
+print(round(small_df_sample, 3))
+print("Estimated Sigma with df=500 (Low variance):")
+print(round(large_df_sample, 3))
+
+
+
+
+
+# 1. Load libraries
+library(ggplot2)
+library(tidyr)
+
+# 2. Simulation Settings
+set.seed(2026)
+p <- 2
+true_rho <- 0.7  # Target correlation
+true_sigma <- matrix(c(1.0, true_rho, true_rho, 1.0), nrow = 2)
+n_trials <- 2000 # Number of simulations
+
+# 3. Helper function to extract correlation from Wishart samples
+extract_correlations <- function(df_val) {
+  # Generate samples
+  samples <- rWishart(n = n_trials, df = df_val, Sigma = true_sigma / df_val)
+  # Calculate correlation for each sample: cor = cov(1,2) / sqrt(var(1)*var(2))
+  cors <- apply(samples, 3, function(W) W[1,2] / sqrt(W[1,1] * W[2,2]))
+  return(cors)
+}
+
+# 4. Generate data for two different market conditions
+df_low <- 10    # Volatile market
+df_high <- 100  # Stable market
+
+sim_data <- data.frame(
+  Volatile = extract_correlations(df_low),
+  Stable = extract_correlations(df_high)
+)
+
+# 5. Reshape data for ggplot
+plot_data <- pivot_longer(sim_data, cols = everything(), 
+                          names_to = "Market_Type", 
+                          values_to = "Correlation")
+
+windows()
+# 6. Create the plot
+ggplot(plot_data, aes(x = Correlation, fill = Market_Type)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = true_rho, linetype = "dashed", color = "red", size = 1) +
+  labs(title = "Simulation of Asset Correlation via Wishart Distribution",
+       subtitle = paste("True Correlation =", true_rho, "| Simulations =", n_trials),
+       x = "Simulated Correlation",
+       y = "Density",
+       fill = "Market Scenario (df)") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Stable" = "#2c3e50", "Volatile" = "#e74c3c"))
+
+
+
+
+
+#10.1 Decompostion: LU 
+
+
+
+# LU Decomposition Step-by-Step Simulation
+# A = LU (Assuming A is invertible and no pivoting is needed for simplicity)
+
+# 1. Setup the Matrix A
+A <- matrix(c(2, 4, 2, 
+              1, 5, 4, 
+              1, 2, 8), nrow = 3, byrow = TRUE)
+
+n <- nrow(A)
+U <- A          # U starts as A and will be carved into Upper triangular
+L <- diag(n)    # L starts as Identity and will store the multipliers
+
+cat("--- Initial State ---\n")
+print(U)
+
+# --- STEP 1: Eliminate Column 1 ---
+# We use the pivot U[1,1] = 2 to eliminate U[2,1] and U[3,1]
+
+# Row 2: multiplier m21 = 1 / 2 = 0.5
+m21 <- U[2, 1] / U[1, 1]
+L[2, 1] <- m21
+U[2, ] <- U[2, ] - m21 * U[1, ]
+
+# Row 3: multiplier m31 = 1 / 2 = 0.5
+m31 <- U[3, 1] / U[1, 1]
+L[3, 1] <- m31
+U[3, ] <- U[3, ] - m31 * U[1, ]
+
+cat("\n--- After Eliminating Column 1 (U matrix) ---\n")
+print(U)
+cat("Current L (records the multipliers):\n")
+print(L)
+
+# --- STEP 2: Eliminate Column 2 ---
+# Now use the second pivot U[2,2] = 3 to eliminate U[3,2]
+# Note: U[3,2] is currently 0 after Step 1 in this specific matrix, 
+# but let's run the logic.
+
+m32 <- U[3, 2] / U[2, 2]
+L[3, 2] <- m32
+U[3, ] <- U[3, ] - m32 * U[2, ]
+
+cat("\n--- After Eliminating Column 2 (Final U) ---\n")
+print(U)
+cat("Final L:\n")
+print(L)
+
+# --- FINAL PROOF ---
+cat("\n--- Final Verification ---\n")
+cat("Does L %*% U equal A?\n")
+print(all.equal(L %*% U, A))
+
+
+
+#10.2 Decompostion: QR
+
+
+
+# QR Decomposition using Gram-Schmidt Process (Manual Simulation)
+# Mathematical Proof: A = QR, where Q is orthonormal and R is upper triangular.
+
+# 1. Define a 3x3 invertible matrix A
+A <- matrix(c(1, 1, 0, 
+              1, 0, 1, 
+              0, 1, 1), nrow = 3, byrow = TRUE)
+
+n <- ncol(A)
+m <- nrow(A)
+
+# Initialize Q and R with zeros
+# Q will store orthonormal basis vectors
+# R will store coordinates (projections) in the new basis
+Q <- matrix(0, m, n)
+R <- matrix(0, n, n)
+
+# --- STEP 1: Process Column 1 ---
+# Objective: Find the first unit vector q1 from a1.
+# v1 = a1 (Initial vector)
+v1 <- A[, 1]
+
+# R[1,1] = ||v1|| (Norm of the vector)
+# Proof: r_ii is the length of the orthogonal component.
+R[1, 1] <- sqrt(sum(v1^2))
+
+# q1 = v1 / ||v1|| (Normalization)
+# Proof: Every basis vector in Q must have unit length.
+Q[, 1] <- v1 / R[1, 1]
+
+
+# --- STEP 2: Process Column 2 ---
+# Objective: Find q2 which is orthogonal to q1.
+# R[1,2] = q1 . a2 (Inner product)
+# Proof: r_ij (i < j) represents the projection of a_j onto the axis q_i.
+R[1, 2] <- sum(Q[, 1] * A[, 2])
+
+# v2 = a2 - (q1 . a2) * q1 (Orthogonalization)
+# Proof: Subtracting the projection ensures v2 is perpendicular to q1.
+v2 <- A[, 2] - R[1, 2] * Q[, 1]
+
+# R[2,2] = ||v2|| (Norm of the remaining orthogonal part)
+R[2, 2] <- sqrt(sum(v2^2))
+
+# q2 = v2 / ||v2|| (Normalization)
+Q[, 2] <- v2 / R[2, 2]
+
+
+# --- STEP 3: Process Column 3 ---
+# Objective: Find q3 which is orthogonal to both q1 and q2.
+# Proof: a3 = r13*q1 + r23*q2 + r33*q3
+# Calculate projections of a3 onto existing orthonormal basis {q1, q2}
+R[1, 3] <- sum(Q[, 1] * A[, 3])
+R[2, 3] <- sum(Q[, 2] * A[, 3])
+
+# v3 = a3 - r13*q1 - r23*q2 (Successive Orthogonalization)
+# Proof: v3 is now orthogonal to the subspace spanned by {q1, q2}.
+v3 <- A[, 3] - R[1, 3] * Q[, 1] - R[2, 3] * Q[, 2]
+
+# R[3,3] = ||v3|| (Norm of the last orthogonal component)
+R[3, 3] <- sqrt(sum(v3^2))
+
+# q3 = v3 / ||v3|| (Final basis vector)
+Q[, 3] <- v3 / R[3, 3]
+
+
+# --- Results and Verification ---
+cat("--- Matrix Q (Orthonormal) ---\n")
+# Q consists of mutually orthogonal unit vectors.
+print(Q)
+
+cat("\n--- Matrix R (Upper Triangular) ---\n")
+# R is upper triangular because a_i only depends on q1...q_i.
+print(R)
+
+cat("\n--- Verification: Does Q %*% R == A? ---\n")
+# Reconstruction: A = QR must hold true.
+print(all.equal(Q %*% R, A))
+
+cat("\n--- Orthogonality Check: t(Q) %*% Q (Should be Identity) ---\n")
+# Proof: For an orthogonal matrix Q, Q^T * Q = I.
+print(round(t(Q) %*% Q, 10))
+
+
+
 
 
 
