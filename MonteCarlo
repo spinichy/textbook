@@ -2777,6 +2777,531 @@ print(round(t(Q) %*% Q, 10))
 
 
 
+#10.3 Decompostion: Chol
+
+
+
+# 1. Create a symmetric, positive-definite matrix
+A <- matrix(c(4, 12, -16, 
+              12, 37, -43, 
+              -16, -43, 98), nrow = 3, byrow = TRUE)
+
+print("Original Matrix A:")
+print(A)
+
+# 2. Perform Cholesky Decomposition
+# Note: R's chol() function returns the upper triangular matrix (U), where A = U^T %*% U
+upper_L <- chol(A)
+
+print("Upper Triangular Matrix (U):")
+print(upper_L)
+
+# 3. Get the lower triangular matrix (L)
+lower_L <- t(upper_L)
+
+print("Lower Triangular Matrix (L):")
+print(lower_L)
+
+# 4. Verify the decomposition (L %*% L^T should equal A)
+verification <- lower_L %*% t(lower_L)
+
+print("Verification (L * L^T):")
+print(verification)
+
+
+
+
+
+# 1. Define a sample matrix
+# This matrix is symmetric and positive semi-definite
+A <- matrix(c(4, 2, 2,
+              2, 1, 1,
+              2, 1, 5), nrow = 3, byrow = TRUE)
+
+# 2. Function to check Symmetry
+is_symmetric <- isSymmetric(A) # Or: all(A == t(A))
+
+# 3. Function to check Positive Semi-definite (PSD)
+# Calculate eigenvalues
+eigen_values <- eigen(A, only.values = TRUE)$values
+
+# Check if all eigenvalues are >= 0 (using a small tolerance for numerical stability)
+is_psd <- all(eigen_values >= -1e-10)
+
+# 4. Output results
+cat("--- Matrix Analysis ---\n")
+print(A)
+
+cat("\n1. Is it Symmetric?: ", is_symmetric, "\n")
+cat("2. Eigenvalues: ", eigen_values, "\n")
+cat("3. Is it Positive Semi-definite?: ", is_psd, "\n")
+
+# Logic: A matrix is PSD if it is symmetric AND all eigenvalues >= 0
+if (is_symmetric && is_psd) {
+  cat("\nResult: This matrix is a Symmetric Positive Semi-definite matrix.\n")
+} else {
+  cat("\nResult: This matrix does not meet the criteria.\n")
+}
+
+
+
+
+
+# 1. Define a symmetric, positive-definite matrix
+A <- matrix(c(4, 12, -16, 
+              12, 37, -43, 
+              -16, -43, 98), nrow = 3, byrow = TRUE)
+
+# 2. Custom function for Cholesky Decomposition (Lower Triangular)
+custom_cholesky <- function(A) {
+  n <- nrow(A)
+  L <- matrix(0, n, n) # Initialize result matrix with zeros
+  
+  for (i in 1:n) {
+    for (j in 1:i) {
+      sum_val <- 0
+      
+      if (i == j) {
+        # Diagonal elements: L[i,i] = sqrt(A[i,i] - sum(L[i,k]^2))
+        if (j > 1) {
+          sum_val <- sum(L[i, 1:(j-1)]^2)
+        }
+        L[i, j] <- sqrt(A[i, j] - sum_val)
+      } else {
+        # Off-diagonal elements: L[i,j] = (1 / L[j,j]) * (A[i,j] - sum(L[i,k] * L[j,k]))
+        if (j > 1) {
+          sum_val <- sum(L[i, 1:(j-1)] * L[j, 1:(j-1)])
+        }
+        L[i, j] <- (A[i, j] - sum_val) / L[j, j]
+      }
+    }
+  }
+  return(L)
+}
+
+# 3. Execution
+L_result <- custom_cholesky(A)
+
+# 4. Results and Verification
+print("Calculated Lower Triangular Matrix (L):")
+print(L_result)
+
+print("Verification (L %*% t(L)):")
+print(L_result %*% t(L_result))
+
+# Compare with base R chol() function (chol returns Upper, so we transpose)
+print("Base R chol(A) Comparison (transposed):")
+print(t(chol(A)))
+
+
+
+#10.4 Decompostion: LDL
+
+
+
+# 1. Define a symmetric matrix
+A <- matrix(c(4, 12, -16, 
+              12, 37, -43, 
+              -16, -43, 98), nrow = 3, byrow = TRUE)
+
+# 2. Custom function for LDL Decomposition
+custom_ldl <- function(A) {
+  n <- nrow(A)
+  L <- diag(n)        # Initialize L as an Identity Matrix (Diagonal elements = 1)
+  D <- rep(0, n)      # Initialize D as a vector to store diagonal elements
+  
+  for (j in 1:n) {
+    # Calculate D[j]
+    # D[j] = A[j,j] - sum_{k=1}^{j-1} L[j,k]^2 * D[k]
+    if (j == 1) {
+      D[j] <- A[j, j]
+    } else {
+      sum_D <- sum((L[j, 1:(j-1)]^2) * D[1:(j-1)])
+      D[j] <- A[j, j] - sum_D
+    }
+    
+    # Calculate L[i,j] for i > j
+    # L[i,j] = (1 / D[j]) * (A[i,j] - sum_{k=1}^{j-1} L[i,k] * L[j,k] * D[k])
+    if (j < n) {
+      for (i in (j + 1):n) {
+        if (j == 1) {
+          L[i, j] <- A[i, j] / D[j]
+        } else {
+          sum_L <- sum(L[i, 1:(j-1)] * L[j, 1:(j-1)] * D[1:(j-1)])
+          L[i, j] <- (A[i, j] - sum_L) / D[j]
+        }
+      }
+    }
+  }
+  
+  return(list(L = L, D = diag(D)))
+}
+
+# 3. Execution
+result <- custom_ldl(A)
+L <- result$L
+D <- result$D
+
+# 4. Results and Verification
+cat("--- Matrix L (Unit Lower Triangular) ---\n")
+print(L)
+cat("\n--- Matrix D (Diagonal) ---\n")
+print(D)
+
+cat("\n--- Verification (L %*% D %*% t(L)) ---\n")
+print(L %*% D %*% t(L))
+
+
+
+#10.5 Decompostion: Bartlett
+
+
+
+# Bartlett Decomposition Function
+# n: degrees of freedom, p: dimension
+generate_wishart_bartlett <- function(n, p) {
+  # 1. Create an empty p x p matrix
+  T_mat <- matrix(0, nrow = p, ncol = p)
+  
+  # 2. Fill the matrix based on Bartlett's decomposition
+  for (i in 1:p) {
+    for (j in 1:i) {
+      if (i == j) {
+        # Diagonal elements: square root of Chi-squared distribution
+        # df decreases as the row index increases: n - i + 1
+        T_mat[i, j] <- sqrt(rchisq(1, df = n - i + 1))
+      } else {
+        # Off-diagonal elements: Standard Normal distribution
+        T_mat[i, j] <- rnorm(1, mean = 0, sd = 1)
+      }
+    }
+  }
+  
+  # 3. Calculate W = T %*% t(T)
+  W <- T_mat %*% t(T_mat)
+  return(list(T = T_mat, W = W))
+}
+
+# Execution example
+set.seed(123)
+p_dim <- 3
+n_df <- 10
+
+result <- generate_wishart_bartlett(n = n_df, p = p_dim)
+
+cat("--- Generated Lower Triangular Matrix T (Bartlett) ---\n")
+print(result$T)
+
+cat("\n--- Resulting Wishart Matrix W (T * T') ---\n")
+print(result$W)
+
+
+
+
+# 1. Prepare a Wishart matrix (Example: n=10, p=3)
+set.seed(123)
+p <- 3
+n <- 10
+# Generate a sample Wishart matrix using built-in stats function
+W <- rWishart(1, df = n, Sigma = diag(p))[,,1]
+
+# 2. Perform Bartlett Decomposition (via Cholesky)
+# W = L %*% t(L)
+L <- t(chol(W)) # chol() returns upper, so we transpose to get lower L
+
+# 3. Extract and Analyze Bartlett Components
+diag_elements <- diag(L)
+off_diag_elements <- L[lower.tri(L)]
+
+# 4. Results
+cat("--- Wishart Matrix W ---\n")
+print(W)
+
+cat("\n--- Lower Triangular Matrix L (Bartlett Component) ---\n")
+print(L)
+
+cat("\n--- Analyzing Components ---\n")
+# Diagonal elements squared should follow Chi-square distribution: L_ii^2 ~ Chi-sq(n-i+1)
+cat("Squared Diagonal Elements (L_ii^2):\n")
+print(diag_elements^2)
+cat("Expected Degrees of Freedom (n-i+1):\n")
+print(n - (1:p) + 1)
+
+cat("\nOff-diagonal Elements (L_ij):\n")
+print(off_diag_elements) # These should be near N(0,1)
+
+
+
+#10.6 Decompostion: Eigen
+
+
+
+# 1. Create a symmetric matrix
+A <- matrix(c(4, 2, 2,
+              2, 5, 3,
+              2, 3, 6), nrow = 3, byrow = TRUE)
+
+print("Original Matrix A:")
+print(A)
+
+# 2. Perform Eigendecomposition
+eigen_result <- eigen(A)
+
+# Extract Eigenvalues (lambda)
+values <- eigen_result$values
+# Extract Eigenvectors (Q)
+vectors <- eigen_result$vectors
+
+print("Eigenvalues:")
+print(values)
+
+print("Eigenvectors (Q):")
+print(vectors)
+
+# 3. Verification: A = Q %*% Lambda %*% t(Q)
+# Create diagonal matrix Lambda
+Lambda <- diag(values)
+
+# Reconstruct the matrix
+# For symmetric matrices, the inverse of Q is its transpose (t(Q))
+verification <- vectors %*% Lambda %*% t(vectors)
+
+print("Reconstructed Matrix (Q * Lambda * Q^T):")
+print(verification)
+
+
+
+
+# 1. Define a symmetric matrix
+A <- matrix(c(4, 2, 2,
+              2, 5, 3,
+              2, 3, 6), nrow = 3, byrow = TRUE)
+
+# 2. Power Iteration function to find the largest eigenvalue/vector
+# This finds the dominant eigenvalue and its corresponding eigenvector
+power_iteration <- function(mat, iterations = 100) {
+  n <- nrow(mat)
+  # Initialize a random vector
+  v <- rep(1, n)
+  
+  for (i in 1:iterations) {
+    # Matrix-vector multiplication
+    v_new <- mat %*% v
+    # Normalize the vector to prevent overflow
+    v <- v_new / sqrt(sum(v_new^2))
+  }
+  
+  # Rayleigh quotient to find the eigenvalue: (v^T * A * v) / (v^T * v)
+  eigenvalue <- as.numeric(t(v) %*% mat %*% v)
+  
+  return(list(value = eigenvalue, vector = v))
+}
+
+# 3. Deflation process to find all eigenvalues
+get_all_eigen <- function(mat) {
+  n <- nrow(mat)
+  current_mat <- mat
+  evals <- numeric(n)
+  evecs <- matrix(0, n, n)
+  
+  for (k in 1:n) {
+    # Find the dominant eigenvalue of the current matrix
+    res <- power_iteration(current_mat)
+    evals[k] <- res$value
+    evecs[, k] <- res$vector
+    
+    # Deflation: Remove the influence of the found eigenvalue
+    # A_next = A - lambda * (v %*% v^T)
+    current_mat <- current_mat - res$value * (res$vector %*% t(res$vector))
+  }
+  
+  return(list(values = evals, vectors = evecs))
+}
+
+# 4. Execution
+my_eigen <- get_all_eigen(A)
+
+# 5. Results
+cat("--- Computed Eigenvalues ---\n")
+print(my_eigen$values)
+
+cat("\n--- Computed Eigenvectors ---\n")
+print(my_eigen$vectors)
+
+# Compare with base R eigen() for verification
+cat("\n--- Base R eigen() Comparison ---\n")
+print(eigen(A)$values)
+
+
+
+
+#10.7 Decompostion: spectral
+
+
+
+
+# 1. Create a 3x3 symmetric matrix
+A <- matrix(c(4, 2, 2,
+              2, 5, 3,
+              2, 3, 6), nrow = 3, byrow = TRUE)
+
+# 2. Extract Eigenvalues and Eigenvectors
+res <- eigen(A)
+values <- res$values   # Eigenvalues (lambda_1, lambda_2, lambda_3)
+vectors <- res$vectors # Eigenvectors (v1, v2, v3)
+
+# 3. Spectral Decomposition: A = sum(lambda_i * v_i * v_i^T)
+# Compute each spectral component (Rank-1 matrices)
+comp1 <- values[1] * (vectors[, 1] %*% t(vectors[, 1]))
+comp2 <- values[2] * (vectors[, 2] %*% t(vectors[, 2]))
+comp3 <- values[3] * (vectors[, 3] %*% t(vectors[, 3]))
+
+# 4. Display results
+cat("--- Original Matrix A ---\n")
+print(A)
+
+cat("\n--- Spectral Component 1 (lambda1 * v1 * v1^T) ---\n")
+print(comp1)
+
+cat("\n--- Spectral Component 2 (lambda2 * v2 * v2^T) ---\n")
+print(comp2)
+
+cat("\n--- Spectral Component 3 (lambda3 * v3 * v3^T) ---\n")
+print(comp3)
+
+# Reconstruct the original matrix by summing all components
+reconstructed_A <- comp1 + comp2 + comp3
+
+cat("\n--- Reconstructed Matrix (Sum of 3 Components) ---\n")
+print(reconstructed_A)
+
+
+
+
+
+#10.8 Decompostion: SVD
+
+
+
+
+# 1. Create a rectangular matrix A (3x2)
+A <- matrix(c(1, 2, 
+              3, 4, 
+              5, 6), nrow = 3, byrow = TRUE)
+
+# 2. Calculate V (Right Singular Vectors)
+# V is the eigenvector matrix of (A^T * A)
+AtA <- t(A) %*% A
+eigen_AtA <- eigen(AtA)
+V <- eigen_AtA$vectors
+
+# 3. Calculate Singular Values (Sigma)
+# Singular values are the square roots of the eigenvalues of (A^T * A)
+singular_values <- sqrt(eigen_AtA$values)
+# Create a Sigma matrix with the same dimensions as A (3x2)
+Sigma <- matrix(0, nrow = 3, ncol = 2)
+diag(Sigma[1:2, 1:2]) <- singular_values
+
+# 4. Calculate U (Left Singular Vectors)
+# Method A: Eigenvectors of (A * A^T)
+# Method B: U = A %*% V %*% inv(Sigma)
+# Here we use the definition: u_i = (1/sigma_i) * A %*% v_i
+U <- matrix(0, nrow = 3, ncol = 2)
+for (i in 1:2) {
+  U[, i] <- (A %*% V[, i]) / singular_values[i]
+}
+
+# 5. Reconstruction Verification: A = U %*% Sigma_reduced %*% V^T
+# Since we only calculated 2 singular vectors, we use the 2x2 portion of Sigma
+reconstructed_A <- U %*% diag(singular_values) %*% t(V)
+
+# 6. Final Results
+cat("--- Original Matrix A ---\n")
+print(A)
+
+cat("\n--- Calculated Singular Values ---\n")
+print(singular_values)
+
+cat("\n--- Calculated Left Singular Vectors (U) ---\n")
+print(U)
+
+cat("\n--- Calculated Right Singular Vectors (V) ---\n")
+print(V)
+
+cat("\n--- Reconstructed Matrix ---\n")
+print(reconstructed_A)
+
+
+
+#10.9 Decompostion: Hessenberg
+
+
+
+
+# 1. Define a square matrix A
+A <- matrix(c(4, 1, -2, 2,
+              1, 2, 0, 1,
+              -2, 0, 3, -2,
+              2, 1, -2, 1), nrow = 4, byrow = TRUE)
+
+# 2. Function for Hessenberg Decomposition
+hessenberg_decomp <- function(A) {
+  n <- nrow(A)
+  H <- A
+  P_total <- diag(n)
+  
+  # Iterate to zero out elements below the first subdiagonal
+  for (j in 1:(n - 2)) {
+    # Extract the vector to be transformed
+    x <- H[(j+1):n, j]
+    
+    # Householder vector calculation
+    e1 <- c(1, rep(0, length(x) - 1))
+    v <- x + sign(x[1]) * sqrt(sum(x^2)) * e1
+    v <- v / sqrt(sum(v^2))
+    
+    # Householder matrix for this step
+    H_sub <- diag(length(x)) - 2 * (v %*% t(v))
+    
+    # Expand to full size identity-based transformation matrix
+    P_j <- diag(n)
+    P_j[(j+1):n, (j+1):n] <- H_sub
+    
+    # Similarity transformation: H = P_j %*% H %*% t(P_j)
+    H <- P_j %*% H %*% t(P_j)
+    
+    # Keep track of the total transformation matrix P
+    P_total <- P_total %*% t(P_j)
+  }
+  
+  return(list(H = H, P = P_total))
+}
+
+# 3. Execution
+result <- hessenberg_decomp(A)
+H <- result$H
+P <- result$P
+
+# 4. Results Output
+cat("--- Original Matrix A ---\n")
+print(A)
+
+cat("\n--- Upper Hessenberg Matrix H ---\n")
+# Rounding for clear view of zero elements
+print(round(H, 10))
+
+cat("\n--- Orthogonal Matrix P ---\n")
+print(round(P, 10))
+
+# 5. Verification: A = P %*% H %*% t(P)
+reconstructed_A <- P %*% H %*% t(P)
+cat("\n--- Verification (P * H * P^T) ---\n")
+print(round(reconstructed_A, 10))
+
+
+
+
+
 
 
 
