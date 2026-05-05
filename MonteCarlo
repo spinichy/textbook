@@ -3300,6 +3300,732 @@ print(round(reconstructed_A, 10))
 
 
 
+##exercise
+
+
+#1
+
+
+# Function to generate a random sample from 2-parameter Exponential distribution
+rexp2 <- function(n, lambda, eta) {
+  u <- runif(n)
+  # Inverse transform sampling formula
+  x <- eta - (1/lambda) * log(u)
+  return(x)
+}
+
+# 1. Generate a random sample of size 1,000
+set.seed(123)
+n_size <- 1000
+lambda_val <- 2
+eta_val <- 5
+sample_data <- rexp2(n_size, lambda_val, eta_val)
+
+# 2. Compare Theoretical vs. Sample Quantiles
+probs <- seq(0.1, 0.9, by = 0.1)
+
+# Theoretical Quantiles formula: eta - (1/lambda) * ln(1 - p)
+theoretical_quantiles <- eta_val - (1/lambda_val) * log(1 - probs)
+
+# Calculate Sample Quantiles
+sample_quantiles <- quantile(sample_data, probs)
+
+# Create a comparison table
+comparison_table <- data.frame(
+  Prob = probs,
+  Theoretical = theoretical_quantiles,
+  Sample = as.numeric(sample_quantiles),
+  Diff = theoretical_quantiles - as.numeric(sample_quantiles)
+)
+
+print(comparison_table)
+
+
+
+#2
+
+
+# Function to generate samples from Standard Laplace Distribution
+rlaplace_std <- function(n) {
+  u <- runif(n)
+  # Applying the inverse CDF formula
+  x <- ifelse(u < 0.5, log(2 * u), -log(2 * (1 - u)))
+  return(x)
+}
+
+# 1. Generate 1,000 samples
+set.seed(42)
+n_size <- 1000
+samples <- rlaplace_std(n_size)
+
+# 2. Compare Sample vs Target Distribution (Visualization)
+# Target Density Function: f(x) = 0.5 * exp(-|x|)
+target_pdf <- function(x) 0.5 * exp(-abs(x))
+
+hist(samples, breaks = 50, probability = TRUE, 
+     main = "Standard Laplace: Sample vs Target PDF",
+     xlab = "x", col = "lightblue", border = "white")
+
+# Plot the target theoretical density line
+curve(target_pdf, add = TRUE, col = "red", lwd = 2)
+
+# Add Legend to the plot
+# 'topright' specifies the position of the legend
+legend("topright", 
+       legend = c("Sample Histogram", "Target PDF"), 
+       col = c("lightblue", "red"), 
+       lwd = c(NA, 2),        # Line width: NA for histogram block, 2 for PDF line
+       pch = c(15, NA),       # Plotting character: 15 (filled square) for histogram
+       pt.cex = 2,            # Size of the legend symbol
+       bty = "n")             # 'n' removes the box around the legend
+
+# 3. Numerical Comparison: Quantiles
+probs <- c(0.05, 0.25, 0.5, 0.75, 0.95)
+theoretical_q <- ifelse(probs < 0.5, log(2 * probs), -log(2 * (1 - probs)))
+sample_q <- quantile(samples, probs)
+
+comparison <- data.frame(Probability = probs, 
+                         Theoretical = theoretical_q, 
+                         Sample = as.numeric(sample_q))
+print(comparison)
+
+
+#3
+
+
+# Function to generate Pareto(a, b) samples using Inverse Transform Method
+rpareto <- function(n, a, b) {
+  u <- runif(n)
+  # Derived formula: x = b / (u^(1/a))
+  x <- b / (u^(1/a))
+  return(x)
+}
+
+# 1. Generate samples from Pareto(2, 2)
+set.seed(123)
+n_size <- 1000
+a_param <- 2
+b_param <- 2
+samples <- rpareto(n_size, a_param, b_param)
+
+# 2. Define theoretical PDF for Pareto(2, 2)
+# f(x) = a * (b^a) * (x^-(a+1))
+pareto_pdf <- function(x, a, b) {
+  ifelse(x >= b, a * (b^a) * (x^-(a + 1)), 0)
+}
+
+# 3. Visualization: Histogram vs PDF
+hist(samples, breaks = 50, probability = TRUE, 
+     xlim = c(2, 10), # Limiting x-axis for better visibility of the tail
+     main = "Pareto(2, 2): Sample vs Theoretical PDF",
+     xlab = "x", col = "lightgray", border = "white")
+
+# Add the theoretical density line
+curve(pareto_pdf(x, a_param, b_param), add = TRUE, col = "blue", lwd = 2)
+
+# Add Legend
+legend("topright", 
+       legend = c("Generated Sample", "Theoretical PDF"), 
+       col = c("lightgray", "blue"), 
+       lwd = c(NA, 2), 
+       pch = c(15, NA), 
+       bty = "n")
+
+
+#4
+
+
+# Function to generate Rayleigh(sigma) samples
+rrayleigh <- function(n, sigma) {
+  u <- runif(n)
+  # Derived inverse CDF formula
+  x <- sigma * sqrt(-2 * log(u))
+  return(x)
+}
+
+# 1. Setup for different sigma values
+set.seed(123)
+n_size <- 10000 # Larger size for better mode visualization
+sigma_list <- c(1, 2, 4)
+colors <- c("skyblue", "lightgreen", "lightcoral")
+
+# 2. Visualization
+# Set up a 1x3 plotting area
+par(mfrow = c(1, 3))
+
+for (i in 1:length(sigma_list)) {
+  s <- sigma_list[i]
+  samples <- rrayleigh(n_size, s)
+  
+  # Histogram
+  hist(samples, breaks = 50, probability = TRUE, 
+       main = paste("Rayleigh(sigma =", s, ")"),
+       xlab = "x", col = colors[i], border = "white")
+  
+  # Theoretical PDF line
+  curve((x / s^2) * exp(-x^2 / (2 * s^2)), add = TRUE, col = "darkred", lwd = 2)
+  
+  # Mark the theoretical mode (sigma)
+  abline(v = s, col = "blue", lwd = 2, lty = 2)
+  
+  # Add Legend for the first plot or all
+  legend("topright", legend = c("PDF", "Mode (sigma)"), 
+         col = c("darkred", "blue"), lwd = 2, lty = c(1, 2), bty = "n")
+}
+
+# Reset plotting area
+par(mfrow = c(1, 1))
+
+
+#5
+
+
+# 1. Inverse Transform Method for Discrete Variable
+generate_discrete_inverse <- function(n) {
+  u <- runif(n)
+  x <- numeric(n)
+  
+  # Assign values based on the cumulative probability intervals
+  x[u < 0.1] <- 0
+  x[u >= 0.1 & u < 0.3] <- 1
+  x[u >= 0.3 & u < 0.5] <- 2
+  x[u >= 0.5 & u < 0.7] <- 3
+  x[u >= 0.7] <- 4
+  
+  return(x)
+}
+
+set.seed(123)
+n_size <- 1000
+
+# Method A: Inverse Transform
+samples_inverse <- generate_discrete_inverse(n_size)
+table_inverse <- table(samples_inverse) / n_size
+
+# Method B: Built-in sample() function
+values <- 0:4
+probs <- c(0.1, 0.2, 0.2, 0.2, 0.3)
+samples_builtin <- sample(values, size = n_size, replace = TRUE, prob = probs)
+table_builtin <- table(samples_builtin) / n_size
+
+# 2. Comparison Table
+comparison <- data.frame(
+  Value = 0:4,
+  Theoretical = probs,
+  Empirical_Inverse = as.numeric(table_inverse),
+  Empirical_SampleFunc = as.numeric(table_builtin)
+)
+
+print(comparison)
+
+
+#7
+
+
+# Function to generate Beta(a, b) samples using Acceptance-Rejection Method
+# We use Uniform(0, 1) as the proposal distribution g(x) = 1
+rbeta_rejection <- function(n, a, b) {
+  samples <- numeric(n)
+  count <- 0
+  
+  # 1. Find the constant M (maximum of the Beta PDF)
+  # The mode of Beta(a, b) is (a-1)/(a+b-2) for a, b > 1
+  mode_x <- (a - 1) / (a + b - 2)
+  M <- dbeta(mode_x, a, b)
+  
+  while (count < n) {
+    # Step 1: Generate Y from proposal distribution g(y) = Uniform(0, 1)
+    Y <- runif(1)
+    
+    # Step 2: Generate U from Uniform(0, 1)
+    U <- runif(1)
+    
+    # Step 3: Accept-Reject test
+    # Accept if U <= f(Y) / (M * g(Y))
+    if (U <= dbeta(Y, a, b) / M) {
+      count <- count + 1
+      samples[count] <- Y
+    }
+  }
+  return(samples)
+}
+
+# 2. Generate 1,000 samples from Beta(3, 2)
+set.seed(123)
+n_size <- 1000
+a_param <- 3
+b_param <- 2
+beta_samples <- rbeta_rejection(n_size, a_param, b_param)
+
+# 3. Visualization: Histogram vs Theoretical PDF
+hist(beta_samples, breaks = 30, probability = TRUE,
+     main = "Beta(3, 2): Acceptance-Rejection Method",
+     xlab = "x", col = "lavender", border = "white")
+
+# Add the theoretical Beta(3, 2) density line
+curve(dbeta(x, a_param, b_param), add = TRUE, col = "darkorchid", lwd = 2)
+
+# Add Legend
+legend("topleft", 
+       legend = c("Generated Sample", "Theoretical PDF"), 
+       col = c("lavender", "darkorchid"), 
+       lwd = c(NA, 2), 
+       pch = c(15, NA), 
+       bty = "n")
+
+
+#8
+
+
+# 1. Function to generate Lognormal samples using Transformation Method
+# X = exp(Z) where Z ~ N(mu, sigma^2)
+rlognorm_transform <- function(n, mu, sigma) {
+  # Step 1: Generate normal random variables
+  z <- rnorm(n, mean = mu, sd = sigma)
+  
+  # Step 2: Apply exponential transformation
+  x <- exp(z)
+  
+  return(x)
+}
+
+# 2. Parameters and sample generation
+set.seed(123)
+n_size <- 1000
+mu_param <- 0
+sigma_param <- 1
+
+# Generate samples
+lognorm_samples <- rlognorm_transform(n_size, mu_param, sigma_param)
+
+# 3. Visualization and Comparison
+# Draw histogram of the generated samples
+hist(lognorm_samples, breaks = 50, probability = TRUE,
+     main = "Lognormal(0, 1): Transformation Method",
+     xlab = "x", col = "lightblue", border = "white",
+     xlim = c(0, 10), # Adjust x-axis for better visibility
+     ylim = c(0,1))
+
+# Add the theoretical Lognormal PDF using dlnorm()
+curve(dlnorm(x, meanlog = mu_param, sdlog = sigma_param), 
+      add = TRUE, col = "red", lwd = 2)
+
+# Add Legend
+legend("topright", 
+       legend = c("Transformation Sample", "Theoretical PDF (dlnorm)"), 
+       col = c("lightblue", "red"), 
+       lwd = c(NA, 2), 
+       pch = c(15, NA), 
+       bty = "n")
+
+
+#9
+
+
+# 1. Function to generate samples from f_e(x)
+repananechnikov_custom <- function(n) {
+  samples <- numeric(n)
+  
+  for (i in 1:n) {
+    # Step i: Generate three independent random numbers from U(-1, 1)
+    u <- runif(3, min = -1, max = 1)
+    u1 <- u[1]
+    u2 <- u[2]
+    u3 <- u[3]
+    
+    # Step ii: Conditional selection
+    if (abs(u3) >= abs(u2) && abs(u3) >= abs(u1)) {
+      samples[i] <- u2
+    } else {
+      samples[i] <- u3
+    }
+  }
+  return(samples)
+}
+
+# 2. Sample generation
+set.seed(123)
+n_size <- 10000 # Increased size for better density estimation
+fe_samples <- repananechnikov_custom(n_size)
+
+# 3. Density estimation and Visualization
+# Plot histogram
+hist(fe_samples, breaks = 50, probability = TRUE,
+     main = expression(f[e](x) == frac(3,4)(1-x^2)),
+     xlab = "x", col = "lightgreen", border = "white")
+
+# Add the theoretical PDF line for comparison
+target_pdf <- function(x) {
+  ifelse(abs(x) <= 1, (3/4) * (1 - x^2), 0)
+}
+curve(target_pdf, add = TRUE, col = "darkgreen", lwd = 2)
+
+# Add Kernel Density Estimate (KDE) from the samples
+lines(density(fe_samples), col = "red", lty = 2, lwd = 2)
+
+legend("topright", 
+       legend = c("Theoretical PDF", "Estimated Density (KDE)"), 
+       col = c("darkgreen", "red"), 
+       lwd = 2, lty = c(1, 2), bty = "n")
+
+
+#10
+
+
+# 1. Function to generate random samples from a Normal Mixture Model
+rmix_norm <- function(n, p1, mu1 = 0, mu2 = 3, sd1 = 1, sd2 = 1) {
+  # Determine which component to sample from (0 for N(0,1), 1 for N(3,1))
+  selection <- rbinom(n, 1, 1 - p1)
+  
+  # Generate samples based on the selection
+  samples <- ifelse(selection == 0, 
+                    rnorm(n, mean = mu1, sd = sd1), 
+                    rnorm(n, mean = mu2, sd = sd2))
+  return(samples)
+}
+
+# 2. Define the theoretical Mixture Density Function
+dmix_norm <- function(x, p1) {
+  # Weighted sum of two normal distributions
+  p1 * dnorm(x, 0, 1) + (1 - p1) * dnorm(x, 3, 1)
+}
+
+# 3. Parameters and Visualization
+p1_values <- c(0.75, 0.01, 0.25, 0.09)
+par(mfrow = c(2, 2)) # Create a 2x2 plotting area
+
+for (p in p1_values) {
+  # Generate 1,000 samples for the current p1 value
+  samples <- rmix_norm(1000, p)
+  
+  # Plot histogram with probability density scale
+  hist(samples, breaks = 30, probability = TRUE, 
+       main = paste("Normal Mixture (p1 =", p, ")"), 
+       col = "lavender", border = "white",
+       ylim = c(0, 0.5), xlim = c(-3, 6), xlab = "x")
+  
+  # Add the theoretical PDF curve
+  curve(dmix_norm(x, p), add = TRUE, col = "darkorchid", lwd = 2)
+  
+  # Add legend to distinguish between samples and the theoretical line
+  legend("topright", 
+         legend = c("Samples", "Theoretical PDF"), 
+         col = c("lavender", "darkorchid"), 
+         lwd = c(NA, 2), 
+         pch = c(15, NA), 
+         cex = 0.8,
+         bty = "n") # Remove legend box border
+}
+
+
+#11
+
+
+# 1. Set parameters as specified in the problem
+r_param <- 4
+beta_param <- 2
+n_samples <- 1000
+
+# 2. Generate samples using hierarchical sampling
+# Step 1: Generate 1,000 lambda values from Gamma(r, beta)
+# Note: In R's rgamma, 'shape' is r and 'rate' is 1/beta (or 'scale' is beta)
+# Depending on the textbook convention, rate=1/beta or rate=beta is used.
+# Here, we assume beta is the scale parameter.
+lambdas <- rgamma(n_samples, shape = r_param, scale = beta_param)
+
+# Step 2: Generate 1,000 Y values from Exponential(lambda)
+# For each lambda[i], we generate one y[i]
+y_samples <- rexp(n_samples, rate = lambdas)
+
+# 3. Visualization
+hist(y_samples, breaks = 50, probability = TRUE, 
+     main = "Exponential-Gamma Mixture Samples",
+     col = "lightblue", border = "white", xlab = "y")
+
+# Add a density line to see the distribution shape
+lines(density(y_samples), col = "darkblue", lwd = 2)
+
+# 4. Legend
+legend("topright", legend = c("Generated Samples"), 
+       fill = "lightblue", bty = "n")
+
+
+#12
+
+
+# 1. Set parameters as specified in image_f3d07e.png and 4.12
+r_param <- 4
+beta_param <- 2
+n_samples <- 1000
+
+# 2. Generate Pareto samples using the Inverse Transform Method
+# Generate Uniform(0, 1) random variables
+u <- runif(n_samples)
+
+# Apply the derived inverse CDF formula
+# y = beta * ((1 - u)^(-1/r) - 1)
+y_samples <- beta_param * ((1 - u)^(-1 / r_param) - 1)
+
+# 3. Define the theoretical Pareto (Lomax) Density Function
+# f(y) = (r * beta^r) / (beta + y)^(r+1)
+dpareto_lomax <- function(y, r, beta) {
+  (r * (beta^r)) / ((beta + y)^(r + 1))
+}
+
+# 4. Visualization
+hist(y_samples, breaks = 50, probability = TRUE, 
+     main = "Pareto Distribution via Inverse Transform",
+     col = "lightcyan", border = "white", xlab = "y",
+     xlim = c(0, quantile(y_samples, 0.95))) # Limit x-axis for better visibility
+
+# Overlay the theoretical PDF curve
+curve(dpareto_lomax(x, r_param, beta_param), 
+      add = TRUE, col = "darkblue", lwd = 2)
+
+# 5. Add Legend
+legend("topright", 
+       legend = c("Empirical (Samples)", "Theoretical Pareto"), 
+       fill = c("lightcyan", NA), 
+       border = c("white", NA),
+       lty = c(NA, 1), 
+       lwd = c(NA, 2), 
+       col = c(NA, "darkblue"), 
+       bty = "n")
+
+
+#13
+
+
+# 1. Parameter setup
+set.seed(123) # Set seed for reproducibility
+n <- 200
+mu <- c(0, 1, 2)
+Sigma <- matrix(c(1.0, -0.5, 0.5,
+                  -0.5,  1.0, -0.5,
+                  0.5, -0.5,  1.0), nrow = 3, byrow = TRUE)
+
+# 2. Cholesky Decomposition
+# The chol() function in R returns an upper triangular matrix.
+# Transpose it to obtain the lower triangular matrix L.
+L <- t(chol(Sigma))
+
+# 3. Generate Samples
+# Z: 3x200 matrix of independent standard normal random variables
+Z <- matrix(rnorm(3 * n), nrow = 3, ncol = n)
+
+# X = mu + L %*% Z
+# Perform linear transformation to match N(mu, Sigma)
+X_raw <- mu + L %*% Z
+X <- t(X_raw) # Transpose to 200x3 matrix
+colnames(X) <- c("X1", "X2", "X3")
+
+# 4. Theoretical vs Empirical Verification
+# Compare the sample mean with the theoretical mean (mu)
+sample_mean <- colMeans(X)
+print("--- Theoretical vs Sample Mean ---")
+print(data.frame(Theoretical = mu, Sample = sample_mean))
+
+# Compare the sample covariance with the theoretical covariance (Sigma)
+sample_cov <- cov(X)
+print("--- Theoretical vs Sample Covariance ---")
+print("Theoretical Sigma:")
+print(Sigma)
+print("Sample Covariance:")
+print(sample_cov)
+
+# 5. Visualization
+# Check visual consistency with the theoretical model using pairs()
+pairs(X, 
+      main = "Verification of Multivariate Normal Samples",
+      pch = 19, 
+      col = rgb(0.2, 0.5, 0.8, 0.5))
+
+
+
+#14
+
+
+# 1. Acceptance-Rejection Method for Beta(a, b)
+# We use a Uniform(0, 1) as the proposal distribution.
+# The constant M must satisfy f(x) <= M * g(x).
+beta_ar <- function(n, a, b) {
+  samples <- numeric(n)
+  count <- 0
+  
+  # Find the maximum value of the Beta density to set M
+  # For a, b > 1, the mode is (a-1)/(a+b-2)
+  if (a > 1 && b > 1) {
+    mode_val <- (a - 1) / (a + b - 2)
+    M <- dbeta(mode_val, a, b)
+  } else {
+    M <- 2 # Default fallback for simplicity
+  }
+  
+  while (count < n) {
+    U <- runif(1) # Proposal distribution sample (Uniform)
+    V <- runif(1) # Acceptance decision variable
+    
+    # Accept if V <= f(U) / M
+    if (V <= dbeta(U, a, b) / M) {
+      count <- count + 1
+      samples[count] <- U
+    }
+  }
+  return(samples)
+}
+
+# 2. Performance Comparison Setup
+n_samples <- 5000
+n_reps <- 1000
+a_param <- 2
+b_param <- 2
+
+# 3. Measuring Execution Time
+# Comparison for a=2, b=2
+cat("Comparing performance for a=2, b=2...\n")
+
+# Custom AR Method
+time_ar <- system.time({
+  replicate(n_reps, beta_ar(n_samples, a_param, b_param))
+})
+
+# Built-in rbeta()
+time_builtin <- system.time({
+  replicate(n_reps, rbeta(n_samples, a_param, b_param))
+})
+
+# 4. Results Output
+print("--- Execution Time (AR Method) ---")
+print(time_ar)
+
+print("--- Execution Time (rbeta function) ---")
+print(time_builtin)
+
+# 5. Theoretical Comparison Verification
+# Check if the AR method correctly follows the theoretical density
+generated_samples <- beta_ar(1000, 3, 2)
+hist(generated_samples, probability = TRUE, main = "Beta(3,2) via AR Method", col = "lightblue")
+curve(dbeta(x, 3, 2), add = TRUE, col = "red", lwd = 2) # Theoretical density
+
+
+#15
+
+
+# 1. Parameter setup
+set.seed(123) # Set seed for reproducibility
+n <- 1000
+index <- 1:n
+
+# 2. Generate random variables
+data_unif <- runif(n, 0, 1)
+data_norm <- rnorm(n, 0, 1)
+data_exp  <- rexp(n, 1)
+data_pois <- rpois(n, 1)
+
+# 3. Calculate running means
+avg_unif <- cumsum(data_unif) / index
+avg_norm <- cumsum(data_norm) / index
+avg_exp  <- cumsum(data_exp) / index
+avg_pois <- cumsum(data_pois) / index
+
+# 4. Visualization
+# Set up a 2x2 plotting area
+par(mfrow = c(2, 2))
+
+# Plot for Uniform(0, 1)
+plot(index, avg_unif, type = "l", main = "Uniform(0, 1)", xlab = "Sample Size", ylab = "Running Mean", col = "blue")
+abline(h = 0.5, col = "red", lty = 2) # Theoretical mean
+
+# Plot for Normal(0, 1)
+plot(index, avg_norm, type = "l", main = "Normal(0, 1)", xlab = "Sample Size", ylab = "Running Mean", col = "green")
+abline(h = 0, col = "red", lty = 2) # Theoretical mean
+
+# Plot for Exponential(1)
+plot(index, avg_exp, type = "l", main = "Exponential(1)", xlab = "Sample Size", ylab = "Running Mean", col = "purple")
+abline(h = 1, col = "red", lty = 2) # Theoretical mean
+
+# Plot for Poisson(1)
+plot(index, avg_pois, type = "l", main = "Poisson(1)", xlab = "Sample Size", ylab = "Running Mean", col = "orange")
+abline(h = 1, col = "red", lty = 2) # Theoretical mean
+
+# Reset plotting layout
+par(mfrow = c(1, 1))
+
+
+#16
+
+
+# 1. Parameter setup
+set.seed(123) # Set seed for reproducibility
+n <- 10000    # Larger sample size to observe convergence
+index <- 1:n
+
+# 2. Generate random variables using Inverse Transform Method
+# U is Uniform(0, 1), X = 1 / sqrt(1 - U)
+u <- runif(n)
+data_custom <- 1 / sqrt(1 - u)
+
+# 3. Calculate running means
+avg_custom <- cumsum(data_custom) / index
+
+# 4. Visualization
+# Plot the running mean to observe the Law of Large Numbers
+windows()
+plot(index, avg_custom, type = "l", 
+     main = "Law of Large Numbers: f(x) = 2/x^3",
+     xlab = "Sample Size (n)", 
+     ylab = "Running Mean", 
+     col = "darkblue",
+     ylim = c(0, 5)) # Adjust limit for better view
+
+# Add the theoretical mean line (E[X] = 2)
+abline(h = 2, col = "red", lty = 2, lwd = 2)
+
+# 5. Add legend
+legend("topright", legend = c("Sample Mean", "Theoretical Mean (2)"),
+       col = c("darkblue", "red"), lty = c(1, 2))
+
+
+
+#17
+
+
+# 1. Parameter setup
+set.seed(123)        # Set seed for reproducibility
+reps <- 10000        # Number of simulations (iterations)
+n_sizes <- c(2, 10, 30, 100) # Different sample sizes to compare
+lambda <- 1          # Rate parameter for Exp(1)
+
+# 2. Visualization Setup
+# Create a 2x2 layout for the plots
+par(mfrow = c(2, 2))
+
+# 3. Simulation and Plotting Loop
+for (n in n_sizes) {
+  # Generate 'reps' number of sample means, each from 'n' exponential variables
+  # Using replicate to get a vector of means
+  sample_means <- replicate(reps, mean(rexp(n, rate = lambda)))
+  
+  # Calculate theoretical parameters for the normal curve overlay
+  # Theoretical mean of sample mean is E[X] = 1/lambda
+  # Theoretical SD of sample mean is SD(X)/sqrt(n) = (1/lambda)/sqrt(n)
+  theo_mu <- 1 / lambda
+  theo_sd <- (1 / lambda) / sqrt(n)
+  
+  # Plot Histogram
+  hist(sample_means, breaks = 50, probability = TRUE,
+       main = paste("Sample Size n =", n),
+       xlab = "Sample Mean", col = "lightblue", border = "white",
+       xlim = c(max(0, theo_mu - 4*theo_sd), theo_mu + 4*theo_sd))
+  
+  # Add Theoretical Normal Curve
+  x_axis <- seq(0, 3, length = 100)
+  y_axis <- dnorm(x_axis, mean = theo_mu, sd = theo_sd)
+  lines(x_axis, y_axis, col = "red", lwd = 2)
+}
+
+# Reset plotting layout
+par(mfrow = c(1, 1))
 
 
 
