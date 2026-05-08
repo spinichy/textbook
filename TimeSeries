@@ -1,1 +1,171 @@
+###part 1
 
+
+##example
+
+
+#1
+
+
+# Load necessary libraries
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(zoo, hms, nanotime, lubridate, tsibble)
+if (!require("bit64")) install.packages("bit64")
+library(nanotime)
+library(bit64) 
+
+
+# 1. Base R: Date, POSIXct, POSIXlt
+date_val <- as.Date("2026-05-07")
+ct_val   <- as.POSIXct("2026-05-07 12:00:00")
+lt_val   <- as.POSIXlt("2026-05-07 12:00:00")
+
+print(unclass(date_val)) # Days since 1970-01-01
+print(as.numeric(ct_val)) # Seconds since 1970-01-01
+print(unclass(lt_val)) # List of year, month, day, etc.
+
+# 2. zoo: yearmon, yearqtr
+ym_val <- as.yearmon("2026-05")
+yq_val <- as.yearqtr("2026-2")
+
+print(as.numeric(ym_val)) # 2026 + (5-1)/12
+print(as.numeric(yq_val)) # 2026 + (2-1)/4
+
+# 3. hms: Time only
+time_val <- as_hms("12:00:00")
+print(as.numeric(time_val)) # Seconds since midnight
+
+# 4. nanotime: Nano-seconds precision
+# Requires 64-bit integer support
+nano_val <- nanotime("2026-05-07T12:00:00.000000001+00:00")
+print(nano_val)
+
+# 5. lubridate: Period vs Duration
+# Period: Intuitive time units
+per_val <- months(1) 
+# Duration: Exact physical seconds
+dur_val <- dweeks(1) 
+
+print(unclass(per_val))
+print(as.numeric(dur_val)) # Seconds in a week
+
+# 6. tsibble: yearmonth (Tidy style)
+tm_val <- yearmonth("2026 May")
+print(as.numeric(tm_val)) # Number of months since 1970 Jan
+
+
+
+
+
+# Load necessary libraries
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(zoo, hms, nanotime, lubridate, tsibble, bit64)
+
+# 1. Base R: Standard Date & Time
+# 
+date_val <- as.Date("2026-05-07")
+ct_val   <- as.POSIXct("2026-05-07 16:30:05")
+lt_val   <- as.POSIXlt("2026-05-07 16:30:05")
+
+print(date_val)  # "2026-05-07"
+print(ct_val)    # "2026-05-07 16:30:05 KST"
+print(lt_val)    # Looks same as ct, but it's a list under the hood
+
+# 2. zoo: Monthly & Quarterly (Simplified view)
+# Useful for reports and clean plots
+ym_val <- as.yearmon("2026-05")
+yq_val <- as.yearqtr("2026-2")
+
+print(ym_val)    # "5월 2026" (or "May 2026" depending on locale)
+print(yq_val)    # "2026 Q2"
+
+# 3. hms: Time only (No date attached)
+time_val <- as_hms("16:30:05")
+print(time_val)  # "16:30:05"
+
+# 4. nanotime: Ultra-precision
+# Shows nanoseconds which POSIXct usually hides
+nano_val <- nanotime("2026-05-07T16:30:05.123456789+09:00")
+print(nano_val)  # "2026-05-07T07:30:05.123456789+00:00" (UTC display)
+
+# 5. lubridate: Calculated Periods
+# Not a point in time, but a 'span' of time
+my_duration <- ddays(1) + dhours(5) # Exact physical time
+my_period   <- days(1) + hours(5)   # Human-readable time
+
+print(my_duration) # "97200s (~1.12 days)"
+print(my_period)   # "1d 5H 0M 0S"
+
+# 6. tsibble: Tidy Time Index
+tm_val <- yearmonth("2026 May")
+print(tm_val)    # "2026 5월" (Optimized for tsibble objects)
+
+
+
+#2
+
+
+
+# Load necessary libraries
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(lubridate, zoo)
+
+# 1. Parsing Practice: Converting various strings to Date/Time objects
+# Use specific format symbols to match the input string structure exactly
+
+# Case A: Standard dash format with time
+str_a <- "2026-05-07 16:45:30"
+dt_a <- as.POSIXct(str_a, format = "%Y-%m-%d %H:%M:%S");dt_a 
+# English: %Y is 4-digit year, %H is 24-hour format
+
+# Case B: Slash format with 2-digit year
+str_b <- "07/05/26"
+dt_b <- as.Date(str_b, format = "%d/%m/%y");dt_b
+# English: %y (lowercase) represents a 2-digit year
+
+# Case C: Month name and literal text
+# English: Switching time locale to English for parsing month names
+if (.Platform$OS.type == "windows") {
+  Sys.setlocale("LC_TIME", "English")
+} else {
+  Sys.setlocale("LC_TIME", "en_US.UTF-8")
+}
+
+str_c <- "May 07, 2026"
+dt_c <- as.Date(str_c, format = "%B %d, %Y");dt_c
+# English: %B matches the full month name
+
+# 2. Formatting Practice: Converting objects back to customized strings
+# This is useful for creating clean labels for plots or reports
+
+now <- Sys.time()
+
+# Format 1: Military / Technical style
+fmt_1 <- format(now, "%Y%m%d_%H%M%S");fmt_1
+# English: Output example "20260507_164530"
+
+# Format 2: Human-readable with weekdays
+fmt_2 <- format(now, "%A, %d of %B, %Y");fmt_2
+# English: Output example "Thursday, 07 of May, 2026"
+
+# Format 3: 12-hour clock with AM/PM
+fmt_3 <- format(now, "%I:%M %p");fmt_2
+# English: %I is 12-hour clock, %p is AM/PM indicator
+
+# 3. Component Extraction: Using POSIXlt for deep diving
+lt_now <- as.POSIXlt(now);lt_now
+
+# English: POSIXlt stores components in a list format
+year_val  <- lt_now$year + 1900  # English: Years are counted from 1900
+month_val <- lt_now$mon + 1      # English: Months are 0-indexed (0=Jan)
+wday_val  <- lt_now$wday         # English: Day of week (0-6, 0=Sunday)
+
+# 4. Lubridate shortcuts: The easier way to format
+# English: No need for % symbols; just specify the order of Y, M, and D
+easy_date <- ymd("20260507")
+easy_dt   <- mdy_hm("May 07, 2026 16:45")
+
+# 5. Displaying underlying numeric values for practice
+# English: Checking the raw data stored behind the formatted display
+cat("Formatted:", format(now, "%Y-%m-%d %H:%M:%S"), "\n")
+cat("Numeric (seconds since 1970):", as.numeric(now), "\n")
