@@ -4032,5 +4032,1005 @@ par(mfrow = c(1, 1))
 
 
 
+Part 4 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
+
+
+##example
+
+
+#1
+
+
+
+# Target function: g(x) = sin(x)
+g <- function(x) sin(x)
+
+# Settings
+n <- 10000
+set.seed(123) # For reproducibility
+
+# 1. Generate data
+x <- runif(n, 0, 1)
+y <- g(x)
+
+# 2. Statistical properties
+theta_hat <- mean(y)
+true_theta <- -cos(1) + cos(0)
+std_error <- sd(y) / sqrt(n)
+
+# 3. Plotting
+# Create a sequence for the curve
+x_curve <- seq(0, pi, length.out = 200)
+y_curve <- g(x_curve)
+
+# Set up the plot area
+
+windows()
+
+plot(x_curve, y_curve, type = "l", lwd = 3, col = "darkblue",
+     main = paste("MC Integration of sin(x) from 0 to 1\n(n =", n, ")"),
+     xlab = "x", ylab = "g(x)",
+     xlim = c(0, pi), ylim = c(0, 1))
+
+# Add shading for the integral area
+x_curve.2 <- seq(0, 1, length.out = 200)
+y_curve.2 <- g(x_curve.2)
+polygon(c(0, x_curve.2, 1), c(0, y_curve.2, 0), 
+        col = rgb(0.1, 0.6, 0.8, 0.3), border = NA)
+
+# Add random sample points (showing a subset for clarity)
+points(x[1:500], y[1:500], pch = 20, col = rgb(1, 0, 0, 0.2), cex = 0.5)
+
+# Add reference lines and legend
+abline(h = 0, v = 0, lty = 2)
+legend("topleft", 
+       legend = c("sin(x)", "Integral Area", "Sample Points (Partial)"),
+       col = c("darkblue", rgb(0.1, 0.6, 0.8, 0.3), "red"),
+       pch = c(NA, 15, 20), lty = c(1, NA, NA), lwd = c(2, NA, NA))
+
+# Display results in console
+cat("Estimated Theta:", theta_hat, "\n")
+cat("True Theta:", true_theta, "\n")
+cat("Standard Error:", std_error, "\n")
+
+
+
+
+# Target function: g(x) = sin(x)
+g <- function(x) sin(x)
+
+# Settings
+n <- 10000
+set.seed(123)
+
+# 1. Generate random points in a rectangle [0, 1] x [0, 1]
+x_rand <- runif(n, 0, 1)
+y_rand <- runif(n, 0, 1)
+
+# 2. Check if points are under the curve (Hit or Miss)
+is_under <- y_rand <= g(x_rand)
+theta_hat_hm <- mean(is_under) # Estimated area
+
+# 3. Plotting
+x_curve <- seq(0, pi, length.out = 200)
+y_curve <- g(x_curve)
+
+# Create Plot
+
+windows()
+
+plot(x_curve, y_curve, type = "l", lwd = 3, col = "darkblue",
+     main = "MC Integration: Hit-or-Miss Visualization",
+     xlab = "x", ylab = "g(x)", xlim = c(0, pi), ylim = c(0, 1))
+
+# Highlight the integral range [0, 1]
+rect(0, 0, 1, 1, border = "gray", lty = 2) 
+
+# Add points: Red if under the curve, Grey if above
+# Display only 1000 points for better visibility
+
+show_n <- 1000
+points(x_rand[1:show_n], y_rand[1:show_n], 
+       col = ifelse(is_under[1:show_n], "red", "lightgrey"), 
+       pch = 20, cex = 0.6)
+
+# Add Legend
+legend("topright", 
+       legend = c("Hit (Under)", "Miss (Above)", "sin(x)"),
+       col = c("red", "lightgrey", "darkblue"), 
+       pch = c(20, 20, NA), lty = c(NA, NA, 1), lwd = c(NA, NA, 2))
+
+# Results
+cat("Hit-or-Miss Estimated Area:", theta_hat_hm, "\n")
+cat("True Area:", 1 - cos(1), "\n")
+
+
+
+# Target function: g(x) = exp(-x)
+g <- function(x) exp(-x)
+
+# Settings
+n <- 10000
+set.seed(123) # For reproducibility
+
+# 1. Generate data
+x <- runif(n, 0, 1)
+y <- g(x)
+
+# 2. Statistical properties
+theta_hat <- mean(y)
+true_theta <- 1-exp(-1)
+std_error <- sd(y) / sqrt(n)
+
+# 3. Plotting
+# Create a sequence for the curve
+x_curve <- seq(0, pi, length.out = 200)
+y_curve <- g(x_curve)
+
+# Set up the plot area
+
+windows()
+
+plot(x_curve, y_curve, type = "l", lwd = 3, col = "darkblue",
+     main = paste("MC Integration of sin(x) from 0 to 1\n(n =", n, ")"),
+     xlab = "x", ylab = "g(x)",
+     xlim = c(0, pi), ylim = c(0, 1))
+
+# Add shading for the integral area
+x_curve.2 <- seq(0, 1, length.out = 200)
+y_curve.2 <- g(x_curve.2)
+polygon(c(0, x_curve.2, 1), c(0, y_curve.2, 0), 
+        col = rgb(0.1, 0.6, 0.8, 0.3), border = NA)
+
+# Add random sample points (showing a subset for clarity)
+points(x[1:500], y[1:500], pch = 20, col = rgb(1, 0, 0, 0.2), cex = 0.5)
+
+# Add reference lines and legend
+abline(h = 0, v = 0, lty = 2)
+legend("topright", 
+       legend = c("exp(-x)", "Integral Area", "Sample Points (Partial)"),
+       col = c("darkblue", rgb(0.1, 0.6, 0.8, 0.3), "red"),
+       pch = c(NA, 15, 20), lty = c(1, NA, NA), lwd = c(2, NA, NA))
+
+# Display results in console
+cat("Estimated Theta:", theta_hat, "\n")
+cat("True Theta:", true_theta, "\n")
+cat("Standard Error:", std_error, "\n")
+
+
+
+
+# Target function: g(x) = exp(-x)
+g <- function(x) exp(-x)
+
+# Settings
+n <- 10000
+set.seed(123)
+
+# 1. Generate random points in a rectangle [0, 1] x [0, 1]
+x_rand <- runif(n, 0, 1)
+y_rand <- runif(n, 0, 1)
+
+# 2. Check if points are under the curve (Hit or Miss)
+is_under <- y_rand <= g(x_rand)
+theta_hat_hm <- mean(is_under) # Estimated area
+
+# 3. Plotting
+x_curve <- seq(0, pi, length.out = 200)
+y_curve <- g(x_curve)
+
+# Create Plot
+
+windows()
+
+plot(x_curve, y_curve, type = "l", lwd = 3, col = "darkblue",
+     main = "MC Integration: Hit-or-Miss Visualization",
+     xlab = "x", ylab = "g(x)", xlim = c(0, pi), ylim = c(0, 1))
+
+# Highlight the integral range [0, 1]
+rect(0, 0, 1, 1, border = "gray", lty = 2) 
+
+# Add points: Red if under the curve, Grey if above
+# Display only 1000 points for better visibility
+
+show_n <- 1000
+points(x_rand[1:show_n], y_rand[1:show_n], 
+       col = ifelse(is_under[1:show_n], "red", "lightgrey"), 
+       pch = 20, cex = 0.6)
+
+# Add Legend
+legend("topright", 
+       legend = c("Hit (Under)", "Miss (Above)", "sin(x)"),
+       col = c("red", "lightgrey", "darkblue"), 
+       pch = c(20, 20, NA), lty = c(NA, NA, 1), lwd = c(NA, NA, 2))
+
+# Results
+cat("Hit-or-Miss Estimated Area:", theta_hat_hm, "\n")
+cat("True Area:", 1 - cos(1), "\n")
+
+
+
+
+#2
+
+
+
+
+# Target function: g(x) = exp(-x)
+g <- function(x) exp(-x)
+
+# Settings
+n <- 10000
+set.seed(123)
+a <- 2
+b <- 4
+
+# 1. Theoretical Integration Value
+# The integral of exp(-x) from a to b is [-exp(-x)] from a to b.
+# Formula: exp(-a) - exp(-b)
+true_value <- exp(-a) - exp(-b)
+
+# 2. Monte Carlo Estimation (Hit-or-Miss Method)
+# Generate random points in the rectangle [a, b] x [0, g(a)]
+x_rand <- runif(n, a, b)
+y_max <- g(a) # Maximum height of the function in the interval [2, 4]
+y_rand <- runif(n, 0, y_max)
+
+# Identify points under the curve
+is_under <- y_rand <= g(x_rand)
+
+# Estimate Area: (Total Rectangle Area) * (Ratio of points that 'hit' the area)
+rect_area <- (b - a) * y_max
+mc_estimated_value <- rect_area * mean(is_under)
+
+# 3. Visualization
+# Set up the plot area
+x_curve <- seq(0, 5, length.out = 200)
+y_curve <- g(x_curve)
+
+windows() # Open a new plot window
+
+plot(x_curve, y_curve, type = "l", lwd = 3, col = "darkblue",
+     main = "MC Integration for exp(-x) from 2 to 4",
+     xlab = "x", ylab = "g(x)", xlim = c(0, 5), ylim = c(0, 0.2))
+
+# Highlight the sampling rectangle and the integral area
+rect(a, 0, b, y_max, border = "gray", lty = 2) 
+
+# Plot a subset of sampled points for clarity
+show_n <- 1000
+points(x_rand[1:show_n], y_rand[1:show_n], 
+       col = ifelse(is_under[1:show_n], "red", "lightgrey"), 
+       pch = 20, cex = 0.6)
+
+# Add Legend
+legend("topright", 
+       legend = c("Hit (Under)", "Miss (Above)", "exp(-x)"),
+       col = c("red", "lightgrey", "darkblue"), 
+       pch = c(20, 20, NA), lty = c(NA, NA, 1), lwd = c(NA, NA, 2))
+
+# 4. Final Comparison Results
+cat("--- Integration Results ---\n")
+cat("Theoretical Value (exp(-2) - exp(-4)): ", true_value, "\n")
+cat("Monte Carlo Estimated Value:           ", mc_estimated_value, "\n")
+cat("Absolute Error:                        ", abs(true_value - mc_estimated_value), "\n")
+
+
+
+
+#3
+
+
+
+# Target function: Standard Normal PDF
+# g(t) = (1 / sqrt(2 * pi)) * exp(-t^2 / 2)
+g <- function(t) dnorm(t)
+
+# Settings
+n <- 10000
+set.seed(123)
+x_limit <- 1  # We will estimate Phi(1)
+# Since the integral starts from -infinity, we use a practical lower bound
+# like -5, as the density beyond that is negligible.
+a <- -5
+b <- x_limit
+
+# 1. Theoretical Value
+# Using R's built-in CDF function for comparison
+true_phi <- pnorm(x_limit)
+
+# 2. Monte Carlo Estimation (Sample Mean Method)
+# Using the expectation form: (b - a) * E[g(T)] where T ~ U(a, b)
+t_samples <- runif(n, a, b)
+phi_hat_mean <- (b - a) * mean(g(t_samples))
+
+# Since Phi(x) is integral from -inf to x, we add the tiny tail area (Phi(a))
+# for a more precise comparison, though it's nearly 0.
+phi_hat_final <- phi_hat_mean + pnorm(a)
+
+# 3. Visualization (Hit-or-Miss)
+# Maximum value of standard normal PDF is at t=0: 1/sqrt(2*pi)
+y_max <- g(0)
+t_rand <- runif(n, a, b)
+y_rand <- runif(n, 0, y_max)
+is_under <- y_rand <= g(t_rand)
+
+# Hit-or-Miss area for the interval [a, b]
+mc_hit_miss <- ((b - a) * y_max * mean(is_under)) + pnorm(a)
+
+# 4. Plotting
+t_curve <- seq(-4, 4, length.out = 500)
+y_curve <- g(t_curve)
+
+windows()
+plot(t_curve, y_curve, type = "l", lwd = 2, col = "darkblue",
+     main = substitute(paste("Estimation of ", Phi(x), " at x = ", x_val), list(x_val = x_limit)),
+     xlab = "t", ylab = "f(t)")
+
+# Highlight the integral area up to x_limit
+t_fill <- seq(a, b, length.out = 100)
+polygon(c(a, t_fill, b), c(0, g(t_fill), 0), col = rgb(0.1, 0.6, 0.8, 0.3), border = NA)
+abline(v = x_limit, lty = 2, col = "red")
+
+# 5. Results
+cat("--- Phi(1) Estimation Results ---\n")
+cat("Theoretical Value (pnorm):     ", true_phi, "\n")
+cat("MC Sample Mean Estimate:       ", phi_hat_final, "\n")
+cat("MC Hit-or-Miss Estimate:       ", mc_hit_miss, "\n")
+
+
+
+
+
+# Target function: Standard Normal PDF
+g <- function(t) dnorm(t)
+
+# Settings
+n <- 10000
+set.seed(123)
+
+# 1. Define 10 x values between 0.1 and 2.5
+x_values <- seq(0.1, 2.5, length.out = 10)
+
+# 2. Function to estimate Phi(x) using symmetry
+# Formula: Phi(x) = 0.5 + Integral from 0 to x of g(t) dt
+estimate_phi <- function(x, n_samples) {
+  if (x == 0) return(0.5)
+  
+  # Sample Mean Method on [0, x]
+  t_samples <- runif(n_samples, 0, x)
+  area_0_to_x <- x * mean(g(t_samples))
+  
+  return(0.5 + area_0_to_x)
+}
+
+# 3. Perform estimation for each x value
+results_list <- lapply(x_values, function(x) {
+  true_val <- pnorm(x)
+  est_val <- estimate_phi(x, n)
+  
+  data.frame(
+    x = x,
+    Theoretical_CDF = true_val,
+    MC_Estimate = est_val,
+    Abs_Error = abs(true_val - est_val)
+  )
+})
+
+# Combine results into a single data frame
+comparison_table <- do.call(rbind, results_list)
+
+# 4. Display the comparison table
+print(comparison_table, digits = 5)
+
+# 5. Visualization of the comparison
+windows()
+plot(comparison_table$x, comparison_table$Theoretical_CDF, type = "b", 
+     col = "blue", pch = 16, lwd = 2, ylim = c(0.5, 1.0),
+     main = "Theoretical CDF vs. MC Estimate",
+     xlab = "x", ylab = "Phi(x)")
+points(comparison_table$x, comparison_table$MC_Estimate, col = "red", pch = 4, cex = 1.2)
+legend("bottomright", legend = c("Theoretical (pnorm)", "MC Estimate"),
+       col = c("blue", "red"), pch = c(16, 4), lty = c(1, NA))
+
+
+
+
+#4
+
+
+
+
+# Target function: Standard Normal PDF
+g <- function(t) dnorm(t)
+
+# Settings
+n <- 10000
+set.seed(123)
+alpha <- 0.05
+z_critical <- qnorm(1 - alpha/2) # 1.96 for 95% CI
+
+# 1. Define 10 x values between 0.1 and 2.5
+x_values <- seq(0.1, 2.5, length.out = 10)
+
+# 2. Function to estimate Phi(x) with Confidence Interval
+estimate_phi_with_ci <- function(x, n_samples) {
+  if (x == 0) return(data.frame(est = 0.5, lower = 0.5, upper = 0.5))
+  
+  # Generate samples in [0, x]
+  t_samples <- runif(n_samples, 0, x)
+  y_values <- g(t_samples)
+  
+  # Sample mean of g(t)
+  mean_g <- mean(y_values)
+  
+  # Area estimate: 0.5 + x * E[g(T)]
+  est_val <- 0.5 + (x * mean_g)
+  
+  # Standard Error of the estimator
+  # Var(Est) = x^2 * Var(g(T)) / n
+  se <- x * (sd(y_values) / sqrt(n_samples))
+  
+  # 95% Confidence Interval
+  lower_ci <- est_val - (z_critical * se)
+  upper_ci <- est_val + (z_critical * se)
+  
+  return(data.frame(x = x, est = est_val, lower = lower_ci, upper = upper_ci))
+}
+
+# 3. Perform estimation for each x value
+results_list <- lapply(x_values, function(x) {
+  true_val <- pnorm(x)
+  mc_res <- estimate_phi_with_ci(x, n)
+  
+  data.frame(
+    x = x,
+    Theoretical_CDF = true_val,
+    MC_Estimate = mc_res$est,
+    Lower_95_CI = mc_res$lower,
+    Upper_95_CI = mc_res$upper
+  )
+})
+
+comparison_table <- do.call(rbind, results_list)
+
+# 4. Display the comparison table
+print(comparison_table, digits = 5)
+
+# 5. Visualization with Error Bars
+windows()
+plot(comparison_table$x, comparison_table$MC_Estimate, type = "p", 
+     col = "red", pch = 18, ylim = c(0.5, 1.05),
+     main = "MC Estimate of Phi(x) with 95% CI",
+     xlab = "x", ylab = "Phi(x)")
+
+# Add Theoretical Line
+lines(comparison_table$x, comparison_table$Theoretical_CDF, col = "blue", lwd = 2)
+
+# Add Error Bars (95% CI)
+arrows(comparison_table$x, comparison_table$Lower_95_CI, 
+       comparison_table$x, comparison_table$Upper_95_CI, 
+       code = 3, angle = 90, length = 0.05, col = "darkgrey")
+
+legend("bottomright", legend = c("Theoretical (pnorm)", "MC Estimate", "95% CI"),
+       col = c("blue", "red", "darkgrey"), pch = c(NA, 18, 124), lty = c(1, NA, 1))
+
+
+
+
+#5
+
+
+
+# Target function
+g <- function(x) 1 / (1 + x^2)
+
+# Settings
+n <- 10000
+set.seed(123)
+a <- 0
+b <- 2
+c <- g(a) # Max height is 1
+
+# Monte Carlo Sampling
+x_rand <- runif(n, a, b)
+y_rand <- runif(n, 0, c)
+is_under <- y_rand <= g(x_rand)
+
+# 1. Visualization Plot
+# Increase margin for a cleaner look
+par(mar = c(5, 5, 4, 2))
+
+# Plot the curve
+windows()
+
+x_curve <- seq(a, b, length.out = 500)
+plot(x_curve, g(x_curve), type = "l", lwd = 4, col = "darkblue",
+     xlim = c(a, b), ylim = c(0, c),
+     main = "Monte Carlo Hit-or-Miss Integration",
+     xlab = "x", ylab = "g(x) = 1 / (1 + x^2)",
+     cex.main = 1.2, font.main = 2)
+
+# 2. Draw the Sampling Rectangle (Bounding Box)
+rect(a, 0, b, c, border = "black", lty = 2, lwd = 1.5)
+
+# 3. Plot the Random Points
+# Red for Hits (Under the curve), Grey for Misses (Above the curve)
+# Using transparent colors to see density if n is large
+points(x_rand, y_rand, 
+       col = ifelse(is_under, rgb(1, 0, 0, 0.4), rgb(0.8, 0.8, 0.8, 0.3)), 
+       pch = 20, cex = 0.5)
+
+# 4. Fill the Integral Area for visual clarity
+polygon(c(a, x_curve, b), c(0, g(x_curve), 0), 
+        col = rgb(0, 0, 1, 0.1), border = NA)
+
+# 5. Add Legend
+legend("topright", 
+       legend = c("Function g(x)", "Hit (Points Under)", "Miss (Points Above)", "Bounding Box"),
+       col = c("darkblue", "red", "grey", "black"), 
+       lty = c(1, NA, NA, 2), pch = c(NA, 20, 20, NA),
+       lwd = c(2, NA, NA, 1.5), bty = "n")
+
+# 6. Calculate Results and Add Text to Plot
+val_analytical <- atan(b) - atan(a)
+val_mc_hm <- ((b - a) * c) * mean(is_under)
+
+text_label <- paste0("Analytical: ", round(val_analytical, 5), 
+                     "\nMC Estimate: ", round(val_mc_hm, 5))
+text(x = 1, y = 0.2, labels = text_label, font = 2, col = "darkgreen")
+
+
+
+#6
+
+
+
+# 1. Setting
+set.seed(123)
+n <- 10000  # Total iterations (each producing 1 or 2 samples)
+x_val <- 2
+
+# Target function for Phi(x) using Monte Carlo integration
+# We estimate P(0 < Z < 2) and add 0.5 (for the left tail)
+# integral from 0 to 2 of (1/sqrt(2*pi)) * exp(-t^2/2) dt
+g <- function(u) {
+  t <- x_val * u
+  return(x_val * (1/sqrt(2*pi)) * exp(-t^2/2))
+}
+
+# 2. Simple Monte Carlo (using 2*n independent samples)
+u_simple <- runif(2 * n)
+y_simple <- g(u_simple)
+mc_estimate <- 0.5 + mean(y_simple)
+mc_variance <- var(y_simple) / (2 * n)
+
+# 3. Antithetic Variates (using n pairs = 2*n samples)
+u_anti <- runif(n)
+y1 <- g(u_anti)
+y2 <- g(1 - u_anti)
+y_anti_avg <- (y1 + y2) / 2
+av_estimate <- 0.5 + mean(y_anti_avg)
+av_variance <- var(y_anti_avg) / n
+
+# 4. Results Comparison
+cat("True Value (pnorm):", pnorm(x_val), "\n")
+cat("------------------------------------------\n")
+cat("Simple MC Estimate: ", mc_estimate, "\n")
+cat("Antithetic Estimate:", av_estimate, "\n")
+cat("------------------------------------------\n")
+cat("Simple MC Variance: ", mc_variance, "\n")
+cat("Antithetic Variance:", av_variance, "\n")
+cat("Variance Reduction Rate:", (1 - av_variance/mc_variance) * 100, "%\n")
+
+
+
+
+#7
+
+
+
+#case 1
+
+# Monte Carlo Integration with Control Variates
+# Target: theta = E[exp(U)], where U ~ U(0,1)
+# Control Variate: f(U) = U, where E[U] = 0.5
+
+# 1. Setup
+set.seed(123)
+n <- 10000  # Number of simulations
+u <- runif(n)
+
+# 2. Simple Monte Carlo
+g_u <- exp(u)
+theta_hat_simple <- mean(g_u)
+var_simple <- var(g_u) / n
+
+# 3. Control Variates Monte Carlo
+# Calculated optimal c* = 6 * (exp(1) - 3)
+c_star <- 6 * (exp(1) - 3)
+mu_f <- 0.5  # Known expectation E[U]
+
+# Controlled estimator: theta_c = g(U) + c*(f(U) - mu_f)
+theta_c <- g_u + c_star * (u - mu_f)
+theta_hat_cv <- mean(theta_c)
+var_cv <- var(theta_c) / n
+
+# 4. Results Comparison
+cat("--- Estimation Results ---\n")
+cat("True Value (e - 1):       ", exp(1) - 1, "\n")
+cat("Simple MC Estimate:      ", theta_hat_simple, "\n")
+cat("Control Variate Estimate:", theta_hat_cv, "\n\n")
+
+cat("--- Variance Comparison ---\n")
+cat("Simple MC Variance:      ", var_simple, "\n")
+cat("Control Variate Variance:", var_cv, "\n")
+cat("Variance Reduction (%):  ", (1 - var_cv/var_simple) * 100, "%\n")
+
+# 5. Visualizing Variance Reduction
+# Comparing the distribution of estimators
+boxplot(g_u, theta_c, 
+        names = c("Simple MC", "Control Variate"),
+        main = "Distribution of g(U) vs Controlled Estimator",
+        col = c("lightblue", "lightgreen"))
+
+
+#case 2
+
+
+# Monte Carlo Integration for exp(U^2) using Control Variates
+# Target: theta = E[exp(U^2)], where U ~ U(0,1)
+# Control Variates based on Taylor expansion:
+# f1(U) = 1 + U^2,  E[f1(U)] = 4/3
+# f2(U) = 1 + U^2 + U^4/2, E[f2(U)] = 1 + 1/3 + 1/10 = 1.4333...
+
+# 1. Setup
+set.seed(456)
+n <- 100000
+u <- runif(n)
+g_u <- exp(u^2)
+
+# 2. Simple Monte Carlo
+theta_hat_simple <- mean(g_u)
+var_simple <- var(g_u) / n
+
+# 3. Control Variates (1st order approximation: 1 + U^2)
+f1_u <- 1 + u^2
+mu_f1 <- 4/3
+# Estimate optimal c1 using regression (lm)
+c1_star <- -cov(g_u, f1_u) / var(f1_u)
+theta_c1 <- g_u + c1_star * (f1_u - mu_f1)
+theta_hat_cv1 <- mean(theta_c1)
+var_cv1 <- var(theta_c1) / n
+
+# 4. Control Variates (2nd order approximation: 1 + U^2 + U^4/2)
+f2_u <- 1 + u^2 + (u^4)/2
+mu_f2 <- 1.433333333
+# Estimate optimal c2 using regression (lm)
+c2_star <- -cov(g_u, f2_u) / var(f2_u)
+theta_c2 <- g_u + c2_star * (f2_u - mu_f2)
+theta_hat_cv2 <- mean(theta_c2)
+var_cv2 <- var(theta_c2) / n
+
+# 5. Results Table
+results <- data.frame(
+  Method = c("Simple MC", "CV (1st Order)", "CV (2nd Order)"),
+  Estimate = c(theta_hat_simple, theta_hat_cv1, theta_hat_cv2),
+  Variance = c(var_simple, var_cv1, var_cv2),
+  Reduction_Pct = c(0, 
+                    (1 - var_cv1/var_simple) * 100, 
+                    (1 - var_cv2/var_simple) * 100)
+)
+
+print(results)
+
+# 6. Visual comparison of variance
+boxplot(g_u, theta_c1, theta_c2,
+        names = c("Simple", "CV (1st)", "CV (2nd)"),
+        main = "Estimator Variance Comparison",
+        col = c("tomato", "gold", "springgreen"))
+
+
+#case3
+
+
+# Monte Carlo Integration for g(u) = exp(-u)/(1+u^2)
+# Comparing:
+# 1. Simple Monte Carlo
+# 2. Single Composite CV (Polynomial approximation)
+# 3. Multiple Regression CV (U, U^2, U^3)
+# 4. Structural CV (Using a structurally similar function whose integral we know)
+
+# 1. Setup
+set.seed(202)
+n <- 100000
+u <- runif(n)
+g_u <- exp(-u) / (1 + u^2)
+
+# --- Method 0: Simple Monte Carlo ---
+theta_hat_simple <- mean(g_u)
+var_simple <- var(g_u) / n
+
+# --- Method A: Single Composite (Hand-derived Taylor) ---
+# f_comp = 1 - U - (1/2)U^2 + (5/6)U^3, E[f] = 13/24
+f_comp <- 1 - u - 0.5*(u^2) + (5/6)*(u^3)
+mu_comp <- 13/24
+c_comp <- -cov(g_u, f_comp) / var(f_comp)
+theta_hat_A <- mean(g_u + c_comp * (f_comp - mu_comp))
+var_A <- var(g_u + c_comp * (f_comp - mu_comp)) / n
+
+# --- Method B: Multiple Regression (Polynomial terms) ---
+f1 <- u; f2 <- u^2; f3 <- u^3
+mu_v <- c(1/2, 1/3, 1/4)
+model_B <- lm(g_u ~ f1 + f2 + f3)
+betas_B <- coef(model_B)[-1]
+theta_c_B <- g_u - betas_B[1]*(f1 - mu_v[1]) - betas_B[2]*(f2 - mu_v[2]) - betas_B[3]*(f3 - mu_v[3])
+theta_hat_B <- mean(theta_c_B)
+var_B <- var(theta_c_B) / n
+
+# --- Method C: Structural Similarity (The "Known Function" Approach) ---
+# Let's use f(u) = exp(-0.5)/(1 + u^2) as our control variate.
+# We know E[f(U)] = exp(-0.5) * pi/4
+f_struct <- exp(-0.5) / (1 + u^2)
+mu_struct <- exp(-0.5) * (pi / 4)
+c_struct <- -cov(g_u, f_struct) / var(f_struct)
+theta_hat_C <- mean(g_u + c_struct * (f_struct - mu_struct))
+var_C <- var(g_u + c_struct * (f_struct - mu_struct)) / n
+
+# --- Results Comparison ---
+results <- data.frame(
+  Method = c("Simple MC", "Taylor Composite", "Multiple Reg", "Structural CV"),
+  Estimate = c(theta_hat_simple, theta_hat_A, theta_hat_B, theta_hat_C),
+  Variance = c(var_simple, var_A, var_B, var_C),
+  Reduction_vs_Simple = c(0, 
+                          (1 - var_A/var_simple)*100, 
+                          (1 - var_B/var_simple)*100, 
+                          (1 - var_C/var_simple)*100)
+)
+
+print(results)
+
+# --- Visualization ---
+boxplot(g_u, (g_u + c_comp*(f_comp - mu_comp)), theta_c_B, (g_u + c_struct*(f_struct - mu_struct)),
+        names = c("Simple", "Taylor", "Multi-Reg", "Structural"),
+        main = "Comparison of Variance Reduction Techniques",
+        col = c("white", "lightblue", "lightgreen", "salmon"),
+        las = 2)
+
+
+
+#8
+
+
+
+
+#case 1
+
+
+# 1. Basic Setup
+n <- 10000
+set.seed(123)
+
+# 2. Target function g(x) to integrate
+# Note: Since the range is (0, 1), the uniform PDF f(x)=1.
+g <- function(x) {
+  exp(-x) / (1 + x^2)
+}
+
+# 3. Simple Monte Carlo (using Uniform(0,1))
+u <- runif(n)
+mc_estimates <- g(u)
+mc_mean <- mean(mc_estimates)
+mc_var <- var(mc_estimates)
+
+# 4. Importance Sampling
+# Choosing a normalized importance function q(x) proportional to exp(-x)
+# q(x) = exp(-x) / (1 - exp(-1)) for 0 < x < 1
+q_func <- function(x) {
+  exp(-x) / (1 - exp(-1))
+}
+
+# To sample from q(x), use Inverse Transform Method
+# The CDF Q(x) = (1 - exp(-x)) / (1 - exp(-1))
+# Q_inv(u) = -log(1 - u * (1 - exp(-1)))
+u_q <- runif(n)
+x_q <- -log(1 - u_q * (1 - exp(-1)))
+
+# Calculate Importance Weights: w = f(x)/q(x) where f(x)=1
+# The estimator is g(x) * f(x) / q(x)
+is_estimates <- g(x_q) / q_func(x_q)
+is_mean <- mean(is_estimates)
+is_var <- var(is_estimates)
+
+# 5. Results comparison
+results <- data.frame(
+  Method = c("Simple MC", "Importance Sampling"),
+  Estimate = c(mc_mean, is_mean),
+  Variance = c(mc_var, is_var),
+  Efficiency_Gain = c(1, mc_var / is_var)
+)
+
+print(results)
+
+
+#case2
+
+# Set seed for reproducibility
+set.seed(123)
+n <- 100000
+
+# Target functions
+f <- function(x) dnorm(x)
+g <- function(x) x^2
+
+# ---------------------------------------------------------
+# 1. Importance Sampling (IS)
+# ---------------------------------------------------------
+# Proposal: Exponential shifted by 1 (range: [1, Inf))
+x_is <- rexp(n, rate = 1) + 1
+q_is <- exp(-(x_is - 1))
+
+# Weights = (g(x) * f(x)) / q(x)
+weights_is <- (g(x_is) * f(x_is)) / q_is
+
+est_is <- mean(weights_is)
+se_is <- sd(weights_is) / sqrt(n)
+
+# ---------------------------------------------------------
+# 2. Simple Monte Carlo (SMC)
+# ---------------------------------------------------------
+# Sample directly from Standard Normal distribution
+x_smc <- rnorm(n)
+
+# Indicator function: 1 if x > 1, else 0
+# Calculation: g(x) * I(x > 1)
+values_smc <- ifelse(x_smc > 1, g(x_smc), 0)
+
+est_smc <- mean(values_smc)
+se_smc <- sd(values_smc) / sqrt(n)
+
+# ---------------------------------------------------------
+# 3. Results Comparison
+# ---------------------------------------------------------
+results <- data.frame(
+  Method = c("Importance Sampling", "Simple Monte Carlo"),
+  Estimate = c(est_is, est_smc),
+  StdError = c(se_is, se_smc)
+)
+
+print(results)
+
+# Efficiency Gain (Variance Ratio)
+cat("\nEfficiency Gain (SMC Var / IS Var):", (se_smc^2) / (se_is^2), "\n")
+
+
+
+
+#9
+
+
+
+#case1) 
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Total number of samples
+m <- 100000
+
+# Target function h(x)
+h <- function(x) {
+  exp(-x) / (1 + x^2)
+}
+
+# ---------------------------------------------------------
+# 1. Simple Monte Carlo (SMC)
+# ---------------------------------------------------------
+u_smc <- runif(m)
+estimates_smc <- h(u_smc)
+est_smc <- mean(estimates_smc)
+se_smc <- sd(estimates_smc) / sqrt(m)
+
+# ---------------------------------------------------------
+# 2. Stratified Sampling (SS)
+# ---------------------------------------------------------
+# Divide [0, 1] into k strata
+k <- 10 
+m_j <- m / k  # Number of samples per stratum (m_j is a constant)
+
+# Initialize vector to store results from each stratum
+strata_estimates <- numeric(k)
+strata_variances <- numeric(k)
+
+for (j in 1:k) {
+  # Define stratum boundaries [a, b]
+  a <- (j - 1) / k
+  b <- j / k
+  
+  # Sample from U(a, b)
+  u_j <- runif(m_j, min = a, max = b)
+  
+  # Stratum estimate: (b-a) * mean(h(x))
+  # Since (b-a) = 1/k and we sum them later:
+  strata_estimates[j] <- mean(h(u_j)) * (1/k)
+  strata_variances[j] <- var(h(u_j) * (1/k)) / m_j
+}
+
+# Final combined estimate and standard error
+est_ss <- sum(strata_estimates)
+se_ss <- sqrt(sum(strata_variances))
+
+# ---------------------------------------------------------
+# 3. Comparison of Results
+# ---------------------------------------------------------
+results <- data.frame(
+  Method = c("Simple MC", "Stratified Sampling"),
+  Estimate = c(est_smc, est_ss),
+  StdError = c(se_smc, se_ss)
+)
+
+print(results)
+
+# Efficiency comparison
+cat("\nVariance Reduction Ratio (SMC Var / SS Var):", (se_smc^2) / (se_ss^2), "\n")
+
+
+#case2)
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Total number of samples
+m <- 100000
+
+# Target function h(x) * f(x)
+target_f <- function(x) {
+  (x^2 / sqrt(2 * pi)) * exp(-x^2 / 2)
+}
+
+# ---------------------------------------------------------
+# Stratified Sampling (SS)
+# ---------------------------------------------------------
+# Define two strata: [1, 3] and [3, Inf)
+# Allocate samples (m1 + m2 = m)
+m1 <- m * 0.8  # 80% samples to the main mass area
+m2 <- m * 0.2  # 20% samples to the tail area
+
+# --- Stratum 1: [1, 3] ---
+# Using Uniform distribution as a proposal within this stratum
+u1 <- runif(m1, min = 1, max = 3)
+# Integral = (b-a) * mean(f(x))
+est1 <- mean(target_f(u1)) * (3 - 1)
+var1 <- var(target_f(u1) * (3 - 1)) / m1
+
+# --- Stratum 2: [3, Inf) ---
+# Using Shifted Exponential distribution (shifted by 3)
+y2 <- rexp(m2, rate = 1)
+x2 <- y2 + 3
+# Proposal density q(x) = exp(-(x-3))
+q2_density <- exp(-(x2 - 3))
+weights2 <- target_f(x2) / q2_density
+
+est2 <- mean(weights2)
+var2 <- var(weights2) / m2
+
+# ---------------------------------------------------------
+# Final Results
+# ---------------------------------------------------------
+# Combined Estimate and Standard Error
+est_ss <- est1 + est2
+se_ss <- sqrt(var1 + var2)
+
+cat("Stratified Sampling Estimate:", est_ss, "\n")
+cat("Standard Error (SS):", se_ss, "\n")
+
+# Comparison with Simple Monte Carlo (for verification)
+x_smc <- rnorm(m)
+val_smc <- ifelse(x_smc > 1, x_smc^2, 0)
+est_smc <- mean(val_smc)
+se_smc <- sd(val_smc) / sqrt(m)
+
+cat("\nSimple Monte Carlo Estimate:", est_smc, "\n")
+cat("Standard Error (SMC):", se_smc, "\n")
