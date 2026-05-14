@@ -5034,3 +5034,447 @@ se_smc <- sd(val_smc) / sqrt(m)
 
 cat("\nSimple Monte Carlo Estimate:", est_smc, "\n")
 cat("Standard Error (SMC):", se_smc, "\n")
+
+
+
+##exercise
+
+
+#1
+
+
+# Parameters
+set.seed(123)
+n <- 10000
+a <- 0
+b <- pi/3
+
+# 0) Simple Monte Carlo
+u <- runif(n)
+x_simple <- a + (b - a) * u
+theta_simple <- (b - a) * mean(sin(x_simple))
+
+# 1) Antithetic Variables
+u_anti <- runif(n/2)
+x1 <- a + (b - a) * u_anti
+x2 <- a + (b - a) * (1 - u_anti)
+theta_anti <- (b - a) * mean((sin(x1) + sin(x2)) / 2)
+
+# 2) Control Variates
+# Let f(t) = t be the control function. Integral of t from 0 to pi/3 is (pi/3)^2 / 2
+u_cv <- runif(n)
+t_cv <- a + (b - a) * u_cv
+g_t <- sin(t_cv)
+f_t <- t_cv
+mu_f <- (b^2 - a^2) / 2 / (b - a) # Expected value of U(a,b)
+
+# Estimate optimal c
+c_star <- -cov(g_t, f_t) / var(f_t)
+theta_cv <- (b - a) * (mean(g_t) + c_star * (mean(f_t) - mu_f))
+
+# 3) Importance Sampling
+# Use f(t) = 2t / (pi/3)^2 as a density (linear approximation of sine)
+u_is <- runif(n)
+x_is <- (b - a) * sqrt(u_is) # Inverse transform sampling
+fg_ratio <- sin(x_is) / (2 * x_is / (b - a)^2)
+theta_is <- mean(fg_ratio)
+
+# 4) Stratified Sampling
+m <- 10 # Number of strata
+ni <- n / m
+strata_means <- numeric(m)
+for (i in 1:m) {
+  u_strat <- runif(ni, (i-1)/m, i/m)
+  x_strat <- a + (b - a) * u_strat
+  strata_means[i] <- mean(sin(x_strat))
+}
+theta_strat <- (b - a) * mean(strata_means)
+
+# Comparison of Results
+results <- c(True = 0.5, 
+             Simple = theta_simple, 
+             Antithetic = theta_anti, 
+             Control = theta_cv, 
+             Importance = theta_is, 
+             Stratified = theta_strat)
+print(results)
+
+
+#2
+
+
+# Parameters
+set.seed(123)
+n <- 10000
+x_val <- 2
+
+# Generate random numbers from U(0, x)
+u <- runif(n, min = 0, max = x_val)
+
+# Define the standard normal pdf function g(t)
+g_t <- (1 / sqrt(2 * pi)) * exp(-u^2 / 2)
+
+# 1) Monte Carlo Estimate of Phi(2)
+# Integral from 0 to 2 is x * mean(g(t))
+theta_hat <- x_val * mean(g_t)
+phi_hat <- 0.5 + theta_hat
+
+# 2) Compare with exact value using pnorm()
+phi_exact <- pnorm(x_val)
+
+# 3) Estimate the variance of the estimator
+# Variance of (x * g(T)) / n
+var_hat <- var(x_val * g_t) / n
+
+# 4) Calculate 95% Confidence Interval
+alpha <- 0.05
+z_alpha_2 <- qnorm(1 - alpha/2)
+lower_ci <- phi_hat - z_alpha_2 * sqrt(var_hat)
+upper_ci <- phi_hat + z_alpha_2 * sqrt(var_hat)
+
+# Output Results
+cat("MC Estimate of Phi(2):", phi_hat, "\n")
+cat("Exact Value (pnorm): ", phi_exact, "\n")
+cat("Estimated Variance:  ", var_hat, "\n")
+cat("95% Confidence Interval: [", lower_ci, ",", upper_ci, "]\n")
+
+
+#3
+
+
+# Parameters
+set.seed(123)
+n <- 10000
+
+# 1) Uniform Distribution Approach (theta_hat)
+u <- runif(n, 0, 0.5)
+g_u <- exp(-u)
+theta_hat <- 0.5 * mean(g_u)
+var_theta_hat <- var(0.5 * g_u) / n
+
+# 2) Exponential Distribution Approach (theta_star)
+# Use standard exponential distribution (rate = 1)
+x_exp <- rexp(n, rate = 1)
+# Indicator function: 1 if 0 < x < 0.5, else 0
+is_in_range <- ifelse(x_exp > 0 & x_exp < 0.5, 1, 0)
+theta_star <- mean(is_in_range)
+var_theta_star <- var(is_in_range) / n
+
+# 3) Exact Value for comparison
+exact_theta <- 1 - exp(-0.5)
+
+# Results Output
+results <- data.frame(
+  Method = c("Uniform (theta_hat)", "Exponential (theta_star)"),
+  Estimate = c(theta_hat, theta_star),
+  Variance = c(var_theta_hat, var_theta_star),
+  Error = c(abs(theta_hat - exact_theta), abs(theta_star - exact_theta))
+)
+
+print(results)
+cat("\nExact Theta:", exact_theta)
+
+
+#4
+
+
+# Function to estimate Beta(3, 3) cdf using Monte Carlo integration
+mc_beta_cdf <- function(x, n = 10000) {
+  # Generate n random uniform numbers between 0 and x
+  u <- runif(n, min = 0, max = x)
+  
+  # Calculate the Beta(3, 3) density values for each u
+  # The density f(y) = (1/B(3,3)) * y^2 * (1-y)^2
+  # Beta function B(3,3) = factorial(2)*factorial(2)/factorial(5) = 4/120 = 1/30
+  # So f(y) = 30 * y^2 * (1-y)^2
+  y_values <- 30 * u^2 * (1 - u)^2
+  
+  # The estimate is the sample mean multiplied by the interval width x
+  return(mean(y_values) * x)
+}
+
+# x values from 0.1 to 0.9
+x_seq <- seq(0.1, 0.9, by = 0.1)
+
+# Monte Carlo estimates
+mc_results <- sapply(x_seq, mc_beta_cdf)
+
+# Theoretical values using R's built-in pbeta function
+pbeta_results <- pbeta(x_seq, shape1 = 3, shape2 = 3)
+
+# Comparison table
+comparison <- data.frame(
+  x = x_seq,
+  MC_Estimate = mc_results,
+  Pbeta_Value = pbeta_results,
+  Difference = mc_results - pbeta_results
+)
+
+print(comparison)
+
+
+#5
+
+
+# Standard Normal PDF function
+f_std_norm <- function(u) {
+  return(1/sqrt(2*pi) * exp(-u^2/2))
+}
+
+# Example 5.4: Using Indicator Function for Standard Normal
+mc_indicator_norm <- function(x, n = 10000) {
+  # Generate u in (0, 1) to match the logic of Ex 5.4
+  u <- runif(n, 0, 1)
+  # Indicator function is 1 if u <= x, else 0
+  estimates <- (u <= x) * f_std_norm(u)
+  return(mean(estimates))
+}
+
+# Example 5.3: Using Variable Transformation (y = t/x) for Standard Normal
+mc_transform_norm <- function(x, n = 10000) {
+  # Generate u in (0, 1)
+  u <- runif(n, 0, 1)
+  # Transformation: t = x * u, dt = x * du
+  estimates <- x * f_std_norm(x * u)
+  return(mean(estimates))
+}
+
+# Values for testing
+x_val <- 0.5
+n_sim <- 10000
+
+# Results
+# Note: pnorm(x) - 0.5 gives the integral from 0 to x
+true_integral <- pnorm(x_val) - 0.5
+est_5_4 <- mc_indicator_norm(x_val, n_sim)
+est_5_3 <- mc_transform_norm(x_val, n_sim)
+
+cat("True Integral (0 to", x_val, "):", true_integral, "\n")
+cat("Ex 5.4 (Indicator) Estimate:", est_5_4, "\n")
+cat("Ex 5.3 (Transformation) Estimate:", est_5_3, "\n")
+
+
+#6
+
+
+# Standard Monte Carlo vs Antithetic Variables
+n <- 10000
+
+# 1. Simple Monte Carlo (using 2n samples for fair comparison)
+u1 <- runif(n)
+u2 <- runif(n)
+mc_estimates <- (exp(u1) + exp(u2)) / 2
+var_mc <- var(mc_estimates)
+
+# 2. Antithetic Variables (using n pairs)
+u <- runif(n)
+av_estimates <- (exp(u) + exp(1 - u)) / 2
+var_av <- var(av_estimates)
+
+# 3. Theoretical components for image_a03095.jpg
+cov_val <- cov(exp(u), exp(1 - u))
+var_sum <- var(exp(u) + exp(1 - u))
+
+# Results Output
+cat("Cov(e^U, e^(1-U)): ", cov_val, "\n")
+cat("Var(e^U + e^(1-U)): ", var_sum, "\n")
+cat("Variance Reduction: ", (1 - var_av / var_mc) * 100, "%\n")
+
+# Verify with pnorm or other distributions if needed
+# For e^x, the reduction is consistently around 96-97%
+
+
+#7
+
+
+# Monte Carlo Simulation for Variance Reduction (Ex 5.7)
+set.seed(123) # For reproducibility
+m <- 10000    # Number of iterations for estimating variance
+
+# Function to compute estimates
+mc_comparison <- function(n = 1000) {
+  # 1. Simple Monte Carlo (MC)
+  # To compare fairly, we use 2*n samples for simple MC 
+  # because Antithetic use n pairs (total 2*n samples).
+  u_simple <- runif(2 * n)
+  T_mc <- mean(exp(u_simple))
+  
+  # 2. Antithetic Variables (AV)
+  u_av <- runif(n)
+  T_av <- mean((exp(u_av) + exp(1 - u_av)) / 2)
+  
+  return(c(T_mc, T_av))
+}
+
+# Run simulation m times to get the distribution of estimates
+results <- replicate(m, mc_comparison())
+
+# Extract estimates
+estimates_mc <- results[1, ]
+estimates_av <- results[2, ]
+
+# Calculate Empirical Variances
+var_mc <- var(estimates_mc)
+var_av <- var(estimates_av)
+
+# Calculate Empirical Percent Reduction
+percent_reduction <- (1 - var_av / var_mc) * 100
+
+# Output results
+cat("Empirical Variance (Simple MC):", var_mc, "\n")
+cat("Empirical Variance (Antithetic):", var_av, "\n")
+cat("Empirical Percent Reduction:", round(percent_reduction, 4), "%\n")
+
+# Theoretical Comparison
+theoretical_reduction <- 96.767 # Based on previous derivation
+cat("Theoretical Percent Reduction: ~", theoretical_reduction, "%\n")
+
+
+#8
+
+
+# Case 1: Uniform Distribution
+u_unif <- runif(10000)
+a <- 5
+x_unif <- a * u_unif
+x_prime_unif <- a * (1 - u_unif)
+cor_unif <- cor(x_unif, x_prime_unif)
+
+# Case 2: Symmetric Beta Distribution (e.g., Alpha=Beta=3)
+u_beta <- rbeta(10000, shape1 = 3, shape2 = 3)
+x_beta <- a * u_beta
+x_prime_beta <- a * (1 - u_beta)
+cor_beta <- cor(x_beta, x_prime_beta)
+
+cat("Correlation (Uniform):", cor_unif, "\n")
+cat("Correlation (Symmetric Beta):", cor_beta, "\n")
+
+
+#9
+
+
+# Rayleigh distribution sample generation using Antithetic Variables
+# Parameters: n (number of pairs), sigma (scale parameter)
+gen_rayleigh_av <- function(n, sigma = 1) {
+  u <- runif(n)
+  
+  # Antithetic pair
+  x1 <- sigma * sqrt(-2 * log(u))
+  x2 <- sigma * sqrt(-2 * log(1 - u))
+  
+  return(list(x1 = x1, x2 = x2))
+}
+
+# Simulation for Variance Reduction Comparison
+m <- 10000
+sigma_val <- 1
+
+# 1. Independent samples (Simple MC)
+# We generate 2*m independent samples to compare with m antithetic pairs
+u1 <- runif(m)
+u2 <- runif(m)
+ray_independent <- (sigma_val * sqrt(-2 * log(u1)) + sigma_val * sqrt(-2 * log(u2))) / 2
+var_independent <- var(ray_independent)
+
+# 2. Antithetic samples
+ray_av_list <- gen_rayleigh_av(m, sigma = sigma_val)
+ray_av <- (ray_av_list$x1 + ray_av_list$x2) / 2
+var_av <- var(ray_av)
+
+# 3. Calculate Percent Reduction
+reduction <- (1 - var_av / var_independent) * 100
+
+cat("Variance (Independent):", var_independent, "\n")
+cat("Variance (Antithetic):", var_av, "\n")
+cat("Variance Reduction Percentage:", round(reduction, 2), "%\n")
+
+
+#10
+
+
+# Monte Carlo Simulation for Exercise 5.10
+set.seed(123)
+n <- 10000  # Number of pairs
+
+# Define the target function g(x)
+g <- function(x) {
+  exp(-x) / (1 + x^2)
+}
+
+# 1. Simple Monte Carlo (MC)
+# Using 2*n independent samples for a fair comparison
+u_simple <- runif(2 * n)
+estimates_mc <- g(u_simple)
+theta_mc <- mean(estimates_mc)
+var_mc <- var(estimates_mc) / (2 * n)
+
+# 2. Antithetic Variables (AV)
+# Using n pairs of (u, 1-u)
+u_av <- runif(n)
+# Each antithetic estimate is the average of the pair
+antithetic_samples <- (g(u_av) + g(1 - u_av)) / 2
+theta_av <- mean(antithetic_samples)
+var_av <- var(antithetic_samples) / n
+
+# 3. Calculate Percent Reduction in Variance
+reduction <- (1 - var_av / var_mc) * 100
+
+# Results output
+cat("Estimated Integral (MC):", theta_mc, "\n")
+cat("Estimated Integral (AV):", theta_av, "\n")
+cat("Variance of MC estimate:", var_mc, "\n")
+cat("Variance of AV estimate:", var_av, "\n")
+cat("Approximate Percent Reduction in Variance:", round(reduction, 2), "%\n")
+
+
+#11
+
+
+# Setup
+set.seed(123)
+n <- 10000
+
+# Target function g(x) from image_95d636.jpg
+g <- function(x) {
+  (x^2 / sqrt(2 * pi)) * exp(-x^2 / 2) * (x > 1)
+}
+
+# 1. Proposal f1: Truncated Normal (using N(1, 1) restricted to x > 1)
+# We use x = 1 + |Z| where Z ~ N(0, 1) as a simple way to sample from a truncated distribution
+u1 <- rnorm(n, mean = 1, sd = 1)
+u1 <- u1[u1 > 1]
+# Adjust n if samples are filtered
+n1 <- length(u1)
+f1_val <- dnorm(u1, mean = 1, sd = 1) / (1 - pnorm(1, mean = 1, sd = 1))
+weight1 <- g(u1) / f1_val
+
+# 2. Proposal f2: Exponential (shifted to x > 1)
+# f2(x) = exp(-(x-1)), x > 1
+u2 <- rexp(n, rate = 1) + 1
+f2_val <- dexp(u2 - 1, rate = 1)
+weight2 <- g(u2) / f2_val
+
+# Calculate Cumulative Means and Variances
+est1 <- cumsum(weight1) / (1:n1)
+est2 <- cumsum(weight2) / (1:n)
+
+var1 <- var(weight1)
+var2 <- var(weight2)
+
+# Results Output
+cat("--- Importance Sampling Results ---\n")
+cat("Proposal f1 (Truncated Normal) Estimate:", mean(weight1), "Variance:", var1, "\n")
+cat("Proposal f2 (Exponential) Estimate:", mean(weight2), "Variance:", var2, "\n")
+
+# Comparison Visualization
+windows()
+plot(est1, type = "l", col = "blue", ylim = c(min(est1, est2), max(est1, est2)),
+     main = "Convergence of Importance Sampling", xlab = "Iterations", ylab = "Estimate")
+lines(est2, col = "red")
+legend("bottomright", legend = c("f1: Truncated Normal", "f2: Exponential"), 
+       col = c("blue", "red"), lty = 1)
+
+
+
+
+Part 5 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
