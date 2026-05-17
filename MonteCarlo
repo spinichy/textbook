@@ -5478,3 +5478,1059 @@ legend("bottomright", legend = c("f1: Truncated Normal", "f2: Exponential"),
 
 
 Part 5 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+##example
+
+
+#1
+
+
+# Set the number of iterations
+m <- 10000
+
+# Step 1: Generate m random samples of X1 and X2 from N(0, 1)
+x1 <- rnorm(m, mean = 0, sd = 1)
+x2 <- rnorm(m, mean = 0, sd = 1)
+
+# Step 2: Calculate the absolute difference
+theta_hat_j <- abs(x1 - x2)
+
+# Step 3: Obtain the Monte Carlo estimate (Mean) and Variance
+mc_estimate <- mean(theta_hat_j)
+mc_variance <- var(theta_hat_j) # Variance of the samples
+
+# Step 4: Calculate the Standard Error (Variance of the estimator)
+# This represents the uncertainty of our mean estimate
+standard_error <- sqrt(mc_variance / m)
+
+# Print the results
+print(paste("Monte Carlo Estimate (Mean):", round(mc_estimate, 4)))
+print(paste("Sample Variance:", round(mc_variance, 4)))
+print(paste("Standard Error:", round(standard_error, 4)))
+
+# Step 5: Plot the histogram to visualize the distribution
+hist(theta_hat_j, 
+     breaks = 50, 
+     probability = TRUE, 
+     col = "lightblue", 
+     main = expression(paste("Distribution of |", X[1] - X[2], "|")),
+     xlab = "Absolute Difference",
+     border = "white")
+
+# Add a vertical line for the mean (estimate)
+abline(v = mc_estimate, col = "red", lwd = 2, lty = 2)
+
+# Add text labels for Mean and Variance on the plot
+text(mc_estimate + 1.2, 0.5, 
+     labels = paste("Mean =", round(mc_estimate, 4)), 
+     col = "red", font = 2)
+text(mc_estimate + 1.2, 0.45, 
+     labels = paste("Var =", round(mc_variance, 4)), 
+     col = "darkblue")
+text(mc_estimate + 1.2, 0.4, 
+     labels = paste("Standard Erro =", round(standard_error, 4)), 
+     col = "darkblue")
+
+# Optional: Add the theoretical curve (Half-Normal) for comparison
+curve(2 * dnorm(x, mean = 0, sd = sqrt(2)), add = TRUE, col = "darkorange", lwd = 2)
+
+
+
+#2
+
+
+set.seed(123)
+m <- 100000            # Increased replications for higher precision
+n <- 10                # Sample size
+theta <- 0             # True mean
+
+mse_sample_mean <- numeric(m)
+mse_trimmed_mean <- numeric(m)
+
+for (j in 1:m) {
+  x <- rnorm(n, mean = theta, sd = 1)
+  x_sorted <- sort(x)
+  
+  # 1. Standard sample mean
+  mse_sample_mean[j] <- mean(x)
+  
+  # 2. Trimmed mean (k=1)
+  mse_trimmed_mean[j] <- sum(x_sorted[2:(n - 1)]) / (n - 2)
+}
+
+# Calculate final MSEs
+final_mse_normal <- mean((mse_sample_mean - theta)^2)
+final_mse_trimmed <- mean((mse_trimmed_mean - theta)^2)
+
+# theoretical variance of normal sample mean is 1/n = 0.1
+cat("Theoretical Variance of Normal Mean (1/n) :", 1/n, "\n")
+cat("Simulated MSE of Normal Sample Mean        :", final_mse_normal, "\n")
+cat("Simulated MSE of Trimmed Mean (k=1)        :", final_mse_trimmed, "\n")
+
+
+#3
+
+
+# Set parameters
+set.seed(42)            # For reproducibility
+m <- 10000              # Number of Monte Carlo replications
+n <- 20                 # Sample size for each replication
+theta <- 0              # True mean
+
+# Define vectors for p and k
+p_values <- c(1.0, 0.9, 0.8, 0.7, 0.6, 0.5)
+k_values <- 0:9
+
+# Initialize a matrix to store the final MSE results
+# Rows will represent p values, and columns will represent k values
+mse_matrix <- matrix(0, nrow = length(p_values), ncol = length(k_values))
+rownames(mse_matrix) <- paste0("p=", p_values)
+colnames(mse_matrix) <- paste0("k=", k_values)
+
+# Loop through each p value
+for (row_idx in 1:length(p_values)) {
+  current_p <- p_values[row_idx]
+  
+  # Matrix to store trimmed means for all replications and all k values
+  # Dimension: m rows (replications) x length(k_values) columns
+  t_matrix <- matrix(0, nrow = m, ncol = length(k_values))
+  
+  for (j in 1:m) {
+    # 1. Determine which distribution each sample point comes from
+    is_clean <- rbinom(n, size = 1, prob = current_p)
+    
+    # 2. Generate contaminated samples
+    x <- numeric(n)
+    for (i in 1:n) {
+      if (is_clean[i] == 1) {
+        x[i] <- rnorm(1, mean = theta, sd = 1)
+      } else {
+        x[i] <- rnorm(1, mean = theta, sd = 10)
+      }
+    }
+    
+    # 3. Sort the sample for trimmed mean calculation
+    x_sorted <- sort(x)
+    
+    # 4. Calculate trimmed means for k = 0 to 9
+    for (col_idx in 1:length(k_values)) {
+      k <- k_values[col_idx]
+      
+      if (k == 0) {
+        t_matrix[j, col_idx] <- mean(x_sorted) # Standard sample mean
+      } else {
+        # Standard trimmed mean formula: sum from k+1 to n-k, divided by (n - 2k)
+        t_matrix[j, col_idx] <- sum(x_sorted[(k + 1):(n - k)]) / (n - 2 * k)
+      }
+    }
+  }
+  
+  # 5. Calculate and store final MSE for each k under the current p
+  for (col_idx in 1:length(k_values)) {
+    mse_matrix[row_idx, col_idx] <- mean((t_matrix[, col_idx] - theta)^2)
+  }
+}
+
+# Print the final comprehensive matrix
+print(round(mse_matrix, 4))
+
+
+
+#4
+
+
+
+# Set parameters
+set.seed(123)          # For reproducibility
+m <- 1000              # Number of Monte Carlo replications (j = 1, 2, ..., m)
+n <- 20                # Sample size for each replication
+mu <- 3                # True population mean (theta)
+sigma <- 1             # True population standard deviation
+alpha <- 0.05          # Significance level for 95% confidence interval
+
+# Vector to store indicator variable y_j (1 if mu is inside C_j, 0 otherwise)
+y_j <- numeric(m)
+
+# Critical value from t-distribution with df = n - 1
+t_critical <- qt(1 - alpha / 2, df = n - 1)
+
+# Monte Carlo Simulation Loop
+for (j in 1:m) {
+  # 1. Generate random samples from N(mu, sigma^2)
+  x <- rnorm(n, mean = mu, sd = sigma)
+  
+  # 2. Calculate sample statistics
+  x_bar <- mean(x)
+  s <- sd(x)           # Sample standard deviation (S)
+  
+  # 3. Calculate lower and upper bounds of the confidence interval C_j
+  margin_of_error <- t_critical * (s / sqrt(n))
+  lower_bound <- x_bar - margin_of_error
+  upper_bound <- x_bar + margin_of_error
+  
+  # 4. Compute indicator y_j = I(mu in C_j)
+  if (mu >= lower_bound && mu <= upper_bound) {
+    y_j[j] <- 1
+  } else {
+    y_j[j] <- 0
+  }
+}
+
+# 5. Calculate Empirical Confidence Level (y_bar)
+empirical_coverage <- mean(y_j)
+
+# Print the final result
+cat("=== Monte Carlo Simulation Results ===\n")
+cat("Target Confidence Level      :", (1 - alpha) * 100, "%\n")
+cat("Empirical Confidence Level   :", empirical_coverage * 100, "%\n")
+
+
+
+#5
+
+
+# Set parameters
+set.seed(42)            # For reproducibility
+m <- 10000              # Number of Monte Carlo replications
+mu1 <- 0                # True mean of population 1
+mu2 <- 0                # True mean of population 2
+true_diff <- mu1 - mu2  # True difference (theta = 0)
+
+# True Covariance settings (sigma1^2 = 5, sigma2^2 = 1)
+var1_true <- 5
+var2_true <- 1
+sigma1 <- sqrt(var1_true)
+sigma2 <- sqrt(var2_true)
+alpha <- 0.05           # Target nominal confidence level (95%)
+
+# Define the three sample size scenarios to compare
+n1_vec <- c(10, 20, 30)
+n2_vec <- c(30, 20, 10)
+
+# Initialize a data frame to store final empirical coverage and variance results
+scenarios_table <- data.frame(
+  Scenario = c("n1 < n2 (10 vs 30)", "n1 = n2 (20 vs 20)", "n1 > n2 (30 vs 10)"),
+  n1 = n1_vec,
+  n2 = n2_vec,
+  True_Var1 = rep(var1_true, 3),
+  True_Var2 = rep(var2_true, 3),
+  Mean_Pooled_Var = numeric(3),
+  Empirical_Coverage = numeric(3)
+)
+
+# Loop through each sample size scenario
+for (k in 1:3) {
+  n1 <- n1_vec[k]
+  n2 <- n2_vec[k]
+  df_pooled <- n1 + n2 - 2
+  t_critical <- qt(1 - alpha / 2, df = df_pooled)
+  
+  y_j <- numeric(m)
+  sp_sq_vec <- numeric(m) # Vector to store pooled variances for each replication
+  
+  for (j in 1:m) {
+    # 1. Generate independent samples with unequal variances
+    x1 <- rnorm(n1, mean = mu1, sd = sigma1)
+    x2 <- rnorm(n2, mean = mu2, sd = sigma2)
+    
+    # 2. Calculate sample statistics
+    x1_bar <- mean(x1)
+    x2_bar <- mean(x2)
+    s1_sq <- var(x1)
+    s2_sq <- var(x2)
+    
+    # 3. Forcibly apply Pooled Variance (Equal Variance Assumption)
+    sp_sq <- ((n1 - 1) * s1_sq + (n2 - 1) * s2_sq) / df_pooled
+    sp_sq_vec[j] <- sp_sq
+    sp <- sqrt(sp_sq)
+    
+    # 4. Calculate Confidence Interval bounds
+    standard_error <- sp * sqrt((1 / n1) + (1 / n2))
+    margin_of_error <- t_critical * standard_error
+    
+    mean_diff <- x1_bar - x2_bar
+    lower_bound <- mean_diff - margin_of_error
+    upper_bound <- mean_diff + margin_of_error
+    
+    # 5. Check if the true difference (0) is inside the interval C_j
+    if (true_diff >= lower_bound && true_diff <= upper_bound) {
+      y_j[j] <- 1
+    } else {
+      y_j[j] <- 0
+    }
+  }
+  
+  # 6. Store empirical coverage and the average of estimated pooled variances
+  scenarios_table$Mean_Pooled_Var[k]    <- mean(sp_sq_vec)
+  scenarios_table$Empirical_Coverage[k] <- mean(y_j)
+}
+
+# Print the final comprehensive table
+print(scenarios_table, row.names = FALSE)
+
+
+
+#6
+
+
+# Set parameters
+set.seed(42)            # For reproducibility
+m <- 10000              # Number of Monte Carlo replications
+mu1 <- 0                # True mean of population 1
+mu2 <- 0                # True mean of population 2
+true_diff <- mu1 - mu2  # True difference (theta = 0)
+
+# True Covariance settings (Unequal Variances: sigma1^2 = 5, sigma2^2 = 1)
+var1_true <- 5
+var2_true <- 1
+sigma1 <- sqrt(var1_true)
+sigma2 <- sqrt(var2_true)
+alpha <- 0.05           # Target nominal confidence level (95%)
+
+# Define the three sample size scenarios to compare
+n1_vec <- c(10, 20, 30)
+n2_vec <- c(30, 20, 10)
+
+# Initialize a data frame to store final results
+welch_results_table <- data.frame(
+  Scenario = c("n1 < n2 (10 vs 30)", "n1 = n2 (20 vs 20)", "n1 > n2 (30 vs 10)"),
+  n1 = n1_vec,
+  n2 = n2_vec,
+  True_Var1 = rep(var1_true, 3),
+  True_Var2 = rep(var2_true, 3),
+  Mean_Welch_df = numeric(3),     # Column to store average adjusted degrees of freedom
+  Empirical_Coverage = numeric(3)
+)
+
+# Loop through each sample size scenario
+for (k in 1:3) {
+  n1 <- n1_vec[k]
+  n2 <- n2_vec[k]
+  
+  y_j <- numeric(m)
+  df_welch_vec <- numeric(m) # Vector to store calculated df for each replication
+  
+  for (j in 1:m) {
+    # 1. Generate independent samples with unequal variances
+    x1 <- rnorm(n1, mean = mu1, sd = sigma1)
+    x2 <- rnorm(n2, mean = mu2, sd = sigma2)
+    
+    # 2. Calculate sample statistics
+    x1_bar <- mean(x1)
+    x2_bar <- mean(x2)
+    s1_sq <- var(x1)
+    s2_sq <- var(x2)
+    
+    # 3. Calculate Welch's Standard Error (No Pooling)
+    v1 <- s1_sq / n1
+    v2 <- s2_sq / n2
+    se_welch <- sqrt(v1 + v2)
+    
+    # 4. Calculate Welch-Satterthwaite Degrees of Freedom
+    num <- (v1 + v2)^2
+    den <- (v1^2 / (n1 - 1)) + (v2^2 / (n2 - 1))
+    df_welch <- num / den
+    df_welch_vec[j] <- df_welch
+    
+    # 5. Get critical value using the dynamically adjusted df
+    t_critical <- qt(1 - alpha / 2, df = df_welch)
+    
+    # 6. Calculate Confidence Interval bounds
+    margin_of_error <- t_critical * se_welch
+    mean_diff <- x1_bar - x2_bar
+    lower_bound <- mean_diff - margin_of_error
+    upper_bound <- mean_diff + margin_of_error
+    
+    # 7. Check if the true difference (0) is inside the interval C_j
+    if (true_diff >= lower_bound && true_diff <= upper_bound) {
+      y_j[j] <- 1
+    } else {
+      y_j[j] <- 0
+    }
+  }
+  
+  # 8. Store average Welch df and empirical coverage for the current scenario
+  welch_results_table$Mean_Welch_df[k]      <- mean(df_welch_vec)
+  welch_results_table$Empirical_Coverage[k] <- mean(y_j)
+}
+
+# Print the final comprehensive table
+print(welch_results_table, row.names = FALSE)
+
+
+
+#7
+
+
+
+# Setup seed for reproducibility
+set.seed(123)
+
+# Given parameters
+mu <- 0
+true_var <- 4
+n <- 20
+alpha <- 0.05
+
+# Generate a sample from N(0, 4)
+sample_data <- rnorm(n, mean = mu, sd = sqrt(true_var))
+sample_var <- var(sample_data)
+
+# -------------------------------------------------------------------------
+# 1. Traditional Method (Chi-Square Distribution)
+# -------------------------------------------------------------------------
+# Critical values from Chi-square distribution
+chi_lower <- qchisq(1 - alpha/2, df = n - 1) # Right-tail critical value
+chi_upper <- qchisq(alpha/2, df = n - 1)     # Left-tail critical value
+
+# Compute confidence interval
+trad_ci_lower <- (n - 1) * sample_var / chi_lower
+trad_ci_upper <- (n - 1) * sample_var / chi_upper
+
+cat("=== Traditional Chi-Square 95% CI ===\n")
+cat(sprintf("Sample Variance: %.4f\n", sample_var))
+cat(sprintf("95%% CI: [%.4f, %.4f]\n\n", trad_ci_lower, trad_ci_upper))
+
+
+# -------------------------------------------------------------------------
+# 2. Monte Carlo Method (Nonparametric Percentile Bootstrap)
+# -------------------------------------------------------------------------
+B <- 10000                      # Number of bootstrap replications
+bootstrap_vars <- numeric(B)    # Vector to store bootstrap sample variances
+
+# Run Monte Carlo simulation
+for (b in 1:B) {
+  # Resample with replacement from the original sample_data
+  boot_sample <- sample(sample_data, size = n, replace = TRUE)
+  bootstrap_vars[b] <- var(boot_sample)
+}
+
+# Compute empirical percentiles (Percentile Bootstrap)
+mc_ci <- quantile(bootstrap_vars, probs = c(alpha/2, 1 - alpha/2))
+
+cat("=== Nonparametric Monte Carlo (Bootstrap) 95% CI ===\n")
+cat(sprintf("95%% CI: [%.4f, %.4f]\n", mc_ci[1], mc_ci[2]))
+
+
+#8
+
+
+# Setup seed for reproducibility
+set.seed(123)
+
+# Given parameters from the textbook example
+true_mu <- 500     # Mean under the null hypothesis (H0 is true)
+true_sigma <- 100  # Given standard deviation
+n <- 20            # Sample size
+alpha <- 0.05      # Significance level
+
+# Monte Carlo simulation settings
+B <- 10000         # Number of simulation repetitions
+rejections <- 0    # Counter for the number of times H0 is rejected
+
+# Run Monte Carlo simulation to calculate empirical Type I error rate
+for (b in 1:B) {
+  # Generate random sample under the null hypothesis: N(500, 100^2)
+  sim_data <- rnorm(n, mean = true_mu, sd = true_sigma)
+  
+  # Perform a one-sided t-test (H1: mu > 500)
+  test_result <- t.test(sim_data, mu = true_mu, alternative = "greater")
+  
+  # Check if p-value is less than or equal to alpha
+  if (test_result$p.value <= alpha) {
+    rejections <- rejections + 1
+  }
+}
+
+# Calculate the empirical Type I error rate
+empirical_alpha <- rejections / B
+
+# Print the results
+cat("=== Monte Carlo Simulation Results ===\n")
+cat(sprintf("Number of Simulations (B): %d\n", B))
+cat(sprintf("Nominal Significance Level (Alpha): %.2f\n", alpha))
+cat(sprintf("Empirical Type I Error Rate: %.4f\n", empirical_alpha))
+
+
+
+
+
+# Setup seed for reproducibility
+set.seed(123)
+
+# Given constants
+true_mu <- 500
+true_sigma <- 100
+alpha <- 0.05
+B <- 10000  # Number of Monte Carlo replications
+
+# Vector of sample sizes to test
+n_sizes <- c(10, 20, 30, 50, 100, 500, 10000)
+
+# Initialize an empty object to store rows
+results_table <- NULL
+
+# Loop through each sample size and bind rows
+for (n in n_sizes) {
+  # 1. Mathematical Standard Error of the Mean
+  se_mean <- true_sigma / sqrt(n)
+  
+  # 2. Single random sample demonstration
+  single_sample <- rnorm(n, mean = true_mu, sd = true_sigma)
+  sample_mean <- mean(single_sample)
+  test_single <- t.test(single_sample, mu = true_mu, alternative = "greater")
+  
+  # 3. Monte Carlo Simulation for Type I Error Rate
+  rejections <- 0
+  for (b in 1:B) {
+    sim_data <- rnorm(n, mean = true_mu, sd = true_sigma)
+    
+    # Fast t-test calculation for optimization
+    sample_sd <- sd(sim_data)
+    t_stat <- (mean(sim_data) - true_mu) / (sample_sd / sqrt(n))
+    p_val <- pt(t_stat, df = n - 1, lower.tail = FALSE)
+    
+    if (p_val <= alpha) {
+      rejections <- rejections + 1
+    }
+  }
+  empirical_alpha <- rejections / B
+  
+  # Create a single row for the current sample size
+  current_row <- data.frame(
+    n = n,
+    Math_SE_Mean = round(se_mean, 4),
+    Single_Sample_Mean = round(sample_mean, 4),
+    Single_p_value = round(test_single$p.value, 4),
+    Empirical_Type1_Error = round(empirical_alpha, 4)
+  )
+  
+  # Combine rows using rbind
+  results_table <- rbind(results_table, current_row)
+}
+
+# Print the final combined table
+cat("====================================================================\n")
+cat(sprintf("Theoretical SE of the Proportion (Monte Carlo Error): %.6f\n",
+            sqrt((alpha * (1 - alpha)) / B)))
+cat("====================================================================\n")
+print(results_table, row.names = FALSE)
+
+
+#9
+
+
+
+# Setup seed for reproducibility
+set.seed(123)
+
+# -------------------------------------------------------------------------
+# Function: Asymptotic Skewness Test for Normality
+# -------------------------------------------------------------------------
+asymptotic_skewness_test <- function(x, alpha = 0.05) {
+  n <- length(x)
+  
+  # Calculate sample moments
+  mean_x <- mean(x)
+  m2 <- mean((x - mean_x)^2)  # 2nd central moment (sample variance)
+  m3 <- mean((x - mean_x)^3)  # 3rd central moment
+  
+  # Calculate sample skewness (g1)
+  skewness_hat <- m3 / (m2^(1.5))
+  
+  # Asymptotic variance under the null hypothesis (H0: Skewness = 0)
+  asymptotic_var <- 6 / n
+  se_skewness <- sqrt(asymptotic_var)
+  
+  # Calculate Z-statistic and two-sided p-value
+  z_stat <- skewness_hat / se_skewness
+  p_value <- 2 * pnorm(abs(z_stat), lower.tail = FALSE)
+  
+  # Return results as a structured list
+  result <- list(
+    sample_size = n,
+    skewness = skewness_hat,
+    se = se_skewness,
+    z_statistic = z_stat,
+    p_value = p_value,
+    decision = ifelse(p_value < alpha, "Reject H0 (Non-normal)", "Fail to Reject H0 (Normal)")
+  )
+  
+  return(result)
+}
+
+# -------------------------------------------------------------------------
+# Demonstration with Two Different Distributions
+# -------------------------------------------------------------------------
+n_sample <- 500
+
+# Case 1: Data from a Normal Distribution (H0 is TRUE)
+normal_data <- rnorm(n_sample, mean = 0, sd = 1)
+test_normal <- asymptotic_skewness_test(normal_data)
+
+# Case 2: Data from an Asymmetric Exponential Distribution (H0 is FALSE)
+# Exponential distribution has a theoretical skewness of 2
+skewed_data <- rexp(n_sample, rate = 1)
+test_skewed <- asymptotic_skewness_test(skewed_data)
+
+# -------------------------------------------------------------------------
+# Print Results
+# -------------------------------------------------------------------------
+cat("=========================================================\n")
+cat(" 1. Test Result for Normal Distribution Data (Expected: Normal)\n")
+cat("=========================================================\n")
+cat(sprintf("Sample Size (n)   : %d\n", test_normal$sample_size))
+cat(sprintf("Sample Skewness   : %.4f\n", test_normal$skewness))
+cat(sprintf("Standard Error    : %.4f (sqrt(6/n))\n", test_normal$se))
+cat(sprintf("Z-statistic       : %.4f\n", test_normal$z_statistic))
+cat(sprintf("P-value           : %.4f\n", test_normal$p_value))
+cat(sprintf("Decision          : %s\n\n", test_normal$decision))
+
+cat("=========================================================\n")
+cat(" 2. Test Result for Exponential Distribution Data (Expected: Non-normal)\n")
+cat("=========================================================\n")
+cat(sprintf("Sample Size (n)   : %d\n", test_skewed$sample_size))
+cat(sprintf("Sample Skewness   : %.4f (Theoretical: 2.0)\n", test_skewed$skewness))
+cat(sprintf("Standard Error    : %.4f (sqrt(6/n))\n", test_skewed$se))
+cat(sprintf("Z-statistic       : %.4f\n", test_skewed$z_statistic))
+cat(sprintf("P-value           : %.4e\n", test_skewed$p_value))
+cat(sprintf("Decision          : %s\n", test_skewed$decision))
+
+
+
+
+# Setup seed for reproducibility
+set.seed(123)
+
+# Given constants for the simulation
+true_mu <- 0
+true_sigma <- 1
+alpha <- 0.05
+B <- 10000  # Number of Monte Carlo replications
+
+# Vector of sample sizes to test
+n_sizes <- c(10, 20, 30, 50, 100, 500, 10000)
+
+# Initialize an empty object to store table rows
+results_table <- NULL
+
+# Theoretical SE of the proportion (Monte Carlo simulation error)
+se_proportion <- sqrt((alpha * (1 - alpha)) / B)
+
+# Loop through each sample size
+for (n in n_sizes) {
+  rejections <- 0
+  
+  # Asymptotic standard error for the skewness test
+  se_skewness <- sqrt(6 / n)
+  
+  # Run Monte Carlo simulation
+  for (b in 1:B) {
+    # Generate random sample under H0 (Normal distribution)
+    sim_data <- rnorm(n, mean = true_mu, sd = true_sigma)
+    
+    # Calculate sample moments efficiently
+    mean_x <- mean(sim_data)
+    m2 <- mean((sim_data - mean_x)^2)
+    m3 <- mean((sim_data - mean_x)^3)
+    
+    # Calculate sample skewness
+    skewness_hat <- m3 / (m2^1.5)
+    
+    # Calculate Z-statistic and two-sided p-value
+    z_stat <- skewness_hat / se_skewness
+    p_val <- 2 * pnorm(abs(z_stat), lower.tail = FALSE)
+    
+    # Check if H0 is rejected
+    if (p_val <= alpha) {
+      rejections <- rejections + 1
+    }
+  }
+  
+  # Calculate empirical Type I error rate
+  empirical_alpha <- rejections / B
+  
+  # Create a single row for the current sample size
+  current_row <- data.frame(
+    n = n,
+    Asymptotic_SE_Skew = round(se_skewness, 4),
+    Empirical_Type1_Error = round(empirical_alpha, 4)
+  )
+  
+  # Combine rows using rbind
+  results_table <- rbind(results_table, current_row)
+}
+
+# Print the final combined table
+cat("=========================================================\n")
+cat(sprintf("Theoretical SE of the Proportion (Monte Carlo Error): %.6f\n", se_proportion))
+cat("=========================================================\n")
+print(results_table, row.names = FALSE)
+
+
+
+#10
+
+
+
+# -------------------------------------------------------------------------
+# Simulation to estimate the power of a one-sample t-test
+# -------------------------------------------------------------------------
+
+# 1. Setup Simulation Parameters
+set.seed(123)                  # Set seed for reproducibility
+n <- 30                        # Sample size for each test
+alpha <- 0.05                  # Significance level (Type I error rate)
+m <- 2000                      # Number of Monte Carlo replications per theta_1
+
+# Define a range of true means under the alternative hypothesis (theta_1)
+# Standard deviation is assumed to be 1, so theta_1 also represents effect size (Cohen's d)
+theta_1_vector <- seq(0, 1, by = 0.1) 
+
+# Vector to store empirical power for each theta_1
+power_results <- numeric(length(theta_1_vector))
+
+# 2. Run Monte Carlo Simulation
+for (i in 1:length(theta_1_vector)) {
+  current_mu <- theta_1_vector[i]
+  rejection_count <- 0
+  
+  for (j in 1:m) {
+    # Generate random sample under the alternative hypothesis condition
+    sample_data <- rnorm(n, mean = current_mu, sd = 1)
+    
+    # Perform one-sided one-sample t-test (H0: mu = 0 vs H1: mu > 0)
+    t_result <- t.test(sample_data, mu = 0, alternative = "greater")
+    
+    # Check if H0 is rejected at the alpha level
+    if (t_result$p.value < alpha) {
+      rejection_count <- rejection_count + 1
+    }
+  }
+  
+  # Calculate empirical power (1/m) * sum(I_j)
+  power_results[i] <- rejection_count / m
+}
+
+# 3. Combine Results into a Data Frame
+power_data <- data.frame(
+  True_Mean = theta_1_vector,
+  Empirical_Power = power_results
+)
+
+print(power_data)
+
+# 4. Plot the Power Curve
+plot(
+  x = power_data$True_Mean, 
+  y = power_data$Empirical_Power, 
+  type = "b", 
+  pch = 19, 
+  col = "blue",
+  xlab = expression(paste("Alternative Hypothesis Value (", theta[1], ")")),
+  ylab = "Empirical Power",
+  main = paste("Empirical Power Curve for t-test (n =", n, ")"),
+  ylim = c(0, 1)
+)
+abline(h = alpha, col = "red", lty = 2) # Reference line for significance level alpha
+text(x = 0.2, y = alpha + 0.04, "Significance Level (alpha = 0.05)", col = "red")
+
+
+
+
+
+# -------------------------------------------------------------------------
+# Verification of Non-central t-distribution and Power using Monte Carlo
+# -------------------------------------------------------------------------
+
+set.seed(42)
+
+# 1. Parameter Setup
+n <- 15                         # Small sample size to clearly see the skewness
+df <- n - 1                     # Degrees of freedom
+alpha <- 0.05                   # Significance level
+
+# Alternative hypothesis settings
+mu_0 <- 0                       # Null hypothesis mean
+mu_1 <- 0.8                     # Alternative hypothesis mean (True Mean)
+sigma <- 1                      # Population standard deviation
+
+# Calculate Non-centrality Parameter (delta)
+delta <- (mu_1 - mu_0) / (sigma / sqrt(n))
+cat("Non-centrality parameter (delta) :", delta, "\n")
+
+# 2. Monte Carlo Simulation (m = 10,000 replications)
+m <- 10000
+t_statistics <- numeric(m)
+rejection_indicator <- numeric(m)
+
+# Critical value from Central t-distribution (The ruler used for testing)
+critical_value <- qt(1 - alpha, df)
+
+for (j in 1:m) {
+  # Generate samples under the alternative hypothesis (True mean = mu_1)
+  sample_data <- rnorm(n, mean = mu_1, sd = sigma)
+  
+  # Calculate t-statistic using the null hypothesis assumption (mu_0 = 0)
+  sample_mean <- mean(sample_data)
+  sample_sd <- sd(sample_data)
+  t_statistics[j] <- (sample_mean - mu_0) / (sample_sd / sqrt(n))
+  
+  # Check if H0 is rejected (One-tailed test)
+  if (t_statistics[j] > critical_value) {
+    rejection_indicator[j] <- 1
+  }
+}
+
+# 3. Calculate Empirical vs Theoretical Power
+empirical_power <- mean(rejection_indicator)
+
+# Theoretical power using the CDF of the Non-central t-distribution
+theoretical_power <- 1 - pt(critical_value, df = df, ncp = delta)
+
+cat("----------------------------------------\n")
+cat("Empirical Power (Monte Carlo) :", empirical_power, "\n")
+cat("Theoretical Power (Non-central t):", theoretical_power, "\n")
+cat("----------------------------------------\n")
+
+
+# 4. Plotting and Visual Verification
+# Plot empirical histogram of simulated t-statistics
+windows()
+hist(t_statistics, breaks = 50, probability = TRUE, col = "lightgray", border = "white",
+     main = "Empirical vs Theoretical Non-central t-distribution",
+     xlab = "t-statistic values", ylim = c(0, 0.4), xlim = c(-3, 7))
+
+# Overlay Central t-distribution (What we assume during the test)
+curve(dt(x, df = df), add = TRUE, col = "blue", lty = 2, lwd = 2)
+
+# Overlay True Non-central t-distribution (The actual distribution of statistics)
+curve(dt(x, df = df, ncp = delta), add = TRUE, col = "red", lwd = 2)
+
+# Draw critical value line
+abline(v = critical_value, col = "darkgreen", lty = 3, lwd = 2)
+
+# Add Legend
+legend("topright", legend = c("Simulated t-stats (Hist)", "Central t (H0 state)", 
+                              "Non-central t (Actual)", "Critical Value Line"),
+       col = c("lightgray", "blue", "red", "darkgreen"), lty = c(1, 2, 1, 3), lwd = c(5, 2, 2, 2))
+
+
+
+
+
+# -------------------------------------------------------------------------
+# Simulation for Power of Skewness Test under Normal Mixture Alternative
+# -------------------------------------------------------------------------
+
+# 1. Define Skewness Function (sk)
+# Measures the asymmetry of the data distribution
+calc_skewness <- function(x) {
+  n <- length(x)
+  mean_x <- mean(x)
+  m3 <- sum((x - mean_x)^3) / n      # 3rd central moment
+  m2 <- sum((x - mean_x)^2) / n      # 2nd central moment (biased variance)
+  return(m3 / (m2^(1.5)))
+}
+
+# 2. Setup Simulation Parameters
+set.seed(42)                         # For reproducibility
+n <- 30                              # Sample size specified in the text
+alpha <- 0.1                         # Significance level specified in the text
+m <- 2000                            # Number of Monte Carlo replications
+
+epsilon_vector <- seq(0, 1, by = 0.1)
+power_results <- numeric(length(epsilon_vector))
+
+# 3. Step 1: Find Critical Values under Null Hypothesis (epsilon = 0)
+# Under H0, data comes purely from standard normal distribution N(0, 1)
+null_skewness <- numeric(m)
+for (j in 1:m) {
+  null_sample <- rnorm(n, mean = 0, sd = 1)
+  null_skewness[j] <- calc_skewness(null_sample)
+}
+
+# Two-tailed test critical values (alpha = 0.1 => 5% on each tail)
+lower_crit <- quantile(null_skewness, alpha / 2)
+upper_crit <- quantile(null_skewness, 1 - alpha / 2)
+
+# 4. Step 2: Run Power Simulation for each Epsilon
+for (i in 1:length(epsilon_vector)) {
+  eps <- epsilon_vector[i]
+  rejection_count <- 0
+  
+  for (j in 1:m) {
+    # Generate Normal Mixture Sample: (1 - eps)*N(0,1) + eps*N(0,100)
+    # Step A: Determine components using a binomial/bernoulli trial
+    components <- rbinom(n, size = 1, prob = eps)
+    
+    # Step B: Generate actual sample based on the selected components
+    sample_data <- numeric(n)
+    for (k in 1:n) {
+      if (components[k] == 0) {
+        sample_data[k] <- rnorm(1, mean = 0, sd = 1)   # Standard Normal
+      } else {
+        sample_data[k] <- rnorm(1, mean = 0, sd = 10)  # Contaminated (sd = sqrt(100) = 10)
+      }
+    }
+    
+    # Calculate Skewness statistic for the j-th replication
+    sk_j <- calc_skewness(sample_data)
+    
+    # Check if H0 is rejected (if the statistic falls outside the critical values)
+    if (sk_j < lower_crit || sk_j > upper_crit) {
+      rejection_count <- rejection_count + 1
+    }
+  }
+  
+  # Empirical Power: (1/m) * sum(I_j)
+  power_results[i] <- rejection_count / m
+}
+
+# 5. Combine Results and Print
+power_data <- data.frame(
+  Epsilon = epsilon_vector,
+  Empirical_Power = power_results
+)
+print(power_data)
+
+# 6. Plot the Power Curve
+plot(
+  x = power_data$Epsilon, 
+  y = power_data$Empirical_Power, 
+  type = "b", 
+  pch = 19, 
+  col = "darkblue",
+  xlab = expression(paste("Contamination Rate (", epsilon, ")")),
+  ylab = "Empirical Power",
+  main = paste("Power Curve for Skewness Test (n =", n, ", alpha =", alpha, ")"),
+  ylim = c(0, 1)
+)
+abline(h = alpha, col = "red", lty = 2)
+text(x = 0.15, y = alpha + 0.04, "Significance Level (alpha = 0.1)", col = "red")
+
+
+#11
+
+
+# -------------------------------------------------------------------------
+# Power Comparison: Skewness vs. Shapiro-Wilk vs. Kolmogorov-Smirnov (KS)
+# -------------------------------------------------------------------------
+
+# 1. Define Skewness Function
+calc_skewness <- function(x) {
+  n <- length(x)
+  mean_x <- mean(x)
+  m3 <- sum((x - mean_x)^3) / n
+  m2 <- sum((x - mean_x)^2) / n
+  return(m3 / (m2^(1.5)))
+}
+
+# 2. Setup Simulation Parameters
+set.seed(42)
+n <- 30
+alpha <- 0.1
+m <- 2000
+
+epsilon_vector <- seq(0, 1, by = 0.1)
+
+# Arrays to store empirical power for each test
+power_sk <- numeric(length(epsilon_vector))
+power_sw <- numeric(length(epsilon_vector))
+power_ks <- numeric(length(epsilon_vector))
+
+# 3. Pre-calculate Empirical Critical Values for Skewness Test (H0: epsilon = 0)
+null_skewness <- numeric(m)
+for (j in 1:m) {
+  null_sample <- rnorm(n, mean = 0, sd = 1)
+  null_skewness[j] <- calc_skewness(null_sample)
+}
+lower_crit_sk <- quantile(null_skewness, alpha / 2)
+upper_crit_sk <- quantile(null_skewness, 1 - alpha / 2)
+
+# 4. Run Main Simulation Loop
+for (i in 1:length(epsilon_vector)) {
+  eps <- epsilon_vector[i]
+  
+  reject_sk <- 0
+  reject_sw <- 0
+  reject_ks <- 0
+  
+  for (j in 1:m) {
+    # Generate Normal Mixture Sample: (1 - eps)*N(0,1) + eps*N(0,100)
+    components <- rbinom(n, size = 1, prob = eps)
+    sample_data <- numeric(n)
+    for (k in 1:n) {
+      if (components[k] == 0) {
+        sample_data[k] <- rnorm(1, mean = 0, sd = 1)
+      } else {
+        sample_data[k] <- rnorm(1, mean = 0, sd = 10) # sd = sqrt(100)
+      }
+    }
+    
+    # [Test 1] Skewness Test
+    sk_val <- calc_skewness(sample_data)
+    if (sk_val < lower_crit_sk || sk_val > upper_crit_sk) {
+      reject_sk <- reject_sk + 1
+    }
+    
+    # [Test 2] Shapiro-Wilk Test (H0: Data is normally distributed)
+    sw_result <- shapiro.test(sample_data)
+    if (sw_result$p.value < alpha) {
+      reject_sw <- reject_sw + 1
+    }
+    
+    # [Test 3] Kolmogorov-Smirnov Test 
+    # Compare with standard normal distribution CDF (pnorm)
+    ks_result <- ks.test(sample_data, "pnorm", mean = mean(sample_data), sd = sd(sample_data))
+    if (ks_result$p.value < alpha) {
+      reject_ks <- reject_ks + 1
+    }
+  }
+  
+  # Calculate Empirical Power for each test
+  power_sk[i] <- reject_sk / m
+  power_sw[i] <- reject_sw / m
+  power_ks[i] <- reject_ks / m
+}
+
+# 5. Combine Results into a Data Frame
+power_comparison <- data.frame(
+  Epsilon = epsilon_vector,
+  Skewness = power_sk,
+  Shapiro_Wilk = power_sw,
+  KS_Test = power_ks
+)
+print(power_comparison)
+
+# 6. Plot the Power Comparison Curves
+windows()
+plot(
+  x = power_comparison$Epsilon, y = power_comparison$Shapiro_Wilk,
+  type = "b", pch = 19, col = "blue", lwd = 2,
+  xlab = expression(paste("Contamination Rate (", epsilon, ")")),
+  ylab = "Empirical Power",
+  main = "Power Comparison under Normal Mixture Alternative",
+  ylim = c(0, 1)
+)
+
+# Overlay Skewness Test Power
+lines(power_comparison$Epsilon, power_comparison$Skewness, type = "b", pch = 17, col = "red", lwd = 2)
+
+# Overlay KS Test Power
+lines(power_comparison$Epsilon, power_comparison$KS_Test, type = "b", pch = 15, col = "darkgreen", lwd = 2)
+
+# Reference line for alpha
+abline(h = alpha, col = "black", lty = 2)
+
+# Add Legend
+legend(
+  "topright", 
+  legend = c("Shapiro-Wilk", "Skewness (Empirical Quantile)", "Kolmogorov-Smirnov", "Significance Level (alpha)"),
+  col = c("blue", "red", "darkgreen", "black"), 
+  lty = c(1, 1, 1, 2), 
+  pch = c(19, 17, 15, NA), 
+  lwd = c(2, 2, 2, 1)
+)
