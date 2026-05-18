@@ -6534,3 +6534,698 @@ legend(
   pch = c(19, 17, 15, NA), 
   lwd = c(2, 2, 2, 1)
 )
+
+
+
+
+##exercise
+
+
+#1
+
+
+# ==============================================================================
+# Simulation for Trimmed Mean MSE in Standard Cauchy Distribution
+# ==============================================================================
+
+# 1. Setup Simulation Environment
+set.seed(123)       # Set seed for reproducibility
+B <- 100000         # Number of Monte Carlo replications
+n <- 20             # Sample size
+k_vec <- 1:9        # Range of k (number of trimmed observations on each side)
+theta <- 0
+
+# Initialize vector to store MSE results
+mse_results <- numeric(length(k_vec))
+
+# 2. Generate Data and Perform Simulation
+# Generate a large matrix at once for memory and speed optimization (n x B matrix)
+# Each column represents an independent sample of size n from Standard Cauchy
+sim_data <- matrix(rcauchy(n * B, location = 0, scale = 1), nrow = n, ncol = B)
+
+# Sort each column in ascending order
+sim_data_sorted <- apply(sim_data, 2, sort)
+
+# Calculate MSE for each value of k
+for (i in seq_along(k_vec)) {
+  k <- k_vec[i]
+  
+  # Trim k observations from both ends and calculate the mean of the remaining data
+  # Remaining rows: (k + 1) to (n - k)
+  trimmed_means <- colMeans(sim_data_sorted[(k + 1):(n - k), , drop = FALSE])
+  
+  # Calculate MSE (since true theta = 0, MSE is the mean of squared trimmed means)
+  mse_results[i] <- mean( (trimmed_means-theta)^2 )
+}
+
+# 3. Create Summary Table
+result_table <- data.frame(
+  k = k_vec,
+  Total_Trimmed = k_vec * 2,
+  Remaining_Obs = n - (k_vec * 2),
+  Estimated_MSE = round(mse_results, 5)
+)
+
+# Display the final summary table
+print(result_table)
+
+
+
+#2
+
+
+# ==============================================================================
+# Simulation for Empirical Power Curve with Large Sigma (Sigma = 100)
+# ==============================================================================
+
+# 1. Setup Simulation Environment
+set.seed(456)         # Set seed for reproducibility
+B <- 10000            # Number of Monte Carlo replications for each mu
+n <- 20               # Sample size
+mu_0 <- 500           # Hypothesized mean under H0
+alpha <- 0.05         # Significance level
+
+# Update standard deviation to 100
+sigma_val <- 100       
+
+# Widen the sequence of true mu values due to the large standard deviation
+mu_seq <- seq(400, 600, by = 20)
+power_results <- numeric(length(mu_seq))
+
+# 2. Perform Monte Carlo Simulation
+for (i in seq_along(mu_seq)) {
+  true_mu <- mu_seq[i]
+  rejection_count <- 0
+  
+  for (b in 1:B) {
+    # Generate random sample under the true mu with sigma = 100
+    sample_data <- rnorm(n, mean = true_mu, sd = sigma_val)
+    
+    # Perform two-sided t-test against mu_0 = 500
+    t_result <- t.test(sample_data, mu = mu_0, alternative = "two.sided")
+    
+    # Check if H0 is rejected
+    if (t_result$p.value < alpha) {
+      rejection_count <- rejection_count + 1
+    }
+  }
+  
+  # Empirical power is the proportion of rejections
+  power_results[i] <- rejection_count / B
+}
+
+# 3. Plot the Empirical Power Curve
+plot(mu_seq, power_results, type = "b", pch = 19, col = "darkred",
+     xlab = expression(True~~mu), ylab = "Empirical Power (1 - Beta)",
+     main = "Empirical Power Curve for t-Test (Sigma = 100)",
+     ylim = c(0, 1))
+
+# Add lines for reference
+abline(h = alpha, col = "blue", lty = 2)
+abline(v = mu_0, col = "gray", lty = 3)
+
+
+
+#3
+
+
+# ==============================================================================
+# Simulation for Empirical Power Curves with Large Sigma (Sigma = 100)
+# Varying Sample Sizes: n = 10, 20, 30, 40, 50
+# ==============================================================================
+
+# 1. Setup Simulation Environment
+set.seed(789)         # Set seed for reproducibility
+B <- 10000            # Number of Monte Carlo replications for each combination
+mu_0 <- 500           # Hypothesized mean under H0
+alpha <- 0.05         # Significance level
+
+# Update standard deviation to 100
+sigma_val <- 100       
+
+# Define sample sizes and a wider mu sequence due to large variance
+n_vec <- c(10, 20, 30, 40, 50)
+mu_seq <- seq(400, 600, by = 10)
+
+# Initialize a matrix to store power results
+power_matrix <- matrix(0, nrow = length(mu_seq), ncol = length(n_vec))
+colnames(power_matrix) <- paste0("n=", n_vec)
+
+# 2. Perform Monte Carlo Simulation
+for (j in seq_along(n_vec)) {
+  n <- n_vec[j]
+  
+  for (i in seq_along(mu_seq)) {
+    true_mu <- mu_seq[i]
+    rejection_count <- 0
+    
+    for (b in 1:B) {
+      # Generate random sample with sigma = 100
+      sample_data <- rnorm(n, mean = true_mu, sd = sigma_val)
+      
+      # Perform two-sided t-test against mu_0 = 500
+      t_result <- t.test(sample_data, mu = mu_0, alternative = "two.sided")
+      
+      # Check if H0 is rejected
+      if (t_result$p.value < alpha) {
+        rejection_count <- rejection_count + 1
+      }
+    }
+    
+    # Store empirical power
+    power_matrix[i, j] <- rejection_count / B
+  }
+}
+
+# 3. Plot Multiple Power Curves on a Single Graph
+colors <- c("red", "orange", "green", "blue", "purple")
+line_types <- 1:5
+plot_characters <- 15:19
+
+# Plot the first curve (n=10)
+windows()
+plot(mu_seq, power_matrix[, 1], type = "b", col = colors[1], lty = line_types[1], 
+     pch = plot_characters[1],
+     xlab = expression(True~~mu), ylab = "Empirical Power (1 - Beta)",
+     main = "Power Curves by Sample Size (Sigma = 100)", ylim = c(0, 1))
+
+# Add the remaining curves (n=20 to 50)
+for (j in 2:length(n_vec)) {
+  lines(mu_seq, power_matrix[, j], type = "b", col = colors[j], lty = line_types[j], 
+        pch = plot_characters[j])
+}
+
+# Add reference lines and legend
+abline(h = alpha, col = "darkgray", lty = 2)
+abline(v = mu_0, col = "darkgray", lty = 3)
+
+legend("bottomright", legend = colnames(power_matrix), 
+       col = colors, lty = line_types, pch = plot_characters, bty = "o", bg = "white")
+
+
+#4
+
+
+# ==============================================================================
+# Simulation for Empirical Coverage Probability of 95% CI for Log-Normal Data
+# ==============================================================================
+
+# 1. Setup Simulation Environment
+set.seed(321)         # Set seed for reproducibility
+B <- 10000            # Number of Monte Carlo replications
+n <- 30               # Sample size (Can be adjusted based on problem context)
+alpha <- 0.05         # Significance level for 95% confidence level
+
+# Define true parameters for the Log-normal distribution
+# If X ~ Lognormal(mu, sigma^2), then Y = log(X) ~ N(mu, sigma^2)
+true_mu <- 0          
+true_sigma <- 1       
+
+# Counter for successful coverage
+coverage_count <- 0
+
+# 2. Perform Monte Carlo Simulation
+for (b in 1:B) {
+  # Step 2a: Generate random samples from Log-normal distribution
+  # rlnorm uses the mean and sd on the log scale
+  sample_x <- rlnorm(n, meanlog = true_mu, sdlog = true_sigma)
+  
+  # Step 2b: Transform the data to log scale to achieve normality
+  sample_y <- log(sample_x)
+  
+  # Step 2c: Calculate statistics on the transformed data
+  y_bar <- mean(sample_y)
+  s_y <- sd(sample_y)
+  
+  # Step 2d: Compute the critical value from t-distribution
+  t_crit <- qt(1 - alpha/2, df = n - 1)
+  
+  # Step 2e: Calculate Lower and Upper Confidence Limits for mu
+  margin_error <- t_crit * (s_y / sqrt(n))
+  lower_bound <- y_bar - margin_error
+  upper_bound <- y_bar + margin_error
+  
+  # Step 2f: Check if the true mu is within the calculated interval
+  if (true_mu >= lower_bound && true_mu <= upper_bound) {
+    coverage_count <- coverage_count + 1
+  }
+}
+
+# 3. Calculate and Print the Empirical Coverage Probability
+empirical_coverage <- coverage_count / B
+
+cat("--- Simulation Results ---\n")
+cat("Number of Replications (B) :", B, "\n")
+cat("Sample Size (n)            :", n, "\n")
+cat("True Parameter (mu)        :", true_mu, "\n")
+cat("Empirical Coverage Rate    :", round(empirical_coverage, 4), "\n")
+
+
+#5
+
+
+# ==============================================================================
+# Simulation for Empirical Coverage of t-Interval under Chi-Square Distribution
+# ==============================================================================
+
+# 1. Setup Simulation Environment
+set.seed(567)         # Set seed for reproducibility
+B <- 10000            # Number of Monte Carlo replications
+n <- 20               # Sample size specified in the problem
+alpha <- 0.05         # Significance level for 95% confidence level
+
+# For Chi-square distribution with df = 2:
+# The true mean (mu) is equal to df
+true_mu <- 2          
+
+# Counter for intervals that successfully capture the true mean
+coverage_count <- 0
+
+# 2. Perform Monte Carlo Simulation
+for (b in 1:B) {
+  # Step 2a: Generate random samples from Chi-squared distribution with df = 2
+  sample_data <- rchisq(n, df = 2)
+  
+  # Step 2b: Calculate sample statistics
+  x_bar <- mean(sample_data)
+  s_val <- sd(sample_data)
+  
+  # Step 2c: Compute critical value from t-distribution
+  t_crit <- qt(1 - alpha/2, df = n - 1)
+  
+  # Step 2d: Calculate Lower and Upper Confidence Limits
+  margin_error <- t_crit * (s_val / sqrt(n))
+  lower_bound <- x_bar - margin_error
+  upper_bound <- x_bar + margin_error
+  
+  # Step 2e: Check if the true mean (2) falls within the interval
+  if (true_mu >= lower_bound && true_mu <= upper_bound) {
+    coverage_count <- coverage_count + 1
+  }
+}
+
+# 3. Calculate and Print the Empirical Coverage Probability
+empirical_coverage <- coverage_count / B
+
+cat("--- Simulation Results for Chi-Square(2) ---\n")
+cat("Number of Replications (B) :", B, "\n")
+cat("Sample Size (n)            :", n, "\n")
+cat("True Mean (mu)             :", true_mu, "\n")
+cat("Empirical Coverage Rate    :", round(empirical_coverage, 4), "\n")
+
+
+#6
+
+
+# ==============================================================================
+# Simulation for Quantiles of Sample Skewness under Normality (Problem 6.6)
+# ==============================================================================
+
+# 1. Setup Simulation Environment
+set.seed(999)         # Set seed for reproducibility
+B <- 10000            # Number of Monte Carlo replications
+n_val <- 20           # Sample size (Adjust based on textbook specification)
+quantiles_to_est <- c(0.025, 0.05, 0.95, 0.975)
+
+# Vector to store simulated sample skewness values
+skewness_sim <- numeric(B)
+
+# Function to calculate sample skewness (biased plugging-in estimator)
+calc_skewness <- function(x) {
+  m3 <- mean((x - mean(x))^3)
+  m2 <- mean((x - mean(x))^2)
+  return(m3 / (m2^(1.5)))
+}
+
+# 2. Perform Monte Carlo Simulation
+for (b in 1:B) {
+  # Generate normal random samples under H0 (Standard Normal)
+  sample_data <- rnorm(n_val, mean = 0, sd = 1)
+  skewness_sim[b] <- calc_skewness(sample_data)
+}
+
+# 3. Calculate Empirical Quantiles and Standard Errors via Normal Approximation
+empirical_quantiles <- quantile(skewness_sim, probs = quantiles_to_est)
+
+# Asymptotic variance parameters under Large-Sample Theory: sqrt(b1) ~ N(0, 6/n)
+asymp_se_dist <- sqrt(6 / n_val) 
+
+# Calculate Standard Error for each estimated quantile using Equation (2.14) logic
+# SE = sqrt( (alpha * (1 - alpha)) / (B * [f(q_alpha)]^2) )
+quantile_se <- numeric(length(quantiles_to_est))
+
+for (i in seq_along(quantiles_to_est)) {
+  alpha_val <- quantiles_to_est[i]
+  q_val <- empirical_quantiles[i]
+  
+  # Evaluate the density f(q_alpha) using the normal approximation N(0, 6/n)
+  f_q <- dnorm(q_val, mean = 0, sd = asymp_se_dist)
+  
+  # Apply the formula for the variance of a sample quantile
+  quantile_se[i] <- sqrt((alpha_val * (1 - alpha_val)) / (B * (f_q^2)))
+}
+
+# 4. Calculate Theoretical Quantiles based on Large-Sample Approximation
+theoretical_quantiles <- qnorm(quantiles_to_est, mean = 0, sd = asymp_se_dist)
+
+# 5. Construct and Display the Summary Table
+summary_table <- data.frame(
+  Target_Quantile = quantiles_to_est,
+  Empirical_Est   = round(as.numeric(empirical_quantiles), 5),
+  Standard_Error  = round(quantile_se, 5),
+  Theoretical_App = round(theoretical_quantiles, 5),
+  Difference      = round(as.numeric(empirical_quantiles) - theoretical_quantiles, 5)
+)
+
+print(summary_table)
+
+
+
+#7
+
+
+# ==============================================================================
+# Simulation for Power of Skewness Test against Symmetric Alternatives (6.7)
+# ==============================================================================
+
+# 1. Setup Simulation Environment
+set.seed(111)         # Set seed for reproducibility
+B <- 10000            # Number of Monte Carlo replications
+n <- 20               # Sample size
+alpha <- 0.05         # Significance level
+
+# Function to calculate sample skewness
+calc_skewness <- function(x) {
+  m3 <- mean((x - mean(x))^3)
+  m2 <- mean((x - mean(x))^2)
+  return(m3 / (m2^(1.5)))
+}
+
+# 2. Establish Critical Values under H0 (Normal) using Large-Sample/Simulation Approximation
+# Under H0, sample skewness approximately follows N(0, 6/n)
+asymp_se <- sqrt(6 / n)
+lower_crit <- qnorm(alpha / 2, mean = 0, sd = asymp_se)
+upper_crit <- qnorm(1 - alpha / 2, mean = 0, sd = asymp_se)
+
+# Counters for rejections under different alternative hypotheses
+reject_beta <- 0
+reject_t    <- 0
+
+# 3. Perform Monte Carlo Simulation under Alternative Hypotheses
+for (b in 1:B) {
+  # Alternative 1: Symmetric Beta distribution (e.g., alpha = 0.5, beta = 0.5)
+  # This is a U-shaped but perfectly symmetric distribution
+  sample_beta <- rbeta(n, shape1 = 0.5, shape2 = 0.5)
+  skew_beta   <- calc_skewness(sample_beta)
+  if (skew_beta < lower_crit || skew_beta > upper_crit) {
+    reject_beta <- reject_beta + 1
+  }
+  
+  # Alternative 2: Heavy-tailed symmetric t-distribution (e.g., df = 3)
+  # This has heavy tails but is also perfectly symmetric
+  sample_t <- rt(n, df = 20-1)
+  skew_t   <- calc_skewness(sample_t)
+  if (skew_t < lower_crit || skew_t > upper_crit) {
+    reject_t <- reject_t + 1
+  }
+}
+
+# 4. Calculate Empirical Power (Rejection Rates)
+power_beta <- reject_beta / B
+power_t    <- reject_t / B
+
+cat("--- Empirical Power of Skewness Test ---\n")
+cat("Significance Level (Alpha)         :", alpha, "\n")
+cat("Power against Symmetric Beta(0.5,0.5) :", round(power_beta, 4), "\n")
+cat("Power against Heavy-tailed t(3)       :", round(power_t, 4), "\n")
+
+
+
+#8
+
+
+# ==============================================================================
+# Simulation for the Sampling Distribution of the Gini Ratio (Problem 6.8)
+# Fixed x-axis range c(0, 1) for all histograms
+# ==============================================================================
+
+# 1. Setup Simulation Environment
+set.seed(4321)        # Set seed for reproducibility
+B <- 10000            # Number of Monte Carlo replications
+n <- 30               # Sample size
+
+# Function to calculate the estimated Gini ratio (G_hat) using order statistics
+calc_gini_hat <- function(x) {
+  n_len <- length(x)
+  x_sorted <- sort(x)
+  x_bar <- mean(x)
+  
+  # Avoid division by zero if all values are 0
+  if (x_bar == 0) return(0)
+  
+  # Calculate the numerator sum: sum_{i=1}^n (2i - n - 1) * x_(i)
+  i_vec <- 1:n_len
+  weight_vec <- 2 * i_vec - n_len - 1
+  num_sum <- sum(weight_vec * x_sorted)
+  
+  # G_hat formula
+  gini_hat <- num_sum / (n_len^2 * x_bar)
+  return(gini_hat)
+}
+
+# Initialize vectors to store simulated G_hat values
+gini_lognorm <- numeric(B)
+gini_unif    <- numeric(B)
+gini_bern    <- numeric(B)
+
+# 2. Perform Monte Carlo Simulation
+for (b in 1:B) {
+  # (i) Standard Log-normal distribution
+  sample_lognorm <- rlnorm(n, meanlog = 0, sdlog = 1)
+  gini_lognorm[b] <- calc_gini_hat(sample_lognorm)
+  
+  # (ii) Uniform distribution over (0, 1)
+  sample_unif <- runif(n, min = 0, max = 1)
+  gini_unif[b] <- calc_gini_hat(sample_unif)
+  
+  # (iii) Bernoulli distribution with p = 0.5
+  sample_bern <- rbinom(n, size = 1, prob = 0.5)
+  gini_bern[b] <- calc_gini_hat(sample_bern)
+}
+
+# 3. Helper Function to Estimate Summary Statistics (Mean, Median, Deciles)
+get_summary_stats <- function(gini_vector) {
+  deciles_probs <- seq(0.1, 0.9, by = 0.1)
+  stats <- c(
+    Mean   = mean(gini_vector),
+    Median = median(gini_vector),
+    quantile(gini_vector, probs = deciles_probs)
+  )
+  return(round(stats, 4))
+}
+
+# Compile results into a beautiful table
+results_table <- data.frame(
+  Standard_Lognormal = get_summary_stats(gini_lognorm),
+  Uniform_Dist       = get_summary_stats(gini_unif),
+  Bernoulli_Dist     = get_summary_stats(gini_bern)
+)
+
+cat("--- Summary Statistics for G_hat ---\n")
+print(results_table)
+
+# 4. Plot Density Histograms with Unified X-axis Range c(0, 1)
+# Set up a 1x3 plotting grid
+par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))
+
+# Define common breaks to ensure consistent binning across the 0-1 interval
+common_breaks <- seq(0, 1, length.out = 41)
+
+
+# Plot (i) Standard Log-normal
+hist(gini_lognorm, breaks = common_breaks, probability = TRUE, xlim = c(0, 1),
+     main = "Standard Log-normal", xlab = "Gini Hat", col = "skyblue", border = "white")
+lines(density(gini_lognorm), col = "darkblue", lwd = 2)
+
+# Plot (ii) Uniform
+hist(gini_unif, breaks = common_breaks, probability = TRUE, xlim = c(0, 1),
+     main = "Uniform (0, 1)", xlab = "Gini Hat", col = "lightgreen", border = "white")
+lines(density(gini_unif), col = "darkgreen", lwd = 2)
+
+# Plot (iii) Bernoulli
+hist(gini_bern, breaks = common_breaks, probability = TRUE, xlim = c(0, 1),
+     main = "Bernoulli (0.5)", xlab = "Gini Hat", col = "tomato", border = "white")
+lines(density(gini_bern), col = "darkred", lwd = 2)
+
+# Reset plotting parameters
+par(mfrow = c(1, 1))
+
+
+#9
+
+
+# -------------------------------------------------------------------------
+# Monte Carlo Simulation Setup
+# -------------------------------------------------------------------------
+set.seed(123)            # Set seed for reproducibility
+B <- 10000               # Number of Monte Carlo replications
+n <- 100                 # Sample size per replication (large sample approximation)
+
+# Define true parameters (Gini coefficient is independent of mu)
+true_mu <- 0
+true_sigma <- 1
+
+# Calculate the true Gini coefficient (True Gamma)
+true_gamma <- 2 * pnorm(true_sigma / sqrt(2)) - 1
+
+# Initialize a vector to store coverage results
+covered <- numeric(B)
+
+# -------------------------------------------------------------------------
+# Simulation Loop
+# -------------------------------------------------------------------------
+for(b in 1:B) {
+  # 1. Generate data from a Lognormal distribution
+  x <- rlnorm(n, meanlog = true_mu, sdlog = true_sigma)
+  
+  # 2. Log-transform data and estimate sigma
+  y <- log(x)
+  est_sigma <- sd(y) 
+  
+  # 3. Estimate the Gini coefficient (Gamma hat)
+  est_gamma <- 2 * pnorm(est_sigma / sqrt(2)) - 1
+  
+  # 4. Calculate Standard Error (SE) using the Delta Method
+  # Note: dnorm() acts as the standard normal PDF, phi(.)
+  se_gamma <- (est_sigma / sqrt(n)) * dnorm(est_sigma / sqrt(2))
+  
+  # 5. Derive the approximate 95% Confidence Interval (Wald-type CI)
+  lower_ci <- est_gamma - 1.96 * se_gamma
+  upper_ci <- est_gamma + 1.96 * se_gamma
+  
+  # 6. Check if the true Gamma falls within the computed CI (True=1, False=0)
+  covered[b] <- (true_gamma >= lower_ci) & (true_gamma <= upper_ci)
+}
+
+# -------------------------------------------------------------------------
+# Output Results
+# -------------------------------------------------------------------------
+# Calculate and print the empirical coverage probability
+coverage_prob <- mean(covered)
+cat("True Gini Coefficient (True Gamma):", true_gamma, "\n")
+cat("Estimated Coverage Probability of 95% CI via Monte Carlo:", coverage_prob, "\n")
+
+
+
+#10
+
+
+
+# ---------------------------------------------------------
+# Monte Carlo Simulation for One-Sample t-Test Robustness
+# ---------------------------------------------------------
+
+set.seed(1234) # For reproducibility
+B <- 10000     # Number of Monte Carlo replications
+alpha <- 0.05  # Nominal significance level
+sample_sizes <- c(10, 30, 100) # Different sample sizes to evaluate
+
+# Matrix to store the empirical Type I error rates
+results <- matrix(NA, nrow=3, ncol=length(sample_sizes),
+                  dimnames=list(c("Chisq(1)", "Uniform(0,2)", "Exp(1)"), 
+                                paste0("n=", sample_sizes)))
+
+# Run the simulation loop
+for(j in 1:length(sample_sizes)){
+  n <- sample_sizes[j]
+  
+  # 1) Chi-squared distribution (df=1), true mean = 1
+  p_chisq <- replicate(B, {
+    x <- rchisq(n, df=1)
+    t.test(x, mu=1)$p.value
+  })
+  results["Chisq(1)", j] <- mean(p_chisq < alpha)
+  
+  # 2) Uniform distribution (0, 2), true mean = 1
+  p_unif <- replicate(B, {
+    x <- runif(n, min=0, max=2)
+    t.test(x, mu=1)$p.value
+  })
+  results["Uniform(0,2)", j] <- mean(p_unif < alpha)
+  
+  # 3) Exponential distribution (rate=1), true mean = 1
+  p_exp <- replicate(B, {
+    x <- rexp(n, rate=1)
+    t.test(x, mu=1)$p.value
+  })
+  results["Exp(1)", j] <- mean(p_exp < alpha)
+}
+
+# Display the final empirical Type I error rates
+print(round(results, 4))
+
+
+#11
+
+
+# ---------------------------------------------------------
+# Monte Carlo Simulation: Comparing Power of Correlation Tests
+# Pearson vs. Spearman vs. Kendall under Bivariate Normality
+# ---------------------------------------------------------
+
+library(MASS) # Required for generating bivariate normal data
+
+set.seed(5678) # For reproducibility
+B <- 5000      # Number of Monte Carlo replications
+alpha <- 0.05  # Significance level
+
+# Simulation parameters
+true_rho <- 0.35              # True population correlation (H0 is false)
+sample_sizes <- c(20, 50)     # Evaluating small and medium sample sizes
+methods <- c("pearson", "spearman", "kendall")
+
+# Matrix to store empirical power values
+power_results <- matrix(NA, nrow=length(methods), ncol=length(sample_sizes),
+                        dimnames=list(methods, paste0("n=", sample_sizes)))
+
+# Mean vector and Covariance matrix structure for bivariate normal
+mu_vec <- c(0, 0)
+
+# Run the simulation loop
+for(j in 1:length(sample_sizes)){
+  n <- sample_sizes[j]
+  
+  # Define covariance matrix based on true_rho
+  sigma_mat <- matrix(c(1, true_rho, true_rho, 1), nrow=2)
+  
+  # Vectors to store p-values for each replication
+  p_pearson  <- numeric(B)
+  p_spearman <- numeric(B)
+  p_kendall  <- numeric(B)
+  
+  for(b in 1:B){
+    # Generate bivariate normal data
+    data_mat <- mvrnorm(n=n, mu=mu_vec, Sigma=sigma_mat)
+    x <- data_mat[, 1]
+    y <- data_mat[, 2]
+    
+    # Perform correlation tests and extract p-values
+    # Exact paths or asymptotic approximations are handled internally by cor.test
+    p_pearson[b]  <- cor.test(x, y, method="pearson")$p.value
+    p_spearman[b] <- suppressWarnings(cor.test(x, y, method="spearman")$p.value)
+    p_kendall[b]  <- suppressWarnings(cor.test(x, y, method="kendall")$p.value)
+  }
+  
+  # Calculate empirical power (proportion of p-values < alpha)
+  power_results["pearson", j]  <- mean(p_pearson < alpha)
+  power_results["spearman", j] <- mean(p_spearman < alpha)
+  power_results["kendall", j]  <- mean(p_kendall < alpha)
+}
+
+# Display the final empirical power results
+print(round(power_results, 4))
+
+
+
+
+Part 6 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
