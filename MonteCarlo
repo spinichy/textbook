@@ -7229,3 +7229,272 @@ print(round(power_results, 4))
 
 
 Part 6 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+##example
+
+
+#1
+
+
+# 1. Define the observed sample data (n = 10)
+x <- c(2, 2, 1, 1, 5, 4, 4, 3, 1, 2)
+n <- length(x)
+
+# 2. Calculate the empirical probabilities for each unique value
+# This matches the probabilities in the example: 1(0.3), 2(0.3), 3(0.1), 4(0.2), 5(0.1)
+empirical_table <- table(x) / n
+print("--- Empirical Probabilities (F_n) ---")
+print(empirical_table)
+
+# 3. Perform Bootstrap Resampling (Sampling with replacement)
+# Set a seed for reproducibility
+set.seed(123 )
+
+# Generate a single bootstrap sample of the same size (n = 10)
+bootstrap_sample <- sample(x, size = n, replace = TRUE)
+print("--- One Instance of Bootstrap Sample (X*) ---")
+print(bootstrap_sample)
+
+# 4. Plot the Empirical Cumulative Distribution Function (ecdf F_n)
+# This represents the step function F_n(x) mentioned in the example
+plot(ecdf(x), main = "Empirical CDF (F_n)", 
+     xlab = "x", ylab = "Fn(x)", 
+     col = "blue", verticals = TRUE, pch = 16)
+
+
+#2
+
+
+# 1. Load the bootstrap package and the built-in law dataset
+library(bootstrap)
+data(law)
+n <- nrow(law)
+
+# 2. Calculate the original sample correlation (theta_hat)
+theta_hat <- cor(law$LSAT, law$GPA)
+
+# 3. Bootstrap replication settings
+B <- 2000                  
+theta_hat_b <- numeric(B)  
+
+# Set seed for reproducibility
+set.seed(42)
+
+# 4. Perform Bootstrap Resampling
+for (b in 1:B) {
+  i <- sample(1:n, size = n, replace = TRUE)
+  bootstrap_sample <- law[i, ]
+  theta_hat_b[b] <- cor(bootstrap_sample$LSAT, bootstrap_sample$GPA)
+}
+
+# 5. Calculate Bootstrap Standard Error
+se_bootstrap <- sqrt(var(theta_hat_b))
+
+# 6. Plot Histogram of Bootstrap Replicates
+# This visualizes the empirical distribution of theta_hat_b
+windows()
+
+hist(theta_hat_b, 
+     breaks = 40, 
+     probability = TRUE,
+     col = "lightblue", 
+     border = "white",
+     main = "Histogram of Bootstrap Replicates",
+     xlab = "Bootstrap Correlation Coefficients", 
+     xlim = c(0, 1))
+
+# Add a density line to see the shape clearly
+lines(density(theta_hat_b), col = "blue", lwd = 2)
+
+# Add a red dashed line for the original sample correlation
+abline(v = theta_hat, col = "red", lwd = 2, lty = 2)
+
+# Add a green solid line for the mean of bootstrap replications
+abline(v = mean(theta_hat_b), col = "darkgreen", lwd = 2, lty = 1)
+
+# Add a legend to distinguish the lines
+legend("topleft", 
+       legend = c(paste("Original r (", round(theta_hat, 3), ")", sep=""),
+                  paste("Bootstrap Mean (", round(mean(theta_hat_b), 3), ")", sep="")),
+       col = c("red", "darkgreen"), 
+       lty = c(2, 1), 
+       lwd = 2)
+
+
+
+
+# 1. Load the required packages
+library(bootstrap)  # For the 'law' dataset
+library(boot)       # For the 'boot' function
+data(law)
+
+# 2. Define the statistic function required by boot()
+# The first argument is the original data, and the second is the resampled indices
+corr_function <- function(data, indices) {
+  # Subset the rows of the dataframe based on the bootstrap indices
+  bootstrap_sample <- data[indices, ]
+  
+  # Calculate and return the sample correlation coefficient (r)
+  return(cor(bootstrap_sample$LSAT, bootstrap_sample$GPA))
+}
+
+# 3. Perform Bootstrap Resampling
+set.seed(42)  # Set seed for exact reproducibility
+boot_results <- boot(data = law, statistic = corr_function, R = 2000)
+
+# 4. Display the Bootstrap Summary Statistics
+# This shows the original estimate, the bootstrap bias, and the standard error
+print(boot_results)
+
+# 5. Visualize the Bootstrap Distribution
+# This built-in plot function generates both a histogram and a Normal Q-Q plot
+plot(boot_results)
+
+
+
+#3
+
+
+# 1. Load the bootstrap package and the built-in law dataset
+library(bootstrap)
+data(law)
+n <- nrow(law)
+
+# 2. Calculate the original sample correlation (theta_hat)
+theta_hat <- cor(law$LSAT, law$GPA)
+
+# 3. Bootstrap replication settings
+B <- 2000                  
+theta_hat_b <- numeric(B)  
+
+# Set seed for exact reproducibility
+set.seed(42)
+
+# 4. Perform Bootstrap Resampling
+for (b in 1:B) {
+  i <- sample(1:n, size = n, replace = TRUE)
+  bootstrap_sample <- law[i, ]
+  theta_hat_b[b] <- cor(bootstrap_sample$LSAT, bootstrap_sample$GPA)
+}
+
+# 5. Calculate Bias, Variance, and Standard Error
+theta_hat_bar <- mean(theta_hat_b)
+bias_bootstrap <- theta_hat_bar - theta_hat
+var_bootstrap  <- var(theta_hat_b)        # Calculates variance using denominator (B-1)
+se_bootstrap   <- sqrt(var_bootstrap)     # Standard error is the square root of variance
+
+# 6. Print the results including variance
+print(paste("Original Sample Correlation (theta_hat):", round(theta_hat, 4)))
+print(paste("Bootstrap Estimate of Bias:", round(bias_bootstrap, 4)))
+print(paste("Bootstrap Estimate of Variance:", round(var_bootstrap, 6)))
+print(paste("Bootstrap Estimate of Standard Error:", round(se_bootstrap, 4)))
+
+
+
+
+
+# 1. Load required packages
+library(bootstrap)
+library(boot)
+data(law)
+
+# 2. Define the statistic function using short parameter 'i'
+corr_function <- function(data, i) {
+  return(cor(data$LSAT[i], data$GPA[i]))
+}
+
+# 3. Perform Bootstrap
+set.seed(42)
+boot_results <- boot(data = law, statistic = corr_function, R = 2000)
+
+# 4. Extract and calculate statistics from the boot object
+# boot_results$t contains the B replicated statistics
+theta_hat_b_values <- boot_results$t 
+
+calculated_bias <- mean(theta_hat_b_values) - boot_results$t0
+calculated_var  <- var(theta_hat_b_values)
+calculated_se   <- sqrt(calculated_var)
+
+# 5. Print the results including variance
+print(boot_results) # Displays original, bias, and se
+print(paste("Calculated Bootstrap Variance:", round(calculated_var, 6)))
+
+
+
+#4
+
+
+
+# 1. Load the bootstrap package and the patch dataset
+library(bootstrap)
+data(patch)
+n <- nrow(patch)
+
+# 2. Calculate the original ratio statistic (theta_hat)
+theta_hat <- mean(patch$y) / mean(patch$z)
+
+# 3. Bootstrap replication settings
+B <- 2000                  
+theta_hat_b <- numeric(B)  
+
+# Set seed for exact reproducibility
+set.seed(42)
+
+# 4. Perform Bootstrap Resampling
+for (b in 1:B) {
+  i <- sample(1:n, size = n, replace = TRUE)
+  bootstrap_sample <- patch[i, ]
+  theta_hat_b[b] <- mean(bootstrap_sample$y) / mean(bootstrap_sample$z)
+}
+
+# 5. Calculate Bias, Variance, Standard Error, and Coefficient of Variation (CV)
+theta_hat_bar  <- mean(theta_hat_b)
+bias_bootstrap  <- theta_hat_bar - theta_hat
+var_bootstrap   <- var(theta_hat_b)
+se_bootstrap    <- sqrt(var_bootstrap)
+cv_bootstrap    <- bias_bootstrap / se_bootstrap  # Formula: Bias / SE
+
+# 6. Print the results
+print(paste("Original Ratio Estimate (theta_hat):", round(theta_hat, 4)))
+print(paste("Bootstrap Estimate of Bias:", round(bias_bootstrap, 4)))
+print(paste("Bootstrap Estimate of Variance:", round(var_bootstrap, 6)))
+print(paste("Bootstrap Estimate of Standard Error (SE):", round(se_bootstrap, 4)))
+print(paste("Coefficient of Variation (CV = Bias/SE):", round(cv_bootstrap, 4)))
+
+
+
+
+
+# 1. Load required packages
+library(bootstrap)
+library(boot)
+data(patch)
+
+# 2. Define the ratio statistic function using short parameter 'i'
+ratio_function <- function(data, i) {
+  return(mean(data$y[i]) / mean(data$z[i]))
+}
+
+# 3. Perform Bootstrap
+set.seed(42)
+boot_results <- boot(data = patch, statistic = ratio_function, R = 2000)
+
+# 4. Extract and calculate statistics from the boot object
+theta_hat_b_values <- boot_results$t 
+
+calculated_bias <- mean(theta_hat_b_values) - boot_results$t0
+calculated_var  <- var(theta_hat_b_values)
+calculated_se   <- sqrt(calculated_var)
+calculated_cv   <- calculated_bias / calculated_se  # Formula: Bias / SE
+
+# 5. Print the summary results
+print(boot_results)
+print(paste("Calculated Bootstrap Variance:", round(calculated_var, 6)))
+print(paste("Calculated Coefficient of Variation (CV = Bias/SE):", round(calculated_cv, 4)))
+
+
+
