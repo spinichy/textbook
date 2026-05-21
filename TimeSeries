@@ -1,4 +1,4 @@
-###part 1
+###part 1 ------------------------------------------------------------------------------------------------
 
 
 ##example
@@ -169,3 +169,514 @@ easy_dt   <- mdy_hm("May 07, 2026 16:45")
 # English: Checking the raw data stored behind the formatted display
 cat("Formatted:", format(now, "%Y-%m-%d %H:%M:%S"), "\n")
 cat("Numeric (seconds since 1970):", as.numeric(now), "\n")
+
+
+##exercise
+
+
+#1
+
+
+# 1. Data Loading and Preprocessing
+# Load the dataset (Assuming the file is in the working directory)
+Sept11Travel <- read.csv(file = "Sept11Travel.csv", header = TRUE)
+
+# Convert character Month to Date format to check chronological order
+# Format example: "1990 Jan" -> "%Y %b"
+Sept11Travel$Date <- as.Date(paste("01", Sept11Travel$Month), format="%d %Y %b")
+Sept11Travel <- Sept11Travel[order(Sept11Travel$Date), ]
+
+# Create Time Series (ts) objects for the three modes of transportation
+# Data frequency is monthly (12), starting from January 1990
+air_ts  <- ts(Sept11Travel$Air.RPM, start = c(1990, 1), frequency = 12)
+rail_ts <- ts(Sept11Travel$Rail.PM, start = c(1990, 1), frequency = 12)
+vmt_ts  <- ts(Sept11Travel$VMT..billions., start = c(1990, 1), frequency = 12)
+
+
+# 2. Question (a): Visualizing Components and Identifying Time Series Elements
+# Set plotting layout for three time series plots
+par(mfrow = c(3, 1), mar = c(4, 4, 2, 1))
+
+plot(air_ts, main = "Air Revenue Passenger Miles (Air.RPM)", col = "blue", ylab = "RPM")
+plot(rail_ts, main = "Rail Passenger Miles (Rail.PM)", col = "darkgreen", ylab = "PM")
+plot(vmt_ts, main = "Vehicle Miles Traveled (VMT)", col = "red", ylab = "Billions")
+
+
+# Reset layout
+par(mfrow = c(1, 1))
+
+
+
+
+analyze_transport_stl <- function(ts_data, title_name, y_label) {
+  
+  # Step 1: Apply Log transformation to stabilize expanding seasonal variance
+  log_ts <- log(ts_data)
+  
+  # Step 2: Run STL decomposition
+  # s.window = "periodic" enforces a stable, unchanging seasonal pattern over years.
+  # robust = TRUE activates the outer loop to downweight massive shocks like 9/11.
+  stl_result <- stl(log_ts, s.window = "periodic", robust = TRUE)
+  
+  # Step 3: Extract isolated components from the STL model
+  trend_comp    <- stl_result$time.series[, "trend"]
+  seasonal_comp <- stl_result$time.series[, "seasonal"]
+  
+  # Step 4: Calculate Deseasonalized Data (Trend + Remainder)
+  deseasonalized_ts <- log_ts - seasonal_comp
+  
+  # Step 5: Plotting the comprehensive overview
+  plot(log_ts, col = "gray70", lwd = 1,
+       main = paste(title_name, ": Log-Scale STL Analysis"), 
+       ylab = paste("Log(", y_label, ")", sep=""), xlab = "Time")
+  
+  # Overlay the clean, low-pass filtered STL Trend line (Red)
+  lines(trend_comp, col = "red", lwd = 2.5)
+  
+  # Overlay the Deseasonalized data (Blue dashed line: Trend + Remainder)
+  lines(deseasonalized_ts, col = "blue", lty = 2, lwd = 1.2)
+  
+  # Add legend for clarity
+  legend("bottomleft", 
+         legend = c("Log Original (With Seasonality)", "STL Trend Line (Clean)", "Deseasonalized (Trend + Remainder)"),
+         col = c("gray70", "red", "blue"), 
+         lty = c(1, 1, 2), 
+         lwd = c(1, 2.5, 1.2), 
+         bg = "white", cex = 0.8)
+  
+  # Return the STL object for further diagnostic inspections if needed
+  return(stl_result)
+}
+
+
+# --- [MODE 1: AIRPLANE] ---
+# Captures the direct massive structural drop in the Trend and the Plunge in Remainder
+air_stl_model <- analyze_transport_stl(air_ts, "Air Revenue Passenger Miles", "Air.RPM")
+
+# --- [MODE 2: RAILROAD] ---
+# Unveils the short-term substitution spike (positive remainder shock) right after 9/11
+rail_stl_model <- analyze_transport_stl(rail_ts, "Rail Passenger Miles", "Rail.PM")
+
+# --- [MODE 3: VEHICLE / MOTOR] ---
+# Detects subtle underlying shifts and long-term macro economic level slowdowns
+vmt_stl_model <- analyze_transport_stl(vmt_ts, "Vehicle Miles Traveled", "VMT")
+
+
+# Create a layout grid: 4 rows (Data, Trend, Seasonal, Remainder) x 3 columns (Air, Rail, VMT)
+# mar: c(bottom, left, top, right) lines of margins
+par(mfcol = c(4, 3), mar = c(2.5, 3.5, 2, 1), oma = c(2, 0, 2, 0))
+
+# ------------------------------------------------------------------------------
+# COLUMN 1: AIR DATA DECOMPOSITION
+# ------------------------------------------------------------------------------
+plot(log(air_ts), col = "gray50", main = "Air: Original Data", ylab = "Log(Air)")
+plot(air_stl_model$time.series[, "trend"], col = "red", lwd = 1.5, main = "Air: Trend", ylab = "Trend")
+plot(air_stl_model$time.series[, "seasonal"], col = "blue", main = "Air: Seasonal", ylab = "Seasonal")
+plot(air_stl_model$time.series[, "remainder"], col = "purple", type = "h", main = "Air: Remainder", ylab = "Remainder")
+
+# ------------------------------------------------------------------------------
+# COLUMN 2: RAIL DATA DECOMPOSITION
+# ------------------------------------------------------------------------------
+plot(log(rail_ts), col = "gray50", main = "Rail: Original Data", ylab = "Log(Rail)")
+plot(rail_stl_model$time.series[, "trend"], col = "red", lwd = 1.5, main = "Rail: Trend", ylab = "Trend")
+plot(rail_stl_model$time.series[, "seasonal"], col = "blue", main = "Rail: Seasonal", ylab = "Seasonal")
+plot(rail_stl_model$time.series[, "remainder"], col = "purple", type = "h", main = "Rail: Remainder", ylab = "Remainder")
+
+# ------------------------------------------------------------------------------
+# COLUMN 3: VMT DATA DECOMPOSITION
+# ------------------------------------------------------------------------------
+plot(log(vmt_ts), col = "gray50", main = "VMT: Original Data", ylab = "Log(VMT)")
+plot(vmt_stl_model$time.series[, "trend"], col = "red", lwd = 1.5, main = "VMT: Trend", ylab = "Trend")
+plot(vmt_stl_model$time.series[, "seasonal"], col = "blue", main = "VMT: Seasonal", ylab = "Seasonal")
+plot(vmt_stl_model$time.series[, "remainder"], col = "purple", type = "h", main = "VMT: Remainder", ylab = "Remainder")
+
+# Add a grand title on top of the outer margin area
+mtext("Comprehensive STL Decomposition Grid: Air vs Rail vs VMT", outer = TRUE, side = 3, line = 0.5, cex = 1.2, font = 2)
+
+# Reset plotting parameters to default layout
+par(mfrow = c(1, 1), mar = c(5, 4, 4, 2) + 0.1, oma = c(0, 0, 0, 0))
+
+
+
+#2
+
+
+# Load required library
+library(ggplot2)
+
+# 1. Load the dataset from the CSV file
+DepartmentStoreSales <- read.csv(file = "DepartmentStoreSales.csv", header = TRUE)
+
+# 2. Convert the dataframe column to a time series object
+# Frequency = 4 specifies quarterly data starting from Q1 2002
+sales_ts <- ts(DepartmentStoreSales$Sales, start = c(2002, 1), frequency = 4)
+
+# 3. Perform STL Decomposition
+stl_fit <- stl(sales_ts, s.window = "periodic")
+
+# 4. Extract components into a dataframe for ggplot2
+stl_df          <- as.data.frame(stl_fit$time.series)
+stl_df$Observed <- as.numeric(sales_ts)
+
+# Store the original text labels and create a numeric sequence for ordering
+stl_df$Quarter  <- DepartmentStoreSales$Quarter
+stl_df$Index    <- 1:nrow(stl_df)
+
+# 5. Reshape into long format to utilize ggplot's facetting function
+plot_data <- data.frame(
+  Quarter   = rep(stl_df$Quarter, 4),
+  Index     = rep(stl_df$Index, 4),
+  Value     = c(stl_df$Observed, stl_df$trend, stl_df$seasonal, stl_df$remainder),
+  Component = factor(rep(c("Observed", "Trend", "Seasonal", "Remainder"), each = nrow(stl_df)),
+                     levels = c("Observed", "Trend", "Seasonal", "Remainder"))
+)
+
+# 6. Calculate the unified data range to define the scale bar height
+# The bar height matches the range of the component with the smallest variation
+min_range <- min(
+  diff(range(stl_df$Observed)),
+  diff(range(stl_df$trend)),
+  diff(range(stl_df$seasonal)),
+  diff(range(stl_df$remainder))
+)
+
+# 7. Create a data frame for the variance bars positioned on the left side
+# Place bars slightly before the first index (x = 0) to separate from the line plot
+bar_data <- data.frame(
+  Component = factor(c("Observed", "Trend", "Seasonal", "Remainder"),
+                     levels = c("Observed", "Trend", "Seasonal", "Remainder")),
+  xmin = 0.1,
+  xmax = 0.5
+)
+
+# Set specific top and bottom limits for each bar based on its component's center
+bar_data$ymin <- c(mean(stl_df$Observed), mean(stl_df$trend), mean(stl_df$seasonal), mean(stl_df$remainder)) - (min_range / 2)
+bar_data$ymax <- c(mean(stl_df$Observed), mean(stl_df$trend), mean(stl_df$seasonal), mean(stl_df$remainder)) + (min_range / 2)
+
+# 8. Create the multi-panel plot with full x-axis labels rotated 45 degrees
+ggplot() +
+  # Draw the time series line data using Index for continuous path tracking
+  geom_line(data = plot_data, aes(x = Index, y = Value), color = "steelblue", size = 0.8) +
+  # Draw the variance indicator bars on the left margin
+  geom_rect(data = bar_data, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax), 
+            fill = "gray60", color = "gray40", alpha = 0.7) +
+  # Separate into vertical panels with free y-axes
+  facet_wrap(~ Component, ncol = 1, scales = "free_y") +
+  # Map the numeric indices directly to the original "Q1-2002" string labels
+  scale_x_continuous(
+    breaks = stl_df$Index,
+    labels = stl_df$Quarter,
+    expand = expansion(mult = c(0.05, 0.02))
+  ) +
+  labs(title = "STL Decomposition with DepartmentStoreSales",
+       x = "Quarter",
+       y = "Value") +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(face = "bold", size = 11),
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    panel.grid.minor = element_blank(),
+    # Rotate x-axis labels by 45 degrees and align them cleanly to the tick marks
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 9)
+  )
+
+
+#3
+
+
+ApplianceShipments <- read.csv(file = "ApplianceShipments.csv", header = TRUE)
+str(ApplianceShipments)
+
+# Load required library
+library(ggplot2)
+
+# 1. Load the dataset
+ApplianceShipments <- read.csv(file = "ApplianceShipments.csv", header = TRUE)
+
+# 2. CRITICAL: Reorder data chronologically
+# Extract Year and Quarter numbers to sort correctly (e.g., "Q1-1985" -> Year 1985, Quarter 1)
+ApplianceShipments$YearNum <- as.numeric(gsub(".*-", "", ApplianceShipments$Quarter))
+ApplianceShipments$QtrNum  <- as.numeric(substr(ApplianceShipments$Quarter, 2, 2))
+
+# Sort the dataframe by Year and then by Quarter
+ApplianceShipments <- ApplianceShipments[order(ApplianceShipments$YearNum, ApplianceShipments$QtrNum), ]
+
+# 3. Convert to a Time Series Object
+# 20 observations = 5 years of quarterly data (1985 to 1989)
+shipments_ts <- ts(ApplianceShipments$Shipments, start = c(1985, 1), frequency = 4)
+
+# 4. Perform STL Decomposition
+stl_fit <- stl(shipments_ts, s.window = "periodic")
+
+# 5. Extract and Prepare Data for ggplot2
+stl_df          <- as.data.frame(stl_fit$time.series)
+stl_df$Observed <- as.numeric(shipments_ts)
+stl_df$Quarter  <- ApplianceShipments$Quarter
+stl_df$Index    <- 1:nrow(stl_df)
+
+# Reshape into long format for facetting
+plot_data <- data.frame(
+  Quarter   = rep(stl_df$Quarter, 4),
+  Index     = rep(stl_df$Index, 4),
+  Value     = c(stl_df$Observed, stl_df$trend, stl_df$seasonal, stl_df$remainder),
+  Component = factor(rep(c("Observed", "Trend", "Seasonal", "Remainder"), each = nrow(stl_df)),
+                     levels = c("Observed", "Trend", "Seasonal", "Remainder"))
+)
+
+# 6. Calculate Scale Bar Height (Variance Bars)
+min_range <- min(
+  diff(range(stl_df$Observed)),
+  diff(range(stl_df$trend)),
+  diff(range(stl_df$seasonal)),
+  diff(range(stl_df$remainder))
+)
+
+# Position the scale bars on the left margin
+bar_data <- data.frame(
+  Component = factor(c("Observed", "Trend", "Seasonal", "Remainder"),
+                     levels = c("Observed", "Trend", "Seasonal", "Remainder")),
+  xmin = 0.1,
+  xmax = 0.4
+)
+bar_data$ymin <- c(mean(stl_df$Observed), mean(stl_df$trend), mean(stl_df$seasonal), mean(stl_df$remainder)) - (min_range / 2)
+bar_data$ymax <- c(mean(stl_df$Observed), mean(stl_df$trend), mean(stl_df$seasonal), mean(stl_df$remainder)) + (min_range / 2)
+
+# 7. Generate the Final Plot (Answers question 'a')
+ggplot() +
+  geom_line(data = plot_data, aes(x = Index, y = Value), color = "darkgreen", size = 0.8) +
+  geom_rect(data = bar_data, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax), 
+            fill = "gray60", color = "gray40", alpha = 0.7) +
+  facet_wrap(~ Component, ncol = 1, scales = "free_y") +
+  scale_x_continuous(
+    breaks = stl_df$Index,
+    labels = stl_df$Quarter,
+    expand = expansion(mult = c(0.05, 0.02))
+  ) +
+  labs(title = "STL Decomposition of Appliance Shipments (1985-1989)",
+       x = "Quarter",
+       y = "Shipments (Millions of USD)") +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(face = "bold", size = 11),
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 9)
+  )
+
+
+#4
+
+
+# Load required library
+library(ggplot2)
+
+# 1. Load the dataset from the CSV file
+CanadianWorkHours <- read.csv(file = "CanadianWorkHours.csv", header = TRUE)
+
+# 2. Force a frequency of 2 to allow STL decomposition on annual data
+# This creates a dummy seasonal component while correctly separating trend and remainder
+hours_ts <- ts(CanadianWorkHours$Hours.per.week, start = min(CanadianWorkHours$Year), frequency = 2)
+
+# 3. Perform STL Decomposition
+# 's.window = "periodic"' keeps the dummy seasonal effect perfectly flat/constant
+stl_fit <- stl(hours_ts, s.window = "periodic")
+
+# 4. Extract components into a dataframe for ggplot2
+stl_df          <- as.data.frame(stl_fit$time.series)
+stl_df$Observed <- as.numeric(hours_ts)
+stl_df$Year     <- CanadianWorkHours$Year
+
+# 5. Reshape into long format for a 4-panel vertical plot
+plot_data <- data.frame(
+  Year      = rep(stl_df$Year, 4),
+  Value     = c(stl_df$Observed, stl_df$trend, stl_df$seasonal, stl_df$remainder),
+  Component = factor(rep(c("Observed", "Trend", "Seasonal", "Remainder"), each = nrow(stl_df)),
+                     levels = c("Observed", "Trend", "Seasonal", "Remainder"))
+)
+
+# 6. Calculate the unified data range to define the scale bar height
+min_range <- min(
+  diff(range(stl_df$Observed)),
+  diff(range(stl_df$trend)),
+  diff(range(stl_df$seasonal)),
+  diff(range(stl_df$remainder))
+)
+
+# 7. Create a data frame for the variance bars on the left side
+bar_data <- data.frame(
+  Component = factor(c("Observed", "Trend", "Seasonal", "Remainder"),
+                     levels = c("Observed", "Trend", "Seasonal", "Remainder")),
+  xmin = min(stl_df$Year) - 1.5,
+  xmax = min(stl_df$Year) - 0.5
+)
+
+# Center the bars vertically for each panel
+bar_data$ymin <- c(mean(stl_df$Observed), mean(stl_df$trend), mean(stl_df$seasonal), mean(stl_df$remainder)) - (min_range / 2)
+bar_data$ymax <- c(mean(stl_df$Observed), mean(stl_df$trend), mean(stl_df$seasonal), mean(stl_df$remainder)) + (min_range / 2)
+
+# 8. Generate the full 4-panel ggplot with a 45-degree rotated x-axis
+ggplot() +
+  # Line data for all 4 components
+  geom_line(data = plot_data, aes(x = Year, y = Value), color = "darkred", size = 0.8) +
+  # Variance indicators (Scale bars) on the left margin
+  geom_rect(data = bar_data, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax), 
+            fill = "gray60", color = "gray40", alpha = 0.7) +
+  # Separate into Observed, Trend, Seasonal, and Remainder
+  facet_wrap(~ Component, ncol = 1, scales = "free_y") +
+  # Display every single year on the x-axis
+  scale_x_continuous(
+    breaks = stl_df$Year,
+    labels = stl_df$Year,
+    expand = expansion(mult = c(0.05, 0.02))
+  ) +
+  labs(title = "4-Component STL Decomposition of Canadian Work Hours",
+       x = "Year",
+       y = "Hours per Week") +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(face = "bold", size = 11),
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    panel.grid.minor = element_blank(),
+    # Rotate year labels by 45 degrees
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 9)
+  )
+
+
+
+#5
+
+
+# Load required libraries
+library(ggplot2)
+library(tidyr)
+
+# 1. Load the dataset from the CSV file
+SouvenirSales <- read.csv(file = "SouvenirSales.csv", header = TRUE)
+
+# 2. Convert to a Time Series Object
+# 84 observations = 7 years of monthly data starting in January 1995
+sales_ts <- ts(SouvenirSales$Sales, start = c(1995, 1), frequency = 12)
+
+# 3. Create a dataframe and calculate log-transformed sales
+combined_df <- data.frame(
+  DateNum  = as.numeric(time(sales_ts)),
+  Raw      = as.numeric(sales_ts),
+  LogTrans = log(as.numeric(sales_ts))
+)
+
+# 4. Reshape into long format to plot both series in a single ggplot object
+# This creates a 'Type' factor to separate Raw and Log-Transformed scales
+plot_data <- gather(combined_df, key = "Type", value = "Value", Raw, LogTrans)
+plot_data$Type <- factor(plot_data$Type, 
+                         levels = c("Raw", "LogTrans"),
+                         labels = c("Raw Data (Exponential Scale)", "Log-Transformed Data (Linear Scale)"))
+
+# 5. Generate a multi-panel plot comparing both time series side-by-side/vertically
+ggplot(plot_data, aes(x = DateNum, y = Value)) +
+  # Draw the time series line data
+  geom_line(aes(color = Type), size = 0.8, show.legend = FALSE) +
+  # Separate into two horizontal panels with free y-axes to accommodate different scales
+  facet_wrap(~ Type, ncol = 1, scales = "free_y") +
+  # Add a vertical dashed line at Year 2001 to indicate the validation partition boundary
+  geom_vline(xintercept = 2001.0, linetype = "dashed", color = "red", size = 0.8) +
+  # Set explicit yearly breaks on the x-axis for clear temporal tracking
+  scale_x_continuous(breaks = 1995:2002) +
+  # Apply distinct color palettes for each transformation type
+  scale_color_manual(values = c("Raw Data (Exponential Scale)" = "darkblue", 
+                                "Log-Transformed Data (Linear Scale)" = "darkgreen")) +
+  labs(title = "Comparison of Raw and Log-Transformed Souvenir Sales",
+       x = "Year",
+       y = "Value") +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(face = "bold", size = 11),
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    panel.grid.minor = element_blank()
+  )
+
+
+#6
+
+
+ShampooSales <- read.csv(file = "ShampooSales.csv", header = TRUE)
+str(ShampooSales)
+
+
+# Load required library
+library(ggplot2)
+
+# 1. Load the dataset from the CSV file
+ShampooSales <- read.csv(file = "ShampooSales.csv", header = TRUE)
+
+# 2. Convert to a Time Series Object
+# 36 observations = 3 years of monthly data starting from January 1995 (Frequency = 12)
+shampoo_ts <- ts(ShampooSales$Shampoo.Sales, start = c(1995, 1), frequency = 12)
+
+# 3. Perform STL Decomposition
+stl_fit <- stl(shampoo_ts, s.window = "periodic")
+
+# 4. Extract components into a dataframe for ggplot2
+stl_df          <- as.data.frame(stl_fit$time.series)
+stl_df$Observed <- as.numeric(shampoo_ts)
+stl_df$Month    <- ShampooSales$Month
+stl_df$Index    <- 1:nrow(stl_df)
+
+# 5. Reshape into long format to utilize ggplot's facetting function
+plot_data <- data.frame(
+  Month     = rep(stl_df$Month, 4),
+  Index     = rep(stl_df$Index, 4),
+  Value     = c(stl_df$Observed, stl_df$trend, stl_df$seasonal, stl_df$remainder),
+  Component = factor(rep(c("Observed", "Trend", "Seasonal", "Remainder"), each = nrow(stl_df)),
+                     levels = c("Observed", "Trend", "Seasonal", "Remainder"))
+)
+
+# 6. Calculate the unified data range to define the scale bar height
+min_range <- min(
+  diff(range(stl_df$Observed)),
+  diff(range(stl_df$trend)),
+  diff(range(stl_df$seasonal)),
+  diff(range(stl_df$remainder))
+)
+
+# 7. Create a data frame for the variance bars positioned on the left side
+bar_data <- data.frame(
+  Component = factor(c("Observed", "Trend", "Seasonal", "Remainder"),
+                     levels = c("Observed", "Trend", "Seasonal", "Remainder")),
+  xmin = 0.1,
+  xmax = 0.6
+)
+
+# Center the bars vertically within each component's specific y-axis range
+bar_data$ymin <- c(mean(stl_df$Observed), mean(stl_df$trend), mean(stl_df$seasonal), mean(stl_df$remainder)) - (min_range / 2)
+bar_data$ymax <- c(mean(stl_df$Observed), mean(stl_df$trend), mean(stl_df$seasonal), mean(stl_df$remainder)) + (min_range / 2)
+
+# 8. Create the multi-panel plot with full x-axis labels rotated 45 degrees
+ggplot() +
+  # Draw the time series line data using Index for continuous path tracking
+  geom_line(data = plot_data, aes(x = Index, y = Value), color = "darkcyan", size = 0.8) +
+  # Draw the variance indicator bars on the left margin
+  geom_rect(data = bar_data, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax), 
+            fill = "gray60", color = "gray40", alpha = 0.7) +
+  # Separate into vertical panels with free y-axes
+  facet_wrap(~ Component, ncol = 1, scales = "free_y") +
+  # Map the numeric indices directly to the original date text labels
+  scale_x_continuous(
+    breaks = stl_df$Index,
+    labels = stl_df$Month,
+    expand = expansion(mult = c(0.05, 0.02))
+  ) +
+  labs(title = "STL Decomposition of Shampoo Sales",
+       x = "Month",
+       y = "Sales") +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(face = "bold", size = 11),
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    panel.grid.minor = element_blank(),
+    # Rotate x-axis labels by 45 degrees and align them cleanly to the tick marks
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 8)
+  )
+
+
+
+###part 2 ------------------------------------------------------------------------------------------------
