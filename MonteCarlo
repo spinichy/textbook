@@ -7233,7 +7233,6 @@ Part 6 -------------------------------------------------------------------------
 
 
 
-
 ##example
 
 
@@ -7498,3 +7497,1317 @@ print(paste("Calculated Coefficient of Variation (CV = Bias/SE):", round(calcula
 
 
 
+
+#5
+
+
+
+# 1. Load the bootstrap package and the patch dataset
+library(bootstrap)
+data(patch)
+n <- nrow(patch)
+
+# 2. Calculate the original ratio statistic (theta_hat)
+theta_hat <- mean(patch$y) / mean(patch$z)
+
+# 3. Jackknife replication settings
+# Jackknife replicates exactly n times (dropping one observation at a time)
+theta_hat_j <- numeric(n)  
+
+# 4. Perform Jackknife Resampling
+for (i in 1:n) {
+  # Drop the i-th observation
+  jackknife_sample <- patch[-i, ]
+  theta_hat_j[i] <- mean(jackknife_sample$y) / mean(jackknife_sample$z)
+}
+
+# 5. Calculate Bias, Variance, Standard Error, and Coefficient of Variation (CV)
+theta_hat_bar <- mean(theta_hat_j)
+
+# Jackknife Bias formula: (n - 1) * (mean(theta_hat_j) - theta_hat)
+bias_jackknife <- (n - 1) * (theta_hat_bar - theta_hat)
+
+# Jackknife Variance formula: ((n - 1) / n) * sum((theta_hat_j - theta_hat_bar)^2)
+var_jackknife <- ((n - 1) / n) * sum((theta_hat_j - theta_hat_bar)^2)
+se_jackknife <- sqrt(var_jackknife)
+
+# Keeping your original formula: Bias / SE
+cv_jackknife <- bias_jackknife / se_jackknife  
+
+# 6. Print the results
+print(paste("Original Ratio Estimate (theta_hat):", round(theta_hat, 4)))
+print(paste("Jackknife Estimate of Bias:", round(bias_jackknife, 4)))
+print(paste("Jackknife Estimate of Variance:", round(var_jackknife, 6)))
+print(paste("Jackknife Estimate of Standard Error (SE):", round(se_jackknife, 4)))
+print(paste("Coefficient of Variation (CV = Bias/SE):", round(cv_jackknife, 4)))
+
+
+
+#6
+
+
+
+# -------------------------------------------------------------------------
+#Failure of the Jackknife for the Median
+# -------------------------------------------------------------------------
+
+# Set seed for reproducibility
+set.seed(42)
+
+# 1. Generate a random sample of size n = 10 from integers 1 to 100
+n <- 10
+population <- 1:100
+sample_data <- sample(population, size = n, replace = TRUE)
+
+# Sort the data for visual clarity
+sample_data <- sort(sample_data)
+cat("--- [1] Original Sample Data ---\n")
+cat("Observations (n=10):", sample_data, "\n")
+original_median <- median(sample_data)
+cat("Original Sample Median:", original_median, "\n\n")
+
+
+# 2. Jackknife Estimation
+jackknife_medians <- numeric(n)
+
+for (i in 1:n) {
+  jackknife_sample <- sample_data[-i]
+  jackknife_medians[i] <- median(jackknife_sample)
+}
+
+mean_jackknife_median <- mean(jackknife_medians)
+jackknife_se <- sqrt(((n - 1) / n) * sum((jackknife_medians - mean_jackknife_median)^2))
+
+cat("--- [2] Jackknife Replication Results ---\n")
+cat("Jackknife Medians (theta_{-i}):\n", jackknife_medians, "\n")
+cat("Number of Unique Jackknife Medians:", length(unique(jackknife_medians)), "\n")
+cat("Mean of Jackknife Medians         :", mean_jackknife_median, "\n")
+cat("Jackknife Standard Error (SE)     :", jackknife_se, "\n\n")
+
+
+# 3. Bootstrap Estimation
+B <- 2000  
+bootstrap_medians <- numeric(B)
+
+for (b in 1:B) {
+  bootstrap_sample <- sample(sample_data, size = n, replace = TRUE)
+  bootstrap_medians[b] <- median(bootstrap_sample)
+}
+
+mean_bootstrap_median <- mean(bootstrap_medians)
+bootstrap_se <- sd(bootstrap_medians)
+
+cat("--- [3] Bootstrap Replication Results ---\n")
+# Showing only the first 30 bootstrap medians for readability
+cat("First 30 Bootstrap Medians (out of 2000):\n", bootstrap_medians[1:30], "...\n")
+cat("Number of Unique Bootstrap Medians:", length(unique(bootstrap_medians)), "\n")
+cat("Mean of Bootstrap Medians         :", mean_bootstrap_median, "\n")
+cat("Bootstrap Standard Error (SE)     :", bootstrap_se, "\n\n")
+
+
+# 4. Summary Table of Medians Distribution
+cat("--- [4] Distribution Summary (Quantiles) ---\n")
+cat("Jackknife Medians Summary:\n")
+print(summary(jackknife_medians))
+cat("\nBootstrap Medians Summary:\n")
+print(summary(bootstrap_medians))
+
+
+
+#7
+
+
+
+# 1. Load the bootstrap package and the patch dataset
+library(bootstrap)
+data(patch)
+n <- nrow(patch)
+
+# 2. Calculate the original ratio statistic (theta_hat)
+theta_hat <- mean(patch$y) / mean(patch$z)
+
+# 3. Bootstrap settings
+B <- 2000  # Number of bootstrap replicates (sufficiently large)
+theta_hat_b <- numeric(B)
+indices_matrix <- matrix(0, nrow = B, ncol = n)
+
+# 4. Perform original Bootstrap and record indices
+set.seed(123) # For reproducibility
+for (b in 1:B) {
+  # Generate bootstrap indices with replacement
+  boot_indices <- sample(1:n, size = n, replace = TRUE)
+  indices_matrix[b, ] <- boot_indices
+  
+  boot_sample <- patch[boot_indices, ]
+  theta_hat_b[b] <- mean(boot_sample$y) / mean(boot_sample$z)
+}
+
+# 5. Pure Bootstrap Estimates Calculation
+theta_hat_b_bar <- mean(theta_hat_b)
+bias_bootstrap <- theta_hat_b_bar - theta_hat
+var_bootstrap <- var(theta_hat_b)
+se_bootstrap <- sqrt(var_bootstrap)
+cv_bootstrap <- bias_bootstrap / se_bootstrap
+
+# 6. Bootstrap-after-Jackknife Replication
+theta_hat_j <- numeric(n)
+
+for (i in 1:n) {
+  # J(i): Find bootstrap replicates that DO NOT contain the i-th observation
+  j_i <- which(rowSums(indices_matrix == i) == 0)
+  
+  # B(i): Number of bootstrap replicates without the i-th observation
+  B_i <- length(j_i)
+  
+  # Calculate the jackknife replicate as the mean of these filtered bootstrap estimates
+  if (B_i > 0) {
+    theta_hat_j[i] <- mean(theta_hat_b[j_i])
+  } else {
+    theta_hat_j[i] <- NA
+  }
+}
+
+# Remove NA values if any exist
+theta_hat_j <- na.omit(theta_hat_j)
+n_eff <- length(theta_hat_j)
+
+# 7. Bootstrap-after-Jackknife Estimates Calculation
+theta_hat_j_bar <- mean(theta_hat_j)
+bias_jackknife <- (n_eff - 1) * (theta_hat_j_bar - theta_hat)
+var_jackknife <- ((n_eff - 1) / n) * sum((theta_hat_j - theta_hat_j_bar)^2)
+se_jackknife <- sqrt(var_jackknife)
+cv_jackknife <- bias_jackknife / se_jackknife  
+
+# 8. Print and Compare the Results
+cat("=========================================================\n")
+cat(" Original Data Estimate\n")
+cat("=========================================================\n")
+print(paste("Original Ratio Estimate (theta_hat):", round(theta_hat, 4)))
+cat("\n")
+
+cat("=========================================================\n")
+cat(" Pure Bootstrap Framework Results\n")
+cat("=========================================================\n")
+print(paste("Bootstrap Estimate of Bias:", round(bias_bootstrap, 4)))
+print(paste("Bootstrap Estimate of Variance:", round(var_bootstrap, 6)))
+print(paste("Bootstrap Estimate of Standard Error (SE):", round(se_bootstrap, 4)))
+print(paste("Bootstrap Coefficient of Variation (CV):", round(cv_bootstrap, 4)))
+cat("\n")
+
+cat("=========================================================\n")
+cat(" Bootstrap-after-Jackknife Framework Results\n")
+cat("=========================================================\n")
+print(paste("Jackknife Estimate of Bias:", round(bias_jackknife, 4)))
+print(paste("Jackknife Estimate of Variance:", round(var_jackknife, 6)))
+print(paste("Jackknife Estimate of Standard Error (SE):", round(se_jackknife, 4)))
+print(paste("Jackknife Coefficient of Variation (CV):", round(cv_jackknife, 4)))
+cat("=========================================================\n")
+
+
+
+#8
+
+
+
+##standard normal bootstrap confidence interval
+
+
+# 1. Base data setup
+
+library(bootstrap)
+str(law)
+
+# 2. Parameters for Bootstrap
+B <- 2000                     # Number of bootstrap replications
+alpha <- 0.05                 # Significance level (95% Confidence Interval)
+n <- nrow(law)                # Sample size (15)
+
+# Calculate the original sample statistic (Correlation)
+theta_hat <- cor(law$LSAT, law$GPA)
+
+# 3. Perform Bootstrap iterations
+set.seed(123)                 # For reproducibility
+bootstrap_estimates <- numeric(B)
+
+for(i in 1:B) {
+  # Resample indices with replacement
+  boot_indices <- sample(1:n, size = n, replace = TRUE)
+  boot_sample <- law[boot_indices, ]
+  
+  # Calculate bootstrap statistic
+  bootstrap_estimates[i] <- cor(boot_sample$LSAT, boot_sample$GPA)
+}
+
+# 4. Calculate Bootstrap Standard Error
+se_boot <- sd(bootstrap_estimates)
+
+# 5. Calculate Standard Normal Bootstrap Confidence Interval
+z_val <- qnorm(1 - alpha/2)   # 1.96 for alpha = 0.05
+ci_lower <- theta_hat - z_val * se_boot
+ci_upper <- theta_hat + z_val * se_boot
+
+# Print results
+cat("Original Estimate (theta_hat):", theta_hat, "\n")
+cat("Bootstrap Standard Error:     ", se_boot, "\n")
+cat(sprintf("%.0f%% Standard Normal Bootstrap CI: [%.4f, %.4f]\n", (1 - alpha) * 100, ci_lower, ci_upper))
+
+
+
+#basic bootstrap confidence interval
+
+
+# 1. Base data setup
+library(bootstrap)
+str(law)
+
+# 2. Parameters for Bootstrap
+B <- 2000                     # Number of bootstrap replications
+alpha <- 0.05                 # Significance level (95% Confidence Interval)
+n <- nrow(law)                # Sample size (15)
+
+# Calculate the original sample statistic (Correlation)
+theta_hat <- cor(law$LSAT, law$GPA)
+
+# 3. Perform Bootstrap iterations
+set.seed(123)                 # For reproducibility
+bootstrap_estimates <- numeric(B)
+
+for(i in 1:B) {
+  # Resample indices with replacement
+  boot_indices <- sample(1:n, size = n, replace = TRUE)
+  boot_sample <- law[boot_indices, ]
+  
+  # Calculate bootstrap statistic
+  bootstrap_estimates[i] <- cor(boot_sample$LSAT, boot_sample$GPA)
+}
+
+# 4. Find the percentiles of the bootstrap estimates
+# For 95% CI: alpha/2 = 0.025 and 1 - alpha/2 = 0.975
+boot_lower_pct <- quantile(bootstrap_estimates, alpha / 2)
+boot_upper_pct <- quantile(bootstrap_estimates, 1 - alpha / 2)
+
+# 5. Calculate Basic Bootstrap Confidence Interval
+# Formula: ( 2*theta_hat - theta_hat*(1-alpha/2), 2*theta_hat - theta_hat*(alpha/2) )
+ci_lower <- 2 * theta_hat - boot_upper_pct
+ci_upper <- 2 * theta_hat - boot_lower_pct
+
+# Print results
+cat("Original Estimate (theta_hat):", theta_hat, "\n")
+cat(sprintf("%.0f%% Basic Bootstrap CI: [%.4f, %.4f]\n", (1 - alpha) * 100, ci_lower, ci_upper))
+
+
+
+
+#percentile bootstrap confidence interval
+
+
+
+# 1. Base data setup
+library(bootstrap)
+str(law)
+
+# 2. Parameters for Bootstrap
+B <- 2000                     # Number of bootstrap replications
+alpha <- 0.05                 # Significance level (95% Confidence Interval)
+n <- nrow(law)                # Sample size (15)
+
+# Calculate the original sample statistic (Correlation)
+theta_hat <- cor(law$LSAT, law$GPA)
+
+# 3. Perform Bootstrap iterations
+set.seed(123)                 # For reproducibility
+bootstrap_estimates <- numeric(B)
+
+for(i in 1:B) {
+  # Resample indices with replacement
+  boot_indices <- sample(1:n, size = n, replace = TRUE)
+  boot_sample <- law[boot_indices, ]
+  
+  # Calculate bootstrap statistic
+  bootstrap_estimates[i] <- cor(boot_sample$LSAT, boot_sample$GPA)
+}
+
+# 4. Find the percentiles of the bootstrap estimates
+# For 95% CI: alpha/2 = 0.025 and 1 - alpha/2 = 0.975
+boot_lower_pct <- quantile(bootstrap_estimates, alpha / 2)
+boot_upper_pct <- quantile(bootstrap_estimates, 1 - alpha / 2)
+
+# 5. Calculate Percentile Bootstrap Confidence Interval
+# Formula: ( theta_hat*(alpha/2), theta_hat*(1-alpha/2) )
+# In Percentile CI, we directly use the empirical percentiles.
+ci_lower <- boot_lower_pct
+ci_upper <- boot_upper_pct
+
+# Print results
+cat("Original Estimate (theta_hat):", theta_hat, "\n")
+cat(sprintf("%.0f%% Percentile Bootstrap CI: [%.4f, %.4f]\n", (1 - alpha) * 100, ci_lower, ci_upper))
+
+
+
+#percentile bootstrap confidence interval - BCa
+
+
+
+# 1. Base data setup
+library(bootstrap)
+str(law)
+
+# 2. Parameters for Bootstrap
+B <- 2000                     # Number of bootstrap replications
+alpha <- 0.05                 # Significance level (95% Confidence Interval)
+n <- nrow(law)                # Sample size (15)
+
+# Calculate the original sample statistic (Correlation)
+theta_hat <- cor(law$LSAT, law$GPA)
+
+# 3. Perform Bootstrap iterations
+set.seed(123)                 # For reproducibility
+bootstrap_estimates <- numeric(B)
+
+for(i in 1:B) {
+  # Resample indices with replacement
+  boot_indices <- sample(1:n, size = n, replace = TRUE)
+  boot_sample <- law[boot_indices, ]
+  
+  # Calculate bootstrap statistic
+  bootstrap_estimates[i] <- cor(boot_sample$LSAT, boot_sample$GPA)
+}
+
+# 4. Calculate BCa Parameters (z0 and a)
+
+# 4-1. Bias-correction parameter (z0)
+# Proportion of bootstrap estimates less than or equal to the original estimate
+p_le <- mean(bootstrap_estimates <= theta_hat)
+z0 <- qnorm(p_le)
+
+# 4-2. Acceleration parameter (a) using Jackknife
+jack_estimates <- numeric(n)
+for(i in 1:n) {
+  jack_sample <- law[-i, ]    # Drop the i-th observation
+  jack_estimates[i] <- cor(jack_sample$LSAT, jack_sample$GPA)
+}
+
+jack_mean <- mean(jack_estimates)
+jack_diff <- jack_mean - jack_estimates
+
+# Calculate acceleration based on skewed third moment (Taylor approximation)
+num <- sum(jack_diff^3)
+den <- 6 * (sum(jack_diff^2))^(1.5)
+a <- num / den
+
+# 5. Calculate Adjusted Percentiles (alpha1 and alpha2)
+z_alpha_lower <- qnorm(alpha / 2)
+z_alpha_upper <- qnorm(1 - alpha / 2)
+
+# BCa formula for adjusted normal percentiles
+adjusted_z1 <- z0 + (z0 + z_alpha_lower) / (1 - a * (z0 + z_alpha_lower))
+adjusted_z2 <- z0 + (z0 + z_alpha_upper) / (1 - a * (z0 + z_alpha_upper))
+
+# Convert back to probability scale using CDF (pnorm)
+alpha1 <- pnorm(adjusted_z1)
+alpha2 <- pnorm(adjusted_z2)
+
+# 6. Find the BCa Bootstrap Confidence Interval
+ci_lower <- quantile(bootstrap_estimates, alpha1)
+ci_upper <- quantile(bootstrap_estimates, alpha2)
+
+# Print results
+cat("Original Estimate (theta_hat):", theta_hat, "\n")
+cat("Bias-correction (z0):         ", z0, "\n")
+cat("Acceleration (a):             ", a, "\n")
+cat(sprintf("Adjusted Percentiles:          alpha1 = %.4f, alpha2 = %.4f\n", alpha1, alpha2))
+cat(sprintf("%.0f%% BCa Bootstrap CI:         [%.4f, %.4f]\n", (1 - alpha) * 100, ci_lower, ci_upper))
+
+
+
+#bootstrap t confidence interval
+
+
+
+# 1. Base data setup
+library(bootstrap)
+str(law)
+
+# 2. Parameters for Bootstrap
+B <- 2000                     # Number of bootstrap replications
+alpha <- 0.05                 # Significance level (95% Confidence Interval)
+n <- nrow(law)                # Sample size (15)
+
+# Calculate the original sample statistic (Correlation)
+theta_hat <- cor(law$LSAT, law$GPA)
+
+# [FIXED] Calculate the Standard Error of the original sample using Jackknife
+jack_estimates_orig <- numeric(n)
+for(j in 1:n) {
+  # Correct indexing: law[-j, "LSAT"] and law[-j, "GPA"]
+  jack_estimates_orig[j] <- cor(law[-j, "LSAT"], law[-j, "GPA"])
+}
+se_theta_hat <- sqrt(((n - 1) / n) * sum((jack_estimates_orig - mean(jack_estimates_orig))^2))
+
+# 3. Perform Bootstrap iterations
+set.seed(123)                 # For reproducibility
+t_statistics <- numeric(B)    # To store studentized t* values
+
+for(i in 1:B) {
+  # Resample indices with replacement
+  boot_indices <- sample(1:n, size = n, replace = TRUE)
+  boot_sample <- law[boot_indices, ]
+  
+  # Calculate bootstrap statistic (theta_hat_star)
+  theta_hat_star <- cor(boot_sample$LSAT, boot_sample$GPA)
+  
+  # [FIXED] Calculate the Standard Error within THIS bootstrap sample using Jackknife
+  jack_estimates_boot <- numeric(n)
+  for(j in 1:n) {
+    # Correct indexing for the bootstrap resample as well
+    jack_estimates_boot[j] <- cor(boot_sample[-j, "LSAT"], boot_sample[-j, "GPA"])
+  }
+  se_boot_star <- sqrt(((n - 1) / n) * sum((jack_estimates_boot - mean(jack_estimates_boot))^2))
+  
+  # Avoid division by zero if se_boot_star happens to be 0
+  if(se_boot_star == 0) se_boot_star <- 1e-6
+  
+  # Calculate the Studentized t-statistic for this bootstrap sample
+  t_statistics[i] <- (theta_hat_star - theta_hat) / se_boot_star
+}
+
+# 4. Find the percentiles of the bootstrap t-statistics
+t_lower_pct <- quantile(t_statistics, 1 - alpha / 2, na.rm = TRUE)
+t_upper_pct <- quantile(t_statistics, alpha / 2, na.rm = TRUE)
+
+# 5. Calculate Bootstrap t Confidence Interval
+ci_lower <- theta_hat - t_lower_pct * se_theta_hat
+ci_upper <- theta_hat - t_upper_pct * se_theta_hat
+
+# Print results
+cat("Original Estimate (theta_hat):", theta_hat, "\n")
+cat("Original Standard Error (se): ", se_theta_hat, "\n")
+cat(sprintf("%.0f%% Bootstrap t CI:        [%.4f, %.4f]\n", (1 - alpha) * 100, ci_lower, ci_upper))
+
+
+
+##summary
+
+
+
+# 1. Load required library
+library(ggplot2)
+
+# 2. Construct the dataset with ALL 5 intervals in the exact requested order
+# Levels are reversed inside factor() so they display top-to-bottom on the flipped plot
+bootstrap_results <- data.frame(
+  Method = factor(
+    c("Standard Normal", "Basic Bootstrap", "Percentile Bootstrap", "BCa Bootstrap", "Bootstrap t"),
+    levels = c("Bootstrap t", "BCa Bootstrap", "Percentile Bootstrap", "Basic Bootstrap", "Standard Normal")
+  ),
+  Lower  = c(0.5209, 0.5889, 0.4837, 0.3768, -0.4504),
+  Upper  = c(1.0319, 1.0691, 0.9638, 0.9409, 0.9714),
+  Estimate = rep(0.7763745, 5)
+)
+
+# 3. Create the ggplot visualization
+p <- ggplot(bootstrap_results, aes(x = Method, y = Estimate)) +
+  # Draw a dashed reference line for the original sample estimate (theta_hat = 0.7764)
+  geom_hline(yintercept = 0.7763745, color = "firebrick", linetype = "dashed", size = 0.8) +
+  # Plot the confidence intervals using pointrange
+  geom_pointrange(aes(ymin = Lower, ymax = Upper), 
+                  color = "navyblue", size = 0.8, fatten = 3) +
+  # Flip coordinates to make the interval lines horizontal
+  coord_flip() +
+  # Add value labels next to the intervals for clarity
+  geom_text(aes(y = Lower, label = sprintf("%.4f", Lower)), hjust = 1.2, vjust = -0.5, size = 3.5, color = "gray20") +
+  geom_text(aes(y = Upper, label = sprintf("%.4f", Upper)), hjust = -0.2, vjust = -0.5, size = 3.5, color = "gray30") +
+  # Set clean labels and title
+  labs(
+    title = "Comparison of 5 Bootstrap Confidence Intervals",
+    subtitle = "Based on 'law' dataset correlation parameter (theta_hat = 0.7764)",
+    x = "",
+    y = "Confidence Interval Scale"
+  ) +
+  # Apply a minimal and sophisticated theme
+  theme_minimal(base_family = "sans") +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, margin = margin(b = 5)),
+    plot.subtitle = element_text(size = 10, color = "gray40", margin = margin(b = 15)),
+    axis.text.y = element_text(face = "bold", size = 11, color = "black"),
+    axis.text.x = element_text(size = 10),
+    panel.grid.major.y = element_blank(), # Remove horizontal grid lines since we have pointranges
+    panel.grid.minor = element_blank()
+  )
+
+# 4. Print the plot
+print(p)
+
+
+
+#9
+
+
+
+# 1. Load required libraries
+library(DAAG)
+str(ironslag)
+
+
+library(ggplot2)
+library(gridExtra)
+
+# 2. Define the 4 regression model plots (Corrected version)
+
+# Model 1: Linear Model
+p1 <- ggplot(ironslag, aes(x = chemical, y = magnetic)) +
+  geom_point(color = "gray30", alpha = 0.7) +
+  geom_smooth(method = "lm", formula = y ~ x, color = "firebrick", size = 1) +
+  labs(title = "1. Linear Model", x = "Chemical", y = "Magnetic") +
+  theme_minimal()
+
+# Model 2: Quadratic Model
+p2 <- ggplot(ironslag, aes(x = chemical, y = magnetic)) +
+  geom_point(color = "gray30", alpha = 0.7) +
+  geom_smooth(method = "lm", formula = y ~ x + I(x^2), color = "darkorange", size = 1) +
+  labs(title = "2. Quadratic Model", x = "Chemical", y = "Magnetic") +
+  theme_minimal()
+
+# Model 3: Exponential Model (Fixed using nls)
+# Fits the formula: y = a * exp(b * x) directly on raw scale
+p3 <- ggplot(ironslag, aes(x = chemical, y = magnetic)) +
+  geom_point(color = "gray30", alpha = 0.7) +
+  geom_smooth(method = "nls", formula = y ~ a * exp(b * x), 
+              method.args = list(start = list(a = 1, b = 0.1)), 
+              se = FALSE, color = "forestgreen", size = 1) +
+  labs(title = "3. Exponential Model", x = "Chemical", y = "Magnetic") +
+  theme_minimal()
+
+# Model 4: Log-Log Model (Fixed using nls)
+# Fits the formula: y = a * (x ^ b) directly on raw scale
+p4 <- ggplot(ironslag, aes(x = chemical, y = magnetic)) +
+  geom_point(color = "gray30", alpha = 0.7) +
+  geom_smooth(method = "nls", formula = y ~ a * (x ^ b), 
+              method.args = list(start = list(a = 1, b = 1)), 
+              se = FALSE, color = "deepskyblue4", size = 1) +
+  labs(title = "4. Log-Log Model", x = "Chemical", y = "Magnetic") +
+  theme_minimal()
+
+# 3. Arrange all 4 plots together
+grid.arrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
+
+
+
+
+
+# 1. Load required libraries
+library(DAAG)
+library(ggplot2)
+
+# 2. Data setup and seed configuration for exact reproducibility
+data(ironslag)
+n <- nrow(ironslag)
+set.seed(123)
+
+# 3. Initialize the 12-row comparison dataframe
+cv_results <- data.frame(
+  Method = factor(
+    rep(c("Train 70% / Test 30%", "10-fold CV", "LOOCV"), each = 4),
+    levels = c("Train 70% / Test 30%", "10-fold CV", "LOOCV")
+  ),
+  Model = factor(
+    rep(c("Linear", "Quadratic", "Exponential", "Log-Log"), times = 3),
+    levels = c("Linear", "Quadratic", "Exponential", "Log-Log")
+  ),
+  MSE = numeric(12)
+)
+
+# Helper function to calculate raw-scale Mean Squared Error
+calc_mse <- function(actual, predicted) {
+  mean((actual - predicted)^2)
+}
+
+
+# ==============================================================================
+# [TEST 1] Train 70% / Test 30% Split Execution
+# ==============================================================================
+train_idx <- sample(1:n, size = round(0.7 * n))
+train_data <- ironslag[train_idx, ]
+test_data  <- ironslag[-train_idx, ]
+
+# Fit models on training split
+m1_split <- lm(magnetic ~ chemical, data = train_data)
+m2_split <- lm(magnetic ~ chemical + I(chemical^2), data = train_data)
+m3_split <- lm(log(magnetic) ~ chemical, data = train_data)
+m4_split <- lm(log(magnetic) ~ log(chemical), data = train_data)
+
+# Predict on test split (back-transforming log predictions with exp)
+pred1_split <- predict(m1_split, newdata = test_data)
+pred2_split <- predict(m2_split, newdata = test_data)
+pred3_split <- exp(predict(m3_split, newdata = test_data))
+pred4_split <- exp(predict(m4_split, newdata = test_data))
+
+# Assign calculated test MSE to the results dataframe
+cv_results$MSE[cv_results$Method == "Train 70% / Test 30%" & cv_results$Model == "Linear"]      <- calc_mse(test_data$magnetic, pred1_split)
+cv_results$MSE[cv_results$Method == "Train 70% / Test 30%" & cv_results$Model == "Quadratic"]   <- calc_mse(test_data$magnetic, pred2_split)
+cv_results$MSE[cv_results$Method == "Train 70% / Test 30%" & cv_results$Model == "Exponential"] <- calc_mse(test_data$magnetic, pred3_split)
+cv_results$MSE[cv_results$Method == "Train 70% / Test 30%" & cv_results$Model == "Log-Log"]     <- calc_mse(test_data$magnetic, pred4_split)
+cv_results
+
+# ==============================================================================
+# [TEST 2] 10-fold Cross Validation Execution
+# ==============================================================================
+k <- 10
+folds <- sample(cut(seq(1, n), breaks = k, labels = FALSE))
+
+# Vectors to hold out-of-fold validation predictions
+cv_pred1 <- cv_pred2 <- cv_pred3 <- cv_pred4 <- numeric(n)
+
+for(i in 1:k) {
+  val_idx <- which(folds == i)
+  cv_train <- ironslag[-val_idx, ]
+  cv_val   <- ironslag[val_idx, ]
+  
+  # Fit models on 9 folds
+  m1_cv <- lm(magnetic ~ chemical, data = cv_train)
+  m2_cv <- lm(magnetic ~ chemical + I(chemical^2), data = cv_train)
+  m3_cv <- lm(log(magnetic) ~ chemical, data = cv_train)
+  m4_cv <- lm(log(magnetic) ~ log(chemical), data = cv_train)
+  
+  # Predict on the remaining 1 fold
+  cv_pred1[val_idx] <- predict(m1_cv, newdata = cv_val)
+  cv_pred2[val_idx] <- predict(m2_cv, newdata = cv_val)
+  cv_pred3[val_idx] <- exp(predict(m3_cv, newdata = cv_val))
+  cv_pred4[val_idx] <- exp(predict(m4_cv, newdata = cv_val))
+}
+
+# Assign overall cross-validated MSE to the results dataframe
+cv_results$MSE[cv_results$Method == "10-fold CV" & cv_results$Model == "Linear"]      <- calc_mse(ironslag$magnetic, cv_pred1)
+cv_results$MSE[cv_results$Method == "10-fold CV" & cv_results$Model == "Quadratic"]   <- calc_mse(ironslag$magnetic, cv_pred2)
+cv_results$MSE[cv_results$Method == "10-fold CV" & cv_results$Model == "Exponential"] <- calc_mse(ironslag$magnetic, cv_pred3)
+cv_results$MSE[cv_results$Method == "10-fold CV" & cv_results$Model == "Log-Log"]     <- calc_mse(ironslag$magnetic, cv_pred4)
+
+
+# ==============================================================================
+# [TEST 3] Leave-One-Out Cross Validation (LOOCV) Execution
+# ==============================================================================
+loocv_pred1 <- loocv_pred2 <- loocv_pred3 <- loocv_pred4 <- numeric(n)
+
+for(i in 1:n) {
+  loocv_train <- ironslag[-i, ]
+  loocv_val   <- ironslag[i, ]
+  
+  # Fit models on (n-1) observations
+  m1_loo <- lm(magnetic ~ chemical, data = loocv_train)
+  m2_loo <- lm(magnetic ~ chemical + I(chemical^2), data = loocv_train)
+  m3_loo <- lm(log(magnetic) ~ chemical, data = loocv_train)
+  m4_loo <- lm(log(magnetic) ~ log(chemical), data = loocv_train)
+  
+  # Predict on the single omitted observation
+  loocv_pred1[i] <- predict(m1_loo, newdata = loocv_val)
+  loocv_pred2[i] <- predict(m2_loo, newdata = loocv_val)
+  loocv_pred3[i] <- exp(predict(m3_loo, newdata = loocv_val))
+  loocv_pred4[i] <- exp(predict(m4_loo, newdata = loocv_val))
+}
+
+# Assign overall LOOCV MSE to the results dataframe
+cv_results$MSE[cv_results$Method == "LOOCV" & cv_results$Model == "Linear"]      <- calc_mse(ironslag$magnetic, loocv_pred1)
+cv_results$MSE[cv_results$Method == "LOOCV" & cv_results$Model == "Quadratic"]   <- calc_mse(ironslag$magnetic, loocv_pred2)
+cv_results$MSE[cv_results$Method == "LOOCV" & cv_results$Model == "Exponential"] <- calc_mse(ironslag$magnetic, loocv_pred3)
+cv_results$MSE[cv_results$Method == "LOOCV" & cv_results$Model == "Log-Log"]     <- calc_mse(ironslag$magnetic, loocv_pred4)
+
+
+# ==============================================================================
+# 4. Generate the combined ggplot visualization
+# ==============================================================================
+p <- ggplot(cv_results, aes(x = Method, y = MSE, fill = Model)) +
+  # Draw grouped bars
+  geom_bar(stat = "identity", position = position_dodge(width = 0.85), width = 0.78, color = "white", size = 0.3) +
+  # Map actual dynamic MSE values onto the plot with 2 decimal places
+  geom_text(aes(label = sprintf("%.2f", MSE)), 
+            position = position_dodge(width = 0.85), 
+            vjust = -0.4, size = 3.0, fontface = "bold", color = "gray20") +
+  # Professional discrete colors
+  scale_fill_manual(values = c("Linear"      = "#F8766D", 
+                               "Quadratic"   = "#7CAE00", 
+                               "Exponential" = "#00BFC4", 
+                               "Log-Log"     = "#C77CFF")) +
+  # Expand upper y-axis limit slightly for text labels breathing room
+  scale_y_continuous(limits = c(0, max(cv_results$MSE) * 1.1)) +
+  labs(
+    title = "Model MSE Comparison within Each Validation Method",
+    subtitle = "Evaluating 4 proposed models side-by-side on the raw 'magnetic' scale",
+    x = "Validation Methods (Test Environment)",
+    y = "Mean Squared Error (MSE)",
+    fill = "Proposed Models"
+  ) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, margin = margin(b = 5)),
+    plot.subtitle = element_text(size = 10, color = "gray40", margin = margin(b = 15)),
+    axis.title.x = element_text(face = "bold", size = 11, margin = margin(t = 10)),
+    axis.title.y = element_text(face = "bold", size = 11, margin = margin(r = 10)),
+    axis.text = element_text(size = 10, color = "black"),
+    axis.text.x = element_text(face = "bold", size = 11),
+    legend.position = "top",
+    legend.title = element_text(face = "bold", size = 10),
+    legend.text = element_text(size = 9),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+# Display the plot
+print
+
+
+
+
+
+##exercise
+
+
+
+
+#1
+
+
+# 1. Load required library and prepare data
+# If 'bootstrap' package is not installed, run: install.packages("bootstrap")
+library(bootstrap)
+data(law)
+
+n <- nrow(law)
+theta_hat <- cor(law$LSAT, law$GPA) # Original sample correlation
+
+# 2. Initialize a vector to store jackknife replications
+theta_jack <- numeric(n)
+
+# 3. Perform Leave-One-Out (Jackknife) loop
+for(i in 1:n) {
+  # Omit the i-th observation to create a jackknife subsample
+  sub_sample <- law[-i, ]
+  
+  # Calculate correlation coefficient for the subsample
+  theta_jack[i] <- cor(sub_sample$LSAT, sub_sample$GPA)
+}
+
+# 4. Calculate Jackknife Bias and Standard Error
+# Jackknife mean estimate
+theta_bar_jack <- mean(theta_jack)
+
+# Jackknife Bias formula: (n - 1) * (theta_bar_jack - theta_hat)
+jack_bias <- (n - 1) * (theta_bar_jack - theta_hat)
+
+# Jackknife Standard Error formula: sqrt(((n - 1) / n) * sum((theta_jack - theta_bar_jack)^2))
+jack_se <- sqrt(((n - 1) / n) * sum((theta_jack - theta_bar_jack)^2))
+
+# 5. Print the statistical outputs
+cat("Original Correlation Estimate (theta_hat):", theta_hat, "\n")
+cat("Jackknife Bias Estimate                  :", jack_bias, "\n")
+cat("Jackknife Standard Error (SE) Estimate   :", jack_se, "\n")
+
+
+#2
+
+
+# 1. Load required library and prepare data
+library(bootstrap)
+data(law)
+
+n <- nrow(law)
+B <- 2000 # Number of outer bootstrap replications
+set.seed(123)
+
+# 2. Initialize vectors to store results
+# To store theta_hat* from each bootstrap sample
+boot_estimates <- numeric(B) 
+# To store the jackknife standard error calculated WITHIN each bootstrap sample
+boot_jack_se   <- numeric(B) 
+
+# 3. Outer Loop: Bootstrap Resampling
+for(b in 1:B) {
+  # Generate a bootstrap sample via resampling with replacement
+  boot_idx    <- sample(1:n, size = n, replace = TRUE)
+  boot_sample <- law[boot_idx, ]
+  
+  # Calculate the bootstrap replication of theta (theta_hat*)
+  boot_estimates[b] <- cor(boot_sample$LSAT, boot_sample$GPA)
+  
+  # ----------------------------------------------------------------------------
+  # Inner Loop: Jackknife applied to the CURRENT bootstrap sample
+  # ----------------------------------------------------------------------------
+  theta_jack <- numeric(n)
+  
+  for(i in 1:n) {
+    # Omit the i-th observation of the current bootstrap sample
+    jack_subsample <- boot_sample[-i, ]
+    
+    # If the subsample has zero variance due to ties in bootstrap, handle the NaNs
+    if(sd(jack_subsample$LSAT) == 0 || sd(jack_subsample$GPA) == 0) {
+      theta_jack[i] <- boot_estimates[b]
+    } else {
+      theta_jack[i] <- cor(jack_subsample$LSAT, jack_subsample$GPA)
+    }
+  }
+  
+  # Calculate Jackknife Standard Error for the b-th bootstrap replication
+  theta_bar_jack  <- mean(theta_jack)
+  boot_jack_se[b] <- sqrt(((n - 1) / n) * sum((theta_jack - theta_bar_jack)^2))
+  # ----------------------------------------------------------------------------
+}
+
+# 4. Global Evaluation (Overall Bootstrap Bias and SE)
+original_theta_hat <- cor(law$LSAT, law$GPA)
+overall_boot_bias  <- mean(boot_estimates) - original_theta_hat
+overall_boot_se    <- sd(boot_estimates)
+
+# 5. Print the statistical outputs
+cat("Original Correlation Estimate (theta_hat) :", original_theta_hat, "\n")
+cat("Overall Bootstrap Bias Estimate           :", overall_boot_bias, "\n")
+cat("Overall Bootstrap Standard Error (SE)     :", overall_boot_se, "\n")
+cat("Average Inner Jackknife SE (Mean of se*)  :", mean(boot_jack_se), "\n")
+
+
+
+
+#3
+
+
+
+
+# 1. Load required library and prepare data
+library(bootstrap)
+data(law)
+
+n <- nrow(law)
+B1 <- 1000 # Number of outer bootstrap replications
+B2 <- 500  # Number of inner bootstrap replications
+alpha <- 0.05 
+set.seed(123)
+
+# Calculate the original sample correlation (theta_hat)
+theta_hat <- cor(law$LSAT, law$GPA)
+
+# Initialize vectors to store both statistics
+theta_hat_vector <- numeric(B1) # Added to capture raw-scale distribution
+t_star           <- numeric(B1)
+
+# ==============================================================================
+# OUTER LOOP: 1st Layer Bootstrap
+# ==============================================================================
+for(b1 in 1:B1) {
+  boot1_idx    <- sample(1:n, size = n, replace = TRUE)
+  boot1_sample <- law[boot1_idx, ]
+  
+  # Calculate and store the raw scale bootstrap estimate
+  theta_hat_star         <- cor(boot1_sample$LSAT, boot1_sample$GPA)
+  theta_hat_vector[b1]   <- theta_hat_star
+  
+  # ----------------------------------------------------------------------------
+  # INNER LOOP: 2nd Layer Bootstrap (To find se* via simulation)
+  # ----------------------------------------------------------------------------
+  theta_double_star <- numeric(B2)
+  
+  for(b2 in 1:B2) {
+    boot2_idx    <- sample(1:n, size = n, replace = TRUE)
+    boot2_sample <- boot1_sample[boot2_idx, ]
+    
+    if(sd(boot2_sample$LSAT) == 0 || sd(boot2_sample$GPA) == 0) {
+      theta_double_star[b2] <- theta_hat_star
+    } else {
+      theta_double_star[b2] <- cor(boot2_sample$LSAT, boot2_sample$GPA)
+    }
+  }
+  
+  se_star <- sd(theta_double_star)
+  # ----------------------------------------------------------------------------
+  
+  if(se_star == 0) {
+    t_star[b1] <- 0
+  } else {
+    t_star[b1] <- (theta_hat_star - theta_hat) / se_star
+  }
+}
+
+
+# ==============================================================================
+# EVALUATION: Corrected Bootstrap-t Confidence Interval
+# ==============================================================================
+# CORRECTED: Calculate SE from the raw scale bootstrap estimates, NOT from t_star
+raw_boot_se <- sd(theta_hat_vector)
+
+# Extract percentiles from the studentized t-distribution
+quantiles   <- quantile(t_star, probs = c(1 - alpha/2, alpha/2), na.rm = TRUE)
+t_upper_pct <- quantiles[1] 
+t_lower_pct <- quantiles[2] 
+
+# Compute the final interval boundaries using correct standard error
+ci_lower <- theta_hat - t_upper_pct * raw_boot_se
+ci_upper <- theta_hat - t_lower_pct * raw_boot_se
+
+
+# ==============================================================================
+# PRINT RESULTS
+# ==============================================================================
+cat("Original Estimate (theta_hat)          :", theta_hat, "\n")
+cat("Corrected Bootstrap SE (raw scale)     :", raw_boot_se, "\n")
+cat("Bootstrap-t Lower Quantile (1-alpha/2) :", t_upper_pct, "\n")
+cat("Bootstrap-t Upper Quantile (alpha/2)   :", t_lower_pct, "\n")
+cat(sprintf("95%% Corrected Double Bootstrap t CI   : [%.4f, %.4f]\n", ci_lower, ci_upper))
+
+
+
+#4
+
+
+# 1. Load required library and extract data
+library(bootstrap) # or library(boot)
+# Using the exact 12 observations from 'aircondit' data shown in the image
+aircondit_data <- c(3, 5, 7, 18, 43, 85, 91, 98, 100, 130, 230, 487)
+
+n <- length(aircondit_data)
+B <- 2000
+set.seed(123)
+
+# 2. Define the MLE function for lambda (1 / sample mean)
+get_lambda_mle <- function(data_vector) {
+  return(1 / mean(data_vector))
+}
+
+# Calculate the original sample MLE (theta_hat)
+lambda_mle_hat <- get_lambda_mle(aircondit_data)
+
+# 3. Perform Bootstrap Resampling
+boot_lambdas <- numeric(B)
+
+for(b in 1:B) {
+  # Resample with replacement
+  boot_sample <- sample(aircondit_data, size = n, replace = TRUE)
+  
+  # Calculate and store the MLE for the bootstrap sample
+  boot_lambdas[b] <- get_lambda_mle(boot_sample)
+}
+
+# 4. Calculate Bootstrap Bias and Standard Error
+# Formula: Bias = mean(theta_hat*) - theta_hat
+boot_bias <- mean(boot_lambdas) - lambda_mle_hat
+
+# Formula: SE = sd(theta_hat*)
+boot_se   <- sd(boot_lambdas)
+
+# 5. Print the statistical outputs
+cat("Original MLE Estimate (lambda_hat) :", lambda_mle_hat, "\n")
+cat("Bootstrap Bias Estimate             :", boot_bias, "\n")
+cat("Bootstrap Standard Error (SE)       :", boot_se, "\n")
+
+
+
+#5
+
+
+# ==============================================================================
+# 1. Prepare 'aircondit' data from exercise 7.4
+# ==============================================================================
+aircondit_data <- c(3, 5, 7, 18, 43, 85, 91, 98, 100, 130, 230, 487)
+n     <- length(aircondit_data)
+B     <- 2000
+alpha <- 0.05
+set.seed(123)
+
+# The parameter of interest is the mean time (1 / lambda)
+# The MLE for the exponential mean parameter is simply the sample mean
+theta_hat <- mean(aircondit_data)
+
+
+# ==============================================================================
+# 2. Perform Bootstrap Resampling
+# ==============================================================================
+boot_theta <- numeric(B)
+
+for(b in 1:B) {
+  # Generate bootstrap sample with replacement
+  boot_sample   <- sample(aircondit_data, size = n, replace = TRUE)
+  
+  # Store the bootstrap replication of the sample mean
+  boot_theta[b] <- mean(boot_sample)
+}
+
+
+# ==============================================================================
+# 3. Compute Bootstrap Standard Error, Bias, and Quantiles
+# ==============================================================================
+boot_se      <- sd(boot_theta)
+boot_bias    <- mean(boot_theta) - theta_hat
+q_alpha_half <- quantile(boot_theta, probs = alpha / 2)
+q_one_minus  <- quantile(boot_theta, probs = 1 - alpha / 2)
+
+
+# ==============================================================================
+# Method A: Standard Normal Bootstrap Confidence Interval (Fixed)
+# Formula: [ theta_hat - boot_bias - z_(1-alpha/2)*boot_se, theta_hat - boot_bias + z_(1-alpha/2)*boot_se ]
+# ==============================================================================
+z_val           <- qnorm(1 - alpha / 2)
+ci_normal_lower <- theta_hat - boot_bias - z_val * boot_se
+ci_normal_upper <- theta_hat - boot_bias + z_val * boot_se
+
+
+# ==============================================================================
+# Method B: Basic (Empirical) Bootstrap Confidence Interval
+# Formula: [ 2*theta_hat - q_(1-alpha/2), 2*theta_hat - q_(alpha/2) ]
+# ==============================================================================
+ci_basic_lower <- 2 * theta_hat - q_one_minus
+ci_basic_upper <- 2 * theta_hat - q_alpha_half
+
+
+# ==============================================================================
+# Method C: Percentile Bootstrap Confidence Interval
+# Formula: [ q_(alpha/2), q_(1-alpha/2) ]
+# ==============================================================================
+ci_percentile_lower <- q_alpha_half
+ci_percentile_upper <- q_one_minus
+
+
+# ==============================================================================
+# 4. Print Results for Comparison
+# ==============================================================================
+cat("Original Sample Mean (theta_hat)       :", theta_hat, "\n")
+cat("Bootstrap Bias Estimate                 :", boot_bias, "\n")
+cat("Bootstrap Standard Error (SE)           :", boot_se, "\n\n")
+cat("--------------------------------------------------\n")
+cat("95% Bootstrap Confidence Intervals Comparison\n")
+cat("--------------------------------------------------\n")
+cat(sprintf("1. Standard Normal CI                 : [%.4f, %.4f]\n", ci_normal_lower, ci_normal_upper))
+cat(sprintf("2. Basic (Empirical) CI               : [%.4f, %.4f]\n", ci_basic_lower, ci_basic_upper))
+cat(sprintf("3. Percentile CI                       : [%.4f, %.4f]\n", ci_percentile_lower, ci_percentile_upper))
+cat("--------------------------------------------------\n")
+
+
+#6
+
+
+# Load required libraries
+library(bootstrap)
+
+# Explore the dataset structure
+# The 'scor' dataset contains 5 columns: mec, vec, alg, ana, sta
+# mec: Mechanics, vec: Vectors (Closed-book)
+# alg: Algebra, ana: Analysis, sta: Statistics (Open-book)
+data(scor)
+str(scor)
+# Define the pairs for correlation estimation as specified in the problem
+# rho_12: mec vs vec
+# rho_34: alg vs ana
+# rho_35: alg vs sta
+# rho_45: ana vs sta
+pairs_list <- list(
+  rho_12 = c("mec", "vec"),
+  rho_34 = c("alg", "ana"),
+  rho_35 = c("alg", "sta"),
+  rho_45 = c("ana", "sta")
+)
+
+# 1. Calculate Sample Correlation Coefficients
+sample_correlations <- numeric(length(pairs_list))
+names(sample_correlations) <- names(pairs_list)
+
+for (name in names(pairs_list)) {
+  vars <- pairs_list[[name]]
+  sample_correlations[name] <- cor(scor[[vars[1]]], scor[[vars[2]]])
+}
+
+cat("--- Sample Correlation Coefficients ---\n")
+print(sample_correlations)
+cat("\n")
+
+# 2. Bootstrap Setup
+set.seed(123) # Set seed for reproducibility
+B <- 2000     # Number of bootstrap replications
+n <- nrow(scor)
+
+# Matrix to store bootstrap estimates for each pair
+boot_estimates <- matrix(NA, nrow = B, ncol = length(pairs_list))
+colnames(boot_estimates) <- names(pairs_list)
+
+# Perform Bootstrap Resampling
+for (b in 1:B) {
+  # Sample indices with replacement
+  boot_indices <- sample(1:n, size = n, replace = TRUE)
+  boot_sample <- scor[boot_indices, ]
+  
+  # Calculate correlation for each pair in the bootstrap sample
+  for (name in names(pairs_list)) {
+    vars <- pairs_list[[name]]
+    boot_estimates[b, name] <- cor(boot_sample[[vars[1]]], boot_sample[[vars[2]]])
+  }
+}
+
+# 3. Calculate Bootstrap Standard Errors
+# Standard error is the sample standard deviation of the bootstrap replicates
+boot_se <- apply(boot_estimates, 2, sd)
+
+cat("--- Bootstrap Standard Errors ---\n")
+print(boot_se)
+
+
+#7
+
+
+# Load required libraries
+library(bootstrap)
+
+# Load the dataset
+data(scor)
+str(scor)
+n <- nrow(scor)
+
+# Define a function to compute theta_hat from a given dataframe
+# theta_hat = max_eigenvalue / sum(all_eigenvalues)
+compute_theta <- function(data) {
+  # Compute the maximum likelihood estimate (MLE) of the covariance matrix
+  # MLE of covariance matrix divides by n, though using sample covariance (dividing by n-1) 
+  # yields identical eigenvalues ratio since the scale factor cancels out.
+  cov_matrix <- cov(data) * (nrow(data) - 1) / nrow(data)
+  
+  # Perform eigenvalue decomposition
+  eigen_values <- eigen(cov_matrix)$values
+  
+  # Calculate the proportion of variance explained by the first principal component
+  theta_hat <- eigen_values[1] / sum(eigen_values)
+  return(theta_hat)
+}
+
+# 1. Calculate the sample estimate (theta_hat) from original data
+theta_hat_sample <- compute_theta(scor)
+
+cat("--- Sample Estimate ---\n")
+cat("Theta hat:", theta_hat_sample, "\n\n")
+
+# 2. Bootstrap Setup
+set.seed(123) # Set seed for reproducibility
+B <- 2000     # Number of bootstrap replications
+boot_theta <- numeric(B)
+
+# Perform Bootstrap Resampling
+for (b in 1:B) {
+  # Sample indices with replacement
+  boot_indices <- sample(1:n, size = n, replace = TRUE)
+  boot_sample <- scor[boot_indices, ]
+  
+  # Compute theta_hat for the bootstrap sample
+  boot_theta[b] <- compute_theta(boot_sample)
+}
+
+# 3. Calculate Bootstrap Bias and Standard Error
+# Bootstrap Bias = mean(theta_hat_boot) - theta_hat_sample
+boot_bias <- mean(boot_theta) - theta_hat_sample
+
+# Bootstrap Standard Error = sd(theta_hat_boot)
+boot_se <- sd(boot_theta)
+
+cat("--- Bootstrap Results ---\n")
+cat("Estimated Bias         :", boot_bias, "\n")
+cat("Estimated Standard Error:", boot_se, "\n")
+
+
+
+#8
+
+
+
+
+# Load required libraries
+library(bootstrap)
+
+# Load the dataset
+data(scor)
+n <- nrow(scor)
+
+# Define a function to compute theta_hat from a given dataframe
+compute_theta <- function(data) {
+  cov_matrix <- cov(data) * (nrow(data) - 1) / nrow(data)
+  eigen_values <- eigen(cov_matrix)$values
+  theta_hat <- eigen_values[1] / sum(eigen_values)
+  return(theta_hat)
+}
+
+# 1. Calculate the sample estimate (theta_hat) from original data
+theta_hat_sample <- compute_theta(scor)
+
+cat("--- Sample Estimate ---\n")
+cat("Theta hat:", theta_hat_sample, "\n\n")
+
+# 2. Jackknife Setup
+# Jackknife leaves one observation out at a time, so we need 'n' replications
+jack_theta <- numeric(n)
+
+# Perform Jackknife Resampling (Leave-one-out)
+for (i in 1:n) {
+  # Omit the i-th row from the dataset
+  jack_sample <- scor[-i, ]
+  
+  # Compute theta_hat for the jackknife sample
+  jack_theta[i] <- compute_theta(jack_sample)
+}
+
+# 3. Calculate Jackknife Bias and Standard Error
+# Jackknife Mean
+jack_mean <- mean(jack_theta)
+
+# Jackknife Bias Formula: (n - 1) * (mean(theta_hat_jack) - theta_hat_sample)
+jack_bias <- (n - 1) * (jack_mean - theta_hat_sample)
+
+# Jackknife Standard Error Formula:
+# sqrt(((n - 1) / n) * sum((theta_hat_jack_i - mean(theta_hat_jack))^2))
+jack_se <- sqrt(((n - 1) / n) * sum((jack_theta - jack_mean)^2))
+
+cat("--- Jackknife Results ---\n")
+cat("Estimated Jackknife Bias          :", jack_bias, "\n")
+cat("Estimated Jackknife Standard Error:", jack_se, "\n")
+
+
+
+#9
+
+
+
+# Load required libraries
+library(bootstrap)
+
+# Load the dataset
+data(scor)
+n <- nrow(scor)
+
+# Define a function to compute theta_hat from a given dataframe
+compute_theta <- function(data) {
+  cov_matrix <- cov(data) * (nrow(data) - 1) / nrow(data)
+  eigen_values <- eigen(cov_matrix)$values
+  theta_hat <- eigen_values[1] / sum(eigen_values)
+  return(theta_hat)
+}
+
+# 1. Calculate the sample estimate (theta_hat) from original data
+theta_hat_sample <- compute_theta(scor)
+
+cat("--- Sample Estimate ---\n")
+cat("Theta hat:", theta_hat_sample, "\n\n")
+
+# 2. Bootstrap Setup
+set.seed(123) # Set seed for reproducibility
+B <- 2000     # Number of bootstrap replications
+boot_theta <- numeric(B)
+
+# Perform Bootstrap Resampling
+for (b in 1:B) {
+  # Sample indices with replacement
+  boot_indices <- sample(1:n, size = n, replace = TRUE)
+  boot_sample <- scor[boot_indices, ]
+  
+  # Compute theta_hat for the bootstrap sample
+  boot_theta[b] <- compute_theta(boot_sample)
+}
+
+# 3. Calculate 95% Bootstrap Percentile Confidence Interval
+alpha <- 0.05
+
+# Obtain the 2.5th and 97.5th percentiles from the bootstrap replicates
+# This corresponds to the lower and upper bounds of the 95% CI
+percentile_ci <- quantile(boot_theta, probs = c(alpha / 2, 1 - (alpha / 2)))
+
+cat("--- 95% Bootstrap Percentile Confidence Interval ---\n")
+cat("Lower Bound (2.5%):", percentile_ci[1], "\n")
+cat("Upper Bound (97.5%):", percentile_ci[2], "\n")
