@@ -680,3 +680,412 @@ ggplot() +
 
 
 ###part 2 ------------------------------------------------------------------------------------------------
+
+
+
+##exercise
+
+
+#1
+
+
+library(lubridate)
+
+# Scenario: Checking the difference between Period and Duration during leap years or varying month lengths
+
+# 1. Base Setup (Leap year case: 2024 was a leap year, so Feb had 29 days)
+leap_base <- ymd("2024-02-28")
+
+# 2. Adding time using Period (Calendar standard)
+# months(1) shifts exactly to the next month's corresponding day
+period_add <- leap_base + months(1)  # Expected: 2024-03-28
+print(period_add)
+
+# 3. Adding time using Duration (Exact seconds standard)
+# ddays(30) adds exactly 30 * 86400 seconds
+duration_add <- leap_base + ddays(30) # Expected: 2024-03-29 (because 2024-02-29 exists)
+print(duration_add)
+
+
+# Scenario: Calculating deadline dates by subtracting/adding combined units
+order_time <- ymd_hms("2026-05-26 18:00:00")
+
+# Calculate shipping deadline (Add 3 days, subtract 2 hours for processing cushion)
+shipping_deadline <- order_time + days(3) - hours(2)
+print(shipping_deadline)
+
+
+
+
+library(lubridate)
+
+# Scenario: Calculating project duration or employee tenure
+
+# 1. Define start and end points
+project_start <- ymd("2025-03-15")
+project_end   <- ymd("2026-05-26")
+
+# 2. Create an Interval object
+project_interval <- interval(project_start, project_end)
+print(project_interval)
+
+# 3. Extract exact elapsed values in different units
+# Dividing by a Period unit gives the calendar-based count
+months_elapsed <- project_interval / months(1)
+weeks_elapsed  <- project_interval / weeks(1)
+days_elapsed   <- project_interval / days(1)
+
+print(paste("Exact Months:", round(months_elapsed, 2)))
+print(paste("Exact Weeks:", round(weeks_elapsed, 2)))
+print(paste("Exact Days:", days_elapsed))
+
+
+# Scenario: Converting interval to absolute duration (seconds) or clean periods
+# Convert to Duration object to see total seconds and an approximate time layout
+absolute_dur <- as.duration(project_interval)
+print(absolute_dur)
+
+# Convert to Period object to get broken-down units (Years, Months, Days together)
+clean_period <- as.period(project_interval)
+print(clean_period) # Displays like "1y 2m 11d"
+
+
+
+
+library(lubridate)
+
+# Scenario: Subscription service analysis
+# A customer subscribed on '2025-11-30' for a 3-month promotional plan.
+join_date <- ymd("2025-11-30")
+
+# 1. Calculate expiration date (Adding 3 months)
+# Note: February 30th does not exist. lubridate handles this safely by returning NA or adjusting.
+# Using %m+% prevents NA and rolls back to the last valid day of the target month.
+expiry_date <- join_date %m+% months(3) 
+print(expiry_date) # Returns "2026-02-28" safely instead of NA
+
+# 2. Check if today (2026-05-26) the subscription is active
+today_date <- ymd("2026-05-26")
+is_expired <- today_date > expiry_date
+print(paste("Is subscription expired?:", is_expired))
+
+# 3. Calculate how many days have passed since the expiration
+grace_period_interval <- interval(expiry_date, today_date)
+days_since_expiry <- grace_period_interval / days(1)
+print(paste("Days passed since expiry:", days_since_expiry))
+
+
+
+#2
+
+
+
+
+library(lubridate)
+
+# Define test time
+test_time <- ymd_hms("2026-05-26 17:42:32")
+
+
+# 1. round_date() : Round to the nearest unit
+# Rounds to the closest specified unit. If exactly halfway, rounds up.
+round_date(test_time, unit = "minute")  # "2026-05-26 17:43:00"
+round_date(test_time, unit = "5 mins")  # "2026-05-26 17:45:00"
+round_date(test_time, unit = "hour")    # "2026-05-26 18:00:00"
+
+
+# 2. floor_date() : Round down (Take the floor)
+# Unconditionally takes the floor to the nearest past unit.
+floor_date(test_time, unit = "minute")  # "2026-05-26 17:42:00"
+floor_date(test_time, unit = "5 mins")  # "2026-05-26 17:40:00"
+floor_date(test_time, unit = "hour")    # "2026-05-26 17:00:00"
+
+
+# 3. ceiling_date() : Round up (Take the ceiling)
+# Unconditionally takes the ceiling to the nearest future unit.
+ceiling_date(test_time, unit = "minute") # "2026-05-26 17:43:00"
+ceiling_date(test_time, unit = "5 mins") # "2026-05-26 17:45:00"
+ceiling_date(test_time, unit = "hour")   # "2026-05-26 18:00:00"
+
+
+
+
+#3
+
+
+# Install and load the zoo package if not already done
+# install.packages("zoo")
+library(zoo)
+library(lubridate)
+
+# 1. Create Sample Time Series Data
+# 10 days of daily sales data starting from 2026-05-20
+dates <- seq(ymd("2026-05-20"), ymd("2026-05-29"), by = "day")
+sales <- c(100, 120, 150, 110, 130, 140, 160, 150, 170, 190)
+
+# Combine into a zoo time-series object
+sales_ts <- zoo(sales, order.by = dates)
+print("Original Sales Data:")
+print(sales_ts)
+
+
+# 2. Basic Rolling Mean (Moving Average)
+# Calculate a 3-day moving average using specialized rollmean()
+# align = "right" means calculating using the current day and the past 2 days
+# fill = NA pads the first 2 days (where 3 days of history don't exist) with NA
+moving_avg_3d <- rollmean(sales_ts, k = 3, align = "right", fill = NA)
+print("3-Day Moving Average:")
+print(moving_avg_3d)
+
+
+# 3. Flexible Rolling with rollapply()
+# rollapply allows any summary function (e.g., sum, max, sd)
+
+# Scenario A: 3-Day Rolling Sum (Current day + past 2 days)
+rolling_sum_3d <- rollapply(sales_ts, width = 3, FUN = sum, align = "right", fill = NA)
+print("3-Day Rolling Sum:")
+print(rolling_sum_3d)
+
+# Scenario B: 3-Day Rolling Standard Deviation
+rolling_sd_3d <- rollapply(sales_ts, width = 3, FUN = sd, align = "right", fill = NA)
+print("3-Day Rolling Standard Deviation:")
+print(rolling_sd_3d)
+
+
+# 4. Handling Alignment Styles
+# "center" alignment uses the previous day, current day, and next day
+moving_avg_center <- rollmean(sales_ts, k = 3, align = "center", fill = NA)
+print("Centered 3-Day Moving Average:")
+print(moving_avg_center)
+
+
+
+#4
+
+
+
+# Load required libraries
+library(dplyr)
+library(lubridate)
+
+# 1. Create a dummy monthly time-series dataset (3 years)
+set.seed(123)
+data <- tibble(
+  date = seq(as.Date("2023-01-01"), as.Date("2025-12-01"), by = "month"),
+  value = round(runif(n = 36, min = 100, max = 200) + (1:36) * 2) # Adding a trend
+)
+data
+# 2. Calculate Month-over-Month (MoM), Quarter-over-Quarter (QoQ), and Year-over-Year (YoY)
+# MoM: lag = 1 (1 month ago)
+# QoQ: lag = 3 (3 months ago)
+# YoY: lag = 12 (12 months ago)
+result <- data %>%
+  mutate(
+    # --- Using lag() to get past values ---
+    val_lag_1m  = lag(value, 1),
+    val_lag_3m  = lag(value, 3),
+    val_lag_12m = lag(value, 12),
+    
+    # --- Calculating Differences using lag() ---
+    mom_diff_lag = value - lag(value, 1),
+    qoq_diff_lag = value - lag(value, 3),
+    yoy_diff_lag = value - lag(value, 12),
+    
+    # --- Calculating Differences directly using diff() ---
+    # Note: diff() returns a vector shorter than the original, 
+    # so we pad it with NA at the beginning to match the dataframe length.
+    mom_diff_base = c(rep(NA, 1), diff(value, lag = 1)),
+    qoq_diff_base = c(rep(NA, 3), diff(value, lag = 3)),
+    yoy_diff_base = c(rep(NA, 12), diff(value, lag = 12))
+  )
+
+# Display the rows where YoY starts to appear (to see all columns populated)
+result
+
+
+
+#5
+
+
+# Load required libraries
+library(dplyr)
+library(lubridate)
+
+# 1. Create a dummy daily dataset (over 2 years) to demonstrate cumulative sums
+set.seed(777)
+start_date <- as.Date("2024-01-01")
+end_date   <- as.Date("2025-12-31")
+
+data <- tibble(
+  date  = seq(start_date, end_date, by = "day"),
+  value = sample(10:100, length(seq(start_date, end_date, by = "day")), replace = TRUE)
+)
+
+# 2. Extract time features (Year, Quarter, Month)
+data <- data %>%
+  mutate(
+    year    = year(date),
+    quarter = quarter(date),
+    month   = month(date)
+  )
+
+# 3. Calculate Cumulative Sums by grouping
+result <- data %>%
+  # --- Monthly Cumulative Sum ---
+  group_by(year, month) %>%
+  mutate(cum_sum_monthly = cumsum(value)) %>%
+  
+  # --- Quarterly Cumulative Sum ---
+  group_by(year, quarter) %>%
+  mutate(cum_sum_quarterly = cumsum(value)) %>%
+  
+  # --- Yearly Cumulative Sum (YTD) ---
+  group_by(year) %>%
+  mutate(cum_sum_yearly = cumsum(value)) %>%
+  
+  # Ungroup at the end to avoid side effects
+  ungroup()
+
+# 4. Check the results (Example: Looking at the transition around end of March 2024)
+result
+
+
+
+#6
+
+
+library(xlsx)
+kospi <- read.xlsx(file = "data_4607_20260527.xlsx", 
+                   sheetName = "Sheet1", header = TRUE)
+str(kospi)
+
+
+
+# Load required libraries
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(zoo)
+library(tidyr)
+library(patchwork)
+
+# --- 1. Data Preparation & Sorting ---
+kospi_cleaned <- kospi %>%
+  mutate(일자 = as.Date(일자, "%Y/%m/%d")) %>%
+  arrange(일자)
+
+# --- 2. Calculations (Moving Averages & Cumulative Returns) ---
+kospi_calc <- kospi_cleaned %>%
+  mutate(
+    # Moving Averages (Close Price) -> Dashed Lines
+    ma5  = rollmean(종가, k = 5,  fill = NA, align = "right"),
+    ma20 = rollmean(종가, k = 20, fill = NA, align = "right"),
+    ma60 = rollmean(종가, k = 60, fill = NA, align = "right"),
+    
+    # Periodic Returns using lag (5 = Weekly, 20 = Monthly, 60 = Quarterly)
+    weekly_return    = ((상장시가총액 / lag(상장시가총액, 5)) - 1) * 100,
+    monthly_return   = ((상장시가총액 / lag(상장시가총액, 20)) - 1) * 100,
+    quarterly_return = ((상장시가총액 / lag(상장시가총액, 60)) - 1) * 100,
+    
+    # Cumulative Returns for the Bottom Bar Chart
+    cum_weekly    = cumsum(coalesce(weekly_return, 0)),
+    cum_monthly   = cumsum(coalesce(monthly_return, 0)),
+    cum_quarterly = cumsum(coalesce(quarterly_return, 0))
+  )
+
+# ==============================================================================
+# CHART 1: Top Main Chart (Red, Blue, and Yellow Moving Averages)
+# ==============================================================================
+
+# Reshape Moving Averages for clean legend mapping
+ma_long <- kospi_calc %>%
+  select(일자, `5일 이동평균` = ma5, `20일 이동평균` = ma20, `60일 이동평균` = ma60) %>%
+  pivot_longer(cols = -일자, names_to = "Indicator", values_to = "Value") %>%
+  filter(!is.na(Value))
+
+# Enforce exact legend order
+ma_long$Indicator <- factor(ma_long$Indicator, 
+                            levels = c("5일 이동평균", "20일 이동평균", "60일 이동평균"))
+
+p_main <- ggplot() +
+  # 1. The ONLY Solid Line: Close Price (종가) - Solid Black
+  geom_line(data = kospi_calc, aes(x = 일자, y = 종가, color = "종가"), size = 1.1, linetype = "solid") +
+  
+  # 2. Dashed Lines: Moving Averages (이동평균선) - Size boosted to 0.9 for readability
+  geom_line(data = ma_long, aes(x = 일자, y = Value, color = Indicator), linetype = "dashed", size = 0.9) +
+  
+  scale_y_continuous(name = "종가 (지수)") +
+  
+  # Updated to user-specified high-contrast colors
+  scale_color_manual(
+    values = c(
+      "종가" = "#000000",          # Pure Black
+      "5일 이동평균" = "#E53935",   # Red (Vivid Crimson)
+      "20일 이동평균" = "#0D47A1",  # Blue (Deep Dark Royal Blue)
+      "60일 이동평균" = "#FFC107"   # Yellow (Amber Gold for high visibility against white background)
+    ),
+    breaks = c("종가", "5일 이동평균", "20일 이동평균", "60일 이동평균")
+  ) +
+  labs(title = "KOSPI 지수 및 이동평균선 분석(2025/05/27 ~ 2026/05/27)", x = NULL, color = NULL) +
+  theme_minimal() +
+  theme(
+    legend.position = "top",
+    legend.box = "horizontal",
+    legend.direction = "horizontal",
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank()
+  ) +
+  guides(
+    color = guide_legend(
+      nrow = 1,
+      override.aes = list(
+        linetype = c("solid", "dashed", "dashed", "dashed"),
+        size = c(1.1, 0.9, 0.9, 0.9)
+      )
+    )
+  )
+
+# ==============================================================================
+# CHART 2: Bottom Sub Chart (Vividly Distinct Contrast Colors)
+# ==============================================================================
+
+cum_data_long <- kospi_calc %>%
+  select(일자, `주별 누적` = cum_weekly, `월별 누적` = cum_monthly, `분기별 누적` = cum_quarterly) %>%
+  pivot_longer(cols = -일자, names_to = "Period", values_to = "Cumulative_Return")
+
+cum_data_long$Period <- factor(cum_data_long$Period, 
+                               levels = c("주별 누적", "월별 누적", "분기별 누적"))
+
+p_sub <- ggplot() +
+  # Muted Volume Background
+  geom_bar(data = kospi_calc, aes(x = 일자, y = 거래량 / max(거래량) * max(cum_data_long$Cumulative_Return, na.rm = TRUE)), 
+           stat = "identity", fill = "gray93", width = 0.7, alpha = 0.4) +
+  
+  # Distinct High-Contrast Colors across different color families
+  geom_bar(data = cum_data_long, aes(x = 일자, y = Cumulative_Return, fill = Period), 
+           stat = "identity", position = "dodge", width = 0.6) +
+  
+  scale_fill_manual(
+    values = c(
+      "주별 누적" = "#0288D1",   # Deep Sky Blue
+      "월별 누적" = "#E65100",   # Dark Orange
+      "분기별 누적" = "#6A1B9A") # Dark Purple
+  ) +
+  scale_x_date(
+    date_breaks = "1 week", 
+    date_labels = "%Y-%m-%d"
+  ) +
+  labs(x = "일자", y = "누적 수익률 (%)", fill = NULL) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, face = "bold")
+  )
+
+# ==============================================================================
+# Merge Main (Price/MAs) and Sub (Bars) plots (70% : 30% ratio)
+# ==============================================================================
+final_chart <- p_main / p_sub + plot_layout(heights = c(7, 3))
+print(final_chart)
+
