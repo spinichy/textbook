@@ -1089,3 +1089,566 @@ p_sub <- ggplot() +
 final_chart <- p_main / p_sub + plot_layout(heights = c(7, 3))
 print(final_chart)
 
+
+
+
+###part 3 ------------------------------------------------------------------------------------------------
+
+
+
+
+
+##example
+
+library(openxlsx)
+data <- read.xlsx(xlsxFile = "students.xlsx", 
+                  sheet = "Sheet1", startRow = 17, colNames = TRUE)
+str(data)
+
+
+
+
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(scales) 
+
+# Convert '연도' to numeric type
+data$연도 <- as.numeric(data$연도)
+
+# Aggregate total students by year
+yearly_data <- data %>%
+  group_by(연도) %>%
+  summarise(total_students = sum(학생수계, na.rm = TRUE))
+
+# Plotting with Grid lines for better X-axis readability
+ggplot(yearly_data, aes(x = 연도, y = total_students)) +
+  geom_line(color = "blue", size = 1) +
+  geom_point(color = "red", size = 2) +
+  # Adding vertical grid lines for each year
+  theme_minimal() +
+  theme(
+    panel.grid.major.x = element_line(color = "gray80", linetype = "dashed"),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  scale_x_continuous(breaks = seq(min(yearly_data$연도), max(yearly_data$연도), by = 1)) +
+  scale_y_continuous(labels = comma, breaks = scales::pretty_breaks(n = 10)) +
+  labs(title = "Total Number of Students by Year",
+       x = "Year",
+       y = "Total Students")
+
+
+
+# 1. Load necessary libraries
+library(ggplot2)
+library(dplyr)
+library(scales)
+
+# 2. Extract data from forecast_result
+forecast_df <- data.frame(
+  year = as.numeric(time(forecast_result$mean)),
+  point = as.numeric(forecast_result$mean),
+  lo95 = as.numeric(forecast_result$lower[, "95%"]),
+  hi95 = as.numeric(forecast_result$upper[, "95%"])
+)
+
+# 3. Define the actual data from the image
+actual_data <- data.frame(
+  year = 2021:2025,
+  students = c(2672340, 2664278, 2603929, 2495005, 2345488)
+)
+
+# 4. Plotting
+ggplot() +
+  # Add 95% confidence interval area
+  geom_ribbon(data = forecast_df, 
+              aes(x = year,
+                  ymin = lo95, ymax = hi95, 
+                  fill = "95% Confidence Interval"), alpha = 0.2) +
+  # Add forecast line and point
+  geom_line(data = forecast_df, aes(x = year, y = point, color = "Forecast"), size = 1) +
+  geom_point(data = forecast_df, aes(x = year, y = point, color = "Forecast"), size = 2) +
+  # Add actual data points
+  geom_point(data = actual_data, aes(x = year, y = students, color = "Actual"), size = 3) +
+  # Add labels on top of actual points
+  geom_text(data = actual_data, aes(x = year, y = students, label = comma(students)), 
+            vjust = -1, size = 3.5, color = "red") +
+  # Configure colors and legend
+  scale_color_manual(values = c("Forecast" = "blue", "Actual" = "red")) +
+  scale_fill_manual(values = c("95% Confidence Interval" = "blue")) +
+  # Formatting settings
+  scale_y_continuous(labels = label_comma(), limits = c(0, 3000000)) +
+  labs(
+    title = "Actual vs Forecasted Elementary Student Population",
+    x = "Year",
+    y = "Number of Students",
+    color = "Category",
+    fill = "Uncertainty"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(scales)
+
+# 1. Convert '연도' to numeric
+data$연도 <- as.numeric(data$연도)
+
+# 2. Aggregate sum by Year for each school level
+yearly_school_data <- data %>%
+  group_by(연도) %>%
+  summarise(
+    유치원 = sum(유치원, na.rm = TRUE),
+    초등학교 = sum(초등학교, na.rm = TRUE),
+    중학교 = sum(중학교, na.rm = TRUE),
+    고등학교계 = sum(고등학교계, na.rm = TRUE)
+  )
+
+# 3. Transform data to Long format
+yearly_school_long <- yearly_school_data %>%
+  pivot_longer(cols = c("유치원", "초등학교", "중학교", "고등학교계"), 
+               names_to = "학교급", 
+               values_to = "학생수")
+
+# 4. Fix the factor order (This ensures the order in legend and plot)
+yearly_school_long$학교급 <- factor(yearly_school_long$학교급, 
+                                 levels = c("유치원", "초등학교", "중학교", "고등학교계"))
+
+# 5. Plotting
+ggplot(yearly_school_long, aes(x = 연도, y = 학생수, color = 학교급, group = 학교급)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  scale_y_continuous(labels = comma, breaks = scales::pretty_breaks(n = 10)) +
+  scale_x_continuous(breaks = seq(min(yearly_school_long$연도), max(yearly_school_long$연도), by = 1)) +
+  theme_minimal() +
+  theme(
+    panel.grid.major.x = element_line(color = "gray90", linetype = "dashed"),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  labs(title = "Trends in Student Population by School Level",
+       x = "Year",
+       y = "Number of Students",
+       color = "School Level")
+
+
+
+data_2 <- read.xlsx(xlsxFile = "시도_합계출산율__모의_연령별_출산율_20260527155227.xlsx", 
+                    sheet = "데이터", startRow = 1, colNames = TRUE)
+
+str(data_2)
+
+
+
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(scales)
+
+# Select only the '전국' data row
+# Assuming 'data_2' is the dataframe already loaded
+df_national <- data_2[data_2$시도별 == "전국", ]
+
+# Initialize an empty dataframe to store the processed results
+plot_data <- data.frame(year = integer(), fertility_rate = numeric())
+
+# Extract fertility rates for each year (1999 to 2024)
+# The data structure has multiple columns with the same year name
+# We iterate through all unique years present in the dataframe
+years <- unique(names(data_2))
+years <- years[years != "시도별"]
+
+for(year in years) {
+  # Find the column index corresponding to '합계출산율' for the current year
+  # In this structure, the first row of each year column contains the indicator name
+  target_col <- which(names(data_2) == year)
+  
+  # Check if the specific column contains '합계출산율'
+  # We look for the column where row 1 is '합계출산율'
+  for(col_idx in target_col) {
+    if(data_2[1, col_idx] == "합계출산율") {
+      val <- as.numeric(df_national[1, col_idx])
+      plot_data <- rbind(plot_data, data.frame(year = as.integer(year), fertility_rate = val))
+    }
+  }
+}
+
+# Remove any potential duplicates and sort by year
+plot_data <- plot_data %>% 
+  distinct() %>% 
+  arrange(year)
+
+# Plot the time-series trend of total fertility rate
+ggplot(plot_data, aes(x = year, y = fertility_rate)) +
+  geom_line(color = "darkgreen", size = 1) +
+  geom_point(color = "red", size = 2) +
+  # Set x-axis to show every year
+  scale_x_continuous(breaks = seq(min(plot_data$year), max(plot_data$year), by = 1)) +
+  # Apply theme and labels
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Annual Total Fertility Rate Trend (National)",
+       x = "Year",
+       y = "Total Fertility Rate")
+
+
+
+length(yearly_data$total_students)
+length(plot_data$fertility_rate)
+cor(yearly_data$total_students,plot_data$fertility_rate[1:22])
+
+
+
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(gridExtra)
+
+# 1. Align data: Ensure both dataframes have the same years
+# We trim the data to the overlapping period (1999 to 2011 based on your data)
+combined_data <- yearly_data %>%
+  inner_join(plot_data, by = c("연도" = "year"))
+
+# 2. Calculate correlation coefficient
+cor_val <- cor(combined_data$total_students, combined_data$fertility_rate)
+
+# 3. Define scaling factor for the secondary axis (to map fertility rate to student count range)
+# We map the range of fertility rate to the range of student count
+coeff <- max(combined_data$total_students) / max(combined_data$fertility_rate)
+
+# 4. Plotting with Dual-Axis
+ggplot(combined_data, aes(x = 연도)) +
+  # Plot Total Students (Primary Y-axis)
+  geom_line(aes(y = total_students, color = "Total Students"), size = 1) +
+  # Plot Fertility Rate (Secondary Y-axis, adjusted by the coefficient)
+  geom_line(aes(y = fertility_rate * coeff, color = "Fertility Rate"), size = 1, linetype = "dashed") +
+  # Set axes
+  scale_y_continuous(
+    name = "Total Students",
+    labels = comma,
+    sec.axis = sec_axis(~./coeff, name = "Fertility Rate")
+  ) +
+  scale_x_continuous(breaks = combined_data$연도) +
+  # Styling
+  labs(
+    title = paste("Correlation between Students and Fertility Rate (r =", round(cor_val, 3), ")"),
+    x = "Year",
+    color = "Legend"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+
+
+
+
+data_3 <- read.xlsx(xlsxFile = "시도_합계출산율__모의_연령별_출산율_20260527161333.xlsx", 
+                    sheet = "데이터", startRow = 1, colNames = TRUE)
+
+str(data_3)
+
+
+
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(zoo) # Required for rollmean function
+
+# 1. Data processing
+# Extract data for '전국'
+df_national <- data_3[data_3$시도별 == "전국", ]
+
+# Initialize dataframe to store processed fertility rates
+plot_data_2 <- data.frame(year = integer(), fertility_rate = numeric())
+
+# Extract fertility rates by searching for '합계출산율' columns
+years <- unique(names(data_3))
+years <- years[years != "시도별"]
+
+for(year in years) {
+  col_indices <- which(names(data_3) == year)
+  for(idx in col_indices) {
+    # Check if the column is '합계출산율'
+    if(data_3[1, idx] == "합계출산율") {
+      plot_data_2 <- rbind(plot_data_2, data.frame(year = as.integer(year), 
+                                               fertility_rate = as.numeric(df_national[1, idx])))
+    }
+  }
+}
+
+# Sort data by year
+plot_data_2 <- plot_data_2 %>% arrange(year)
+
+# 2. Calculate 7-year moving average
+# Use rollmean with k=7 to get the moving average
+plot_data_2 <- plot_data_2 %>%
+  mutate(moving_avg_7 = rollmean(fertility_rate, k = 7, fill = NA, align = "right"))
+
+# 3. Plotting
+# Visualize raw data and 7-year moving average
+ggplot(plot_data_2, aes(x = year)) +
+  # Draw raw data line
+  geom_line(aes(y = fertility_rate, color = "Raw Data"), size = 0.8, alpha = 0.5) +
+  # Draw moving average line
+  geom_line(aes(y = moving_avg_7, color = "7-Year Moving Average"), size = 1.2) +
+  # Set x-axis labels
+  scale_x_continuous(breaks = seq(min(plot_data$year), max(plot_data$year), by = 2)) +
+  # Add labels and theme
+  labs(title = "National Total Fertility Rate with 7-Year Moving Average",
+       x = "Year",
+       y = "Fertility Rate",
+       color = "Legend") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+
+
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(scales)
+
+# 1. Prepare the fertility data (starting from 1993)
+# 'plot_data' contains 'year' and 'fertility_rate'
+fertility_df <- plot_data %>% 
+  rename(연도 = year)
+
+# 2. Prepare the student data (starting from 2000)
+# 'yearly_data' contains '연도' and 'total_students'
+student_df <- yearly_data
+
+# 3. Merge data with a 7-year lag
+# Fertility rate of year T (e.g., 1993) matches students of year T+7 (e.g., 2000)
+# We create a mapping column: fertility_year + 7 = student_year
+combined_data <- fertility_df %>%
+  mutate(student_year = 연도 + 7) %>%
+  inner_join(student_df, by = c("student_year" = "연도"))
+
+# 4. Calculate correlation between fertility rate and students (with 7-year lag)
+cor_val <- cor(combined_data$fertility_rate, combined_data$total_students)
+
+# 5. Plotting with dual axes to visualize the lagged relationship
+# Define scaling factor for the secondary axis
+coeff <- max(combined_data$total_students) / max(combined_data$fertility_rate)
+
+ggplot(combined_data, aes(x = student_year)) +
+  # Draw Fertility Rate (shifted by 7 years)
+  geom_line(aes(y = fertility_rate * coeff, color = "Fertility Rate (Year T-7)"), size = 1.2) +
+  # Draw Student Population (Year T)
+  geom_line(aes(y = total_students, color = "Students (Year T)"), size = 1) +
+  # Configure axes
+  scale_y_continuous(
+    name = "Total Students (Year T)",
+    labels = comma,
+    sec.axis = sec_axis(~./coeff, name = "Fertility Rate (Year T-7)")
+  ) +
+  labs(
+    title = paste("Lagged Correlation (7 Years): Fertility vs Students (r =", round(cor_val, 3), ")"),
+    subtitle = "Comparing Fertility Rate of 1993-2017 with Students of 2000-2024",
+    x = "Student Enrollment Year",
+    color = "Metric"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+
+
+
+
+str(data)
+str(data_3)
+df_national <- data_3[data_3$시도별 == "전국", ]
+
+# Initialize dataframe to store processed fertility rates
+fertility <- data.frame(year = integer(), fertility_rate = numeric())
+
+# Extract fertility rates by searching for '합계출산율' columns
+years <- unique(names(data_3))
+years <- years[years != "시도별"]
+
+for(year in years) {
+  col_indices <- which(names(data_3) == year)
+  for(idx in col_indices) {
+    # Check if the column is '합계출산율'
+    if(data_3[1, idx] == "합계출산율") {
+      fertility <- rbind(fertility, 
+                        data.frame(year = as.integer(year), 
+                                   fertility_rate = as.numeric(df_national[1, idx])))
+    }
+  }
+}
+
+fertility <- fertility %>% 
+  arrange(year)
+colnames(data[,1])
+
+colnames(data)[1] <- "year"
+
+total <- left_join(x = fertility, y = data, by = "year")
+
+# Load the dplyr package
+library(dplyr)
+
+# Group by year and calculate the sum of total students and the mean of fertility_rate
+# Note: Since fertility_rate is the same for each year in your data, 
+# we use mean() or first() to represent it accurately.
+result <- total %>%
+  group_by(year) %>%
+  summarise(
+    elementary_students = sum(초등학교, na.rm = TRUE)/2,
+    fertility_rate = mean(fertility_rate, na.rm = TRUE)
+  )
+
+# View the result
+print(result)
+
+
+
+
+# 1. Load necessary libraries
+library(dplyr)
+library(forecast)
+library(ggplot2)
+library(scales)
+library(ggrepel)
+
+# 2. Prepare data
+# Add 1992 row and ensure data is sorted
+new_row <- data.frame(year = 1992, elementary_students = NA, fertility_rate = 1.65)
+full_data <- rbind(result, new_row) %>% arrange(year)
+
+# 3. Create 7-year Lagged Fertility Rate
+# Match fertility_rate of year 't' with students of year 't + 7'
+full_data <- full_data %>% mutate(lagged_fertility = lag(fertility_rate, n = 7))
+
+# 4. Train data (Strictly 1999 ~ 2020)
+train_data <- full_data %>% filter(year >= 1999 & year <= 2020)
+cor_value <- cor(train_data$elementary_students, train_data$lagged_fertility, use = "complete.obs")
+
+# 5. Build ARIMAX Model
+ts_students <- ts(train_data$elementary_students, start = 1999)
+ts_xreg <- ts(train_data$lagged_fertility, start = 1999)
+fit <- auto.arima(ts_students, xreg = ts_xreg)
+
+# 6. Forecast (2021 ~ 2025)
+future_fertility_values <- c(0.808, 0.778, 0.721, 0.748, 0.730)
+future_xreg <- ts(future_fertility_values, start = 2021)
+forecast_result <- forecast(fit, h = 5, xreg = future_xreg)
+
+# 7. Prepare data for plotting
+plot_data <- data.frame(
+  year = c(as.numeric(time(ts_students)), as.numeric(time(forecast_result$mean))),
+  students = c(as.numeric(ts_students), as.numeric(forecast_result$mean)),
+  type = c(rep("Historical", length(ts_students)), rep("Forecast", length(forecast_result$mean)))
+) %>%
+  mutate(
+    # Set vertical nudge: odd years up, even years down
+    v_nudge = ifelse(year %% 2 != 0, 50000, -50000)
+  )
+
+# Separate forecast data for labeling
+forecast_labels <- filter(plot_data, type == "Forecast")
+
+# 8. Plotting with ggplot
+ggplot(plot_data, aes(x = year, y = students, color = type)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  # Using geom_text_repel for clear labeling with leader lines
+  geom_text_repel(
+    data = forecast_labels, 
+    aes(label = comma(round(students))),
+    nudge_y = forecast_labels$v_nudge,
+    size = 3.5,
+    color = "black",
+    fontface = "bold",
+    segment.size = 0.3,
+    segment.color = "grey50",
+    box.padding = 0.4,       # Added space between number and leader line
+    point.padding = 0.4,     # Added space between number and point
+    force = 0.5,             # Subtle force to prevent overlap
+    min.segment.length = 0   # Always show leader lines
+  ) +
+  # Set Y-axis to start from 0 and use comma format
+  scale_y_continuous(labels = label_comma(), limits = c(0, NA)) +
+  # Display correlation on the plot
+  annotate("text", x = 2023, y = 4000000, 
+           label = paste("Correlation (Lag 7):", round(cor_value, 3)), fontface = "bold") +
+  labs(
+    title = "Elementary Student Population Forecast", 
+    subtitle = "ARIMAX model (1999-2020) with 7-year lag fertility rate",
+    x = "Year", 
+    y = "Number of Elementary Students"
+  ) +
+  theme_minimal() +
+  theme(legend.title = element_blank())
+
+
+plot_data
+forecast_result
+
+
+
+
+# 1. Load necessary libraries
+library(ggplot2)
+library(dplyr)
+library(scales)
+
+# 2. Extract data from forecast_result
+forecast_df <- data.frame(
+  year = as.numeric(time(forecast_result$mean)),
+  point = as.numeric(forecast_result$mean),
+  lo95 = as.numeric(forecast_result$lower[, "95%"]),
+  hi95 = as.numeric(forecast_result$upper[, "95%"])
+)
+
+# 3. Define the actual data from the image
+actual_data <- data.frame(
+  year = 2021:2025,
+  students = c(2672340, 2664278, 2603929, 2495005, 2345488)
+)
+
+# 4. Plotting
+ggplot() +
+  # Add 95% confidence interval area
+  geom_ribbon(data = forecast_df, 
+              aes(x = year,
+                  ymin = lo95, ymax = hi95, 
+                  fill = "95% Confidence Interval"), alpha = 0.2) +
+  # Add forecast line and point
+  geom_line(data = forecast_df, aes(x = year, y = point, color = "Forecast"), size = 1) +
+  geom_point(data = forecast_df, aes(x = year, y = point, color = "Forecast"), size = 2) +
+  # Add actual data points
+  geom_point(data = actual_data, aes(x = year, y = students, color = "Actual"), size = 3) +
+  # Add labels on top of actual points
+  geom_text(data = actual_data, aes(x = year, y = students, label = comma(students)), 
+            vjust = -1, size = 3.5, color = "red") +
+  # Configure colors and legend
+  scale_color_manual(values = c("Forecast" = "blue", "Actual" = "red")) +
+  scale_fill_manual(values = c("95% Confidence Interval" = "blue")) +
+  # Formatting settings
+  scale_y_continuous(labels = label_comma(), limits = c(0, 3000000)) +
+  labs(
+    title = "Actual vs Forecasted Elementary Student Population",
+    x = "Year",
+    y = "Number of Students",
+    color = "Category",
+    fill = "Uncertainty"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+
+
+
+
