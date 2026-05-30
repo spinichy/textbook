@@ -8811,3 +8811,1687 @@ percentile_ci <- quantile(boot_theta, probs = c(alpha / 2, 1 - (alpha / 2)))
 cat("--- 95% Bootstrap Percentile Confidence Interval ---\n")
 cat("Lower Bound (2.5%):", percentile_ci[1], "\n")
 cat("Upper Bound (97.5%):", percentile_ci[2], "\n")
+
+
+
+
+Part 7 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+##example
+
+
+#1
+
+
+# Set parameters
+set.seed(123)          # For reproducibility
+N <- 10000             # Number of iterations
+sigma <- 2             # Parameter for Rayleigh distribution
+x <- numeric(N)        # Vector to store chains
+
+# Target log-density function (Rayleigh)
+log_f <- function(val, sigma) {
+  if (val <= 0) return(-Inf)
+  return(log(val) - 2 * log(sigma) - (val^2) / (2 * sigma^2))
+}
+
+# Proposal log-density function (Chi-squared with df = current x)
+log_q <- function(y, x_current) {
+  if (y <= 0 || x_current <= 0) return(-Inf)
+  return(dchisq(y, df = x_current, log = TRUE))
+}
+
+# Initialization
+x[1] <- 1.0            # Initial value X_0 stored at index 1
+
+# Metropolis-Hastings Algorithm loop
+for (t in 1:(N - 1)) {
+  current_x <- x[t]
+  
+  # Propose a candidate from Chi-squared distribution with df = current_x
+  # Ensure df is positive
+  if (current_x <= 0) {
+    proposed_y <- 0.01 
+  } else {
+    proposed_y <- rchisq(1, df = current_x)
+  }
+  
+  # Calculate log acceptance ratio
+  log_target_ratio   <- log_f(proposed_y, sigma) - log_f(current_x, sigma)
+  log_proposal_ratio <- log_q(current_x, proposed_y) - log_q(proposed_y, current_x)
+  log_alpha          <- log_target_ratio + log_proposal_ratio
+  
+  # Accept or reject
+  if (log(runif(1)) < log_alpha) {
+    x[t + 1] <- proposed_y     # Accept
+  } else {
+    x[t + 1] = current_x      # Reject
+  }
+}
+
+# Diagnostics (Optional: visual check)
+hist(x[2000:N], breaks = 50, probability = TRUE, main = "M-H Sampling vs True Rayleigh")
+curve(x/sigma^2 * exp(-x^2/(2*sigma^2)), add = TRUE, col = "red", lwd = 2)
+
+
+
+
+
+
+# Set parameters
+set.seed(123)          # For reproducibility
+N <- 10000             # Number of iterations
+sigma <- 4             # Parameter for Rayleigh distribution
+
+# 1. Inverse Transform Method
+u <- runif(N)
+x_inverse <- sigma * sqrt(-2 * log(1 - u))
+
+# 2. Configure plotting area to show 2 plots side-by-side (1 row, 2 columns)
+par(mfrow = c(1, 2))
+
+# --- Plot 1: Histogram vs True Rayleigh PDF ---
+hist(x_inverse, 
+     breaks = 50, 
+     probability = TRUE, 
+     main = expression(paste("Histogram (", sigma, " = 4)")),
+     xlab = "x", 
+     ylab = "Density", 
+     col = "lightgray", 
+     border = "white")
+
+# Add Theoretical Rayleigh PDF Line
+curve((x / sigma^2) * exp(-x^2 / (2 * sigma^2)), 
+      add = TRUE, 
+      col = "red", 
+      lwd = 2)
+
+
+# --- Plot 2: Q-Q Plot ---
+# Theoretical quantile function for Rayleigh distribution
+rayleigh_quantile <- function(p, sigma) {
+  return(sigma * sqrt(-2 * log(1 - p)))
+}
+
+# Calculate probabilities and quantiles
+p_points <- ppoints(N)
+theoretical_quantiles <- rayleigh_quantile(p_points, sigma)
+sample_quantiles <- sort(x_inverse)
+
+# Plotting the QQ-Plot
+plot(theoretical_quantiles, sample_quantiles,
+     main = "Q-Q Plot vs True Rayleigh",
+     xlab = "Theoretical Quantiles",
+     ylab = "Sample Quantiles",
+     pch = 20, col = "blue")
+
+# Add 45-degree reference line
+abline(0, 1, col = "red", lwd = 2)
+
+# Reset plotting parameters back to default (1x1)
+par(mfrow = c(1, 1))
+
+
+
+#2
+
+
+
+# Set parameters
+set.seed(123)          # For reproducibility
+N <- 10000             # Number of iterations
+nu <- 4                # Degrees of freedom for Student's t-distribution
+sigma <- 1             # Standard deviation for proposal distribution (Step size)
+x <- numeric(N)        # Vector to store chains
+
+# Target log-density kernel for Student's t-distribution
+# Proportional to (1 + x^2 / nu)^(-(nu + 1) / 2)
+log_f <- function(val, nu) {
+  return((-(nu + 1) / 2) * log(1 + (val^2) / nu))
+}
+
+# Initialization
+x[1] <- 0.0            # Initial value X_0
+
+# Random Walk Metropolis Sampler loop
+for (t in 1:(N - 1)) {
+  current_x <- x[t]
+  
+  # Propose a candidate from N(current_x, sigma^2)
+  proposed_y <- rnorm(1, mean = current_x, sd = sigma)
+  
+  # Calculate log acceptance ratio
+  # Since the proposal distribution is symmetric (Random Walk), 
+  # the proposal ratio cancels out, leaving only the target ratio.
+  log_alpha <- log_f(proposed_y, nu) - log_f(current_x, nu)
+  
+  # Accept or reject
+  if (log(runif(1)) < log_alpha) {
+    x[t + 1] <- proposed_y     # Accept
+  } else {
+    x[t + 1] <- current_x      # Reject
+  }
+}
+
+# --- Diagnostics and Visualization ---
+par(mfrow = c(1, 2))
+
+# 1. Trace Plot (To check mixing behavior)
+plot(x, type = "l", col = "darkblue",
+     main = expression(paste("Trace Plot (", sigma, " = 1)")),
+     xlab = "Iteration", ylab = "State")
+
+# 2. Histogram vs True Student's t PDF
+hist(x[2000:N], breaks = 50, probability = TRUE,
+     main = "Empirical vs True t-dist",
+     xlab = "x", ylab = "Density", col = "lightgray", border = "white")
+
+# Add True Student's t PDF Line
+curve(dt(x, df = nu), add = TRUE, col = "red", lwd = 2)
+
+# Reset plotting parameters
+par(mfrow = c(1, 1))
+
+
+
+
+
+# Set parameters
+set.seed(123)          # For reproducibility
+N <- 10000             # Number of iterations
+nu <- 4                # Degrees of freedom for Student's t-distribution
+sigmas <- c(0.05, 0.5, 2, 16) # Different proposal standard deviations to test
+
+# Target log-density kernel for Student's t-distribution
+log_f <- function(val, nu) {
+  return((-(nu + 1) / 2) * log(1 + (val^2) / nu))
+}
+
+# Configure plotting area: 4 rows (one for each sigma), 2 columns (Trace plot, Histogram)
+par(mfrow = c(4, 2), mar = c(4, 4, 2, 1), oma = c(0, 0, 2, 0))
+
+# Loop through each sigma value
+for (sigma in sigmas) {
+  x <- numeric(N)
+  x[1] <- 0.0          # Initial value X_0
+  accepted_count <- 0  # To calculate acceptance rate
+  
+  # Metropolis Sampler Loop
+  for (t in 1:(N - 1)) {
+    current_x <- x[t]
+    proposed_y <- rnorm(1, mean = current_x, sd = sigma)
+    
+    log_alpha <- log_f(proposed_y, nu) - log_f(current_x, nu)
+    
+    if (log(runif(1)) < log_alpha) {
+      x[t + 1] <- proposed_y
+      accepted_count <- accepted_count + 1
+    } else {
+      x[t + 1] <- current_x
+    }
+  }
+  
+  # Calculate rates
+  acc_rate <- (accepted_count / (N - 1)) * 100
+  rej_rate <- 100 - acc_rate
+  
+  # --- Plot 1: Trace Plot ---
+  plot(x, type = "l", col = "darkblue",
+       main = bquote(Trace~Plot~(sigma == .(sigma))),
+       xlab = "Iteration", ylab = "State", cex.main = 0.9)
+  
+  # --- Plot 2: Histogram (Post Burn-in: from 2000 to N) ---
+  hist(x[2000:N], breaks = 50, probability = TRUE,
+       main = sprintf("Rejection Rate: %.1f%%", rej_rate),
+       xlab = "x", ylab = "Density", col = "lightgray", border = "white", cex.main = 0.9)
+  
+  # Superimpose true Student's t PDF
+  curve(dt(x, df = nu), add = TRUE, col = "red", lwd = 1.5)
+}
+
+# Add a main title to the window
+title("Comparison of Random Walk Metropolis by Sigma", outer = TRUE, cex.main = 1.2)
+
+# Reset plotting parameters
+par(mfrow = c(1, 1))
+
+
+
+
+
+# Load required package (run install.packages("xtable") if not installed)
+library(xtable)
+
+# Set parameters
+set.seed(123)          # For reproducibility
+N <- 10000             # Number of iterations
+nu <- 4                # Degrees of freedom for Student's t-distribution
+sigmas <- c(0.05, 0.5, 2, 16) # Different proposal standard deviations to test
+
+# Target log-density kernel for Student's t-distribution
+log_f <- function(val, nu) {
+  return((-(nu + 1) / 2) * log(1 + (val^2) / nu))
+}
+
+# Define sequence of quantile probabilities from 5% to 95% with 5% increments
+probs <- seq(0.05, 0.95, by = 0.05)
+
+# Initialize an empty matrix to store results
+quantile_matrix <- matrix(NA, nrow = length(sigmas) + 1, ncol = length(probs))
+colnames(quantile_matrix) <- paste0(probs * 100, "%")
+rownames(quantile_matrix) <- c(paste0("Sigma = ", sigmas), "Theoretical t")
+
+# Loop through each sigma value
+for (i in 1:length(sigmas)) {
+  sigma <- sigmas[i]
+  x <- numeric(N)
+  x[1] <- 0.0          # Initial value X_0
+  
+  # Metropolis Sampler Loop
+  for (t in 1:(N - 1)) {
+    current_x <- x[t]
+    proposed_y <- rnorm(1, mean = current_x, sd = sigma)
+    
+    log_alpha <- log_f(proposed_y, nu) - log_f(current_x, nu)
+    
+    if (log(runif(1)) < log_alpha) {
+      x[t + 1] <- proposed_y
+    } else {
+      x[t + 1] <- current_x
+    }
+  }
+  
+  # Calculate quantiles using samples after the burn-in period (from index 2000 to N)
+  quantile_matrix[i, ] <- quantile(x[2000:N], probs = probs)
+}
+
+# Insert true theoretical quantiles using the 'qt' function
+quantile_matrix[length(sigmas) + 1, ] <- qt(probs, df = nu)
+
+# Convert the matrix to a data frame for neat viewing in R console
+quantile_df <- as.data.frame(quantile_matrix)
+
+# ---------------------------------------------------------
+# Print Section
+# ---------------------------------------------------------
+# 1. View as a clean R Data Frame table in the console (Transposed for vertical scannability)
+cat("### R Data Frame Table Format (Transposed) ###\n")
+print(round(t(quantile_df), 4)) 
+
+
+
+#3
+
+
+
+
+# -----------------------------------------------------------------
+# Advanced Bayesian Analysis Pipeline for Multinomial Model
+# Integrating Posterior Predictive Winning Counts and Proportions
+# -----------------------------------------------------------------
+
+set.seed(123)
+
+# 1. Setup Observed Data and MCMC Control Parameters
+N <- 20000
+burn_in <- 5000
+x_data <- c(80, 50, 40, 50, 30) # Real observed history (Fixed counts)
+total_days <- sum(x_data)        # Total trading days (n = 250)
+
+# 2. Define Log-Posterior Kernel
+log_posterior_kernel <- function(beta, obs) {
+  if (beta <= 0 || beta >= 0.5) return(-Inf)
+  return((obs[4] + obs[5]) * log(beta) + obs[2] * log(1 - beta) + obs[3] * log(1 - 2 * beta))
+}
+
+# 3. Execute Random Walk Metropolis Sampling Loop
+beta_samples <- numeric(N)
+beta_samples[1] <- 0.25 # Initial value at the midpoint
+
+for (t in 1:(N - 1)) {
+  current_beta <- beta_samples[t]
+  proposed_y <- current_beta + runif(1, min = -0.25, max = 0.25)
+  log_alpha <- log_posterior_kernel(proposed_y, x_data) - log_posterior_kernel(current_beta, x_data)
+  
+  if (log(runif(1)) < log_alpha) {
+    beta_samples[t + 1] <- proposed_y
+  } else {
+    beta_samples[t + 1] <- current_beta
+  }
+}
+
+# Extract stable samples after discarding the burn-in period
+valid_beta_samples <- beta_samples[(burn_in + 1):N]
+
+# 4. Compute Bayesian Point Estimate for Beta
+beta_estimated_mean <- mean(valid_beta_samples)
+
+# 5. Posterior Predictive Simulation: Draw New Winning Counts Samples
+num_predictive_draws <- length(valid_beta_samples)
+predictive_x_matrix <- matrix(NA, nrow = num_predictive_draws, ncol = 5)
+
+for (i in 1:num_predictive_draws) {
+  b <- valid_beta_samples[i]
+  
+  # Compute the full probability vector p(beta) for all 5 stocks
+  p_vector <- c(1/3, (1 - b)/3, (1 - 2*b)/3, (2*b)/3, b/3)
+  
+  # Sample a new 250-day hypothetical winning count vector from the multinomial distribution
+  simulated_draw <- rmultinom(n = 1, size = total_days, prob = p_vector)
+  predictive_x_matrix[i, ] <- t(simulated_draw)
+}
+
+# Calculate the mean expected winning counts from the generated samples
+predicted_x_mean <- colMeans(predictive_x_matrix)
+
+# Calculate the final winning proportions based on the simulated predictive samples
+predicted_winning_proportions <- predicted_x_mean / total_days
+
+# -----------------------------------------------------------------
+# 6. Print Comprehensive Statistical Summary Tables
+# -----------------------------------------------------------------
+cat("### 1. Parameter Estimation Result ###\n")
+cat("Estimated Beta (Posterior Mean) :", round(beta_estimated_mean, 5), "\n\n")
+
+cat("### 2. Stock-wise Probability, Sampled Counts, and Proportions ###\n")
+# Combine original history, sampled future counts, and sampled proportions
+comparison_summary <- rbind(
+  Observed_Winning_Days         = x_data,
+  Predicted_Winning_Counts_Mean = round(predicted_x_mean, 2),
+  Predicted_Winning_Proportions = round(predicted_winning_proportions, 4)
+)
+colnames(comparison_summary) <- paste0("Stock ", 1:5)
+print(comparison_summary)
+
+cat("\nTotal Days Checked for count rows:", sum(x_data), "days\n")
+cat("---------------------------------------------------------\n\n")
+
+# -----------------------------------------------------------------
+# 7. MCMC Diagnostics and Graphical Visualization
+# -----------------------------------------------------------------
+par(mfrow = c(1, 2))
+
+# Graphical Plot A: Trace Plot for Convergence Check
+plot(valid_beta_samples, type = "l", col = "darkblue",
+     main = "Trace Plot of Bounded Beta",
+     xlab = "MCMC Iterations (Post Burn-in)", ylab = "Beta Values")
+abline(h = beta_estimated_mean, col = "red", lwd = 2, lty = 2)
+
+# Graphical Plot B: Histogram with Density Curve Overlay
+hist(valid_beta_samples, probability = TRUE, breaks = 40, col = "skyblue", border = "white",
+     main = "Posterior Histogram & Density Curve",
+     xlab = "Beta Values", ylab = "Density")
+lines(density(valid_beta_samples), col = "darkred", lwd = 2.5)
+abline(v = beta_estimated_mean, col = "red", lwd = 2, lty = 2)
+
+par(mfrow = c(1, 1))
+
+
+
+#4
+
+
+
+# ------------------------------------------------------------------------------
+# Example 8.6: Independence Sampler with Visualization (Trace Plot & Histogram)
+# ------------------------------------------------------------------------------
+
+# --- 1. Simulation Setup & Data Generation ---
+set_seed_value <- 123
+set.seed(set_seed_value)
+
+# Define known true parameters for the two normal components
+true_p   <- 0.2   # True mixture probability to be estimated
+mu1      <- -2.0  # Mean of the first component
+sigma1   <- 1.0  # SD of the first component
+mu2      <- 3.0  # Mean of the second component
+sigma2   <- 1.5  # SD of the second component
+
+# Generate synthetic sample data (z_1, ..., z_n)
+n_samples <- 300
+components <- rbinom(n_samples, size = 1, prob = 1 - true_p) + 1 # 1 or 2
+
+z <- numeric(n_samples)
+z[components == 1] <- rnorm(sum(components == 1), mean = mu1, sd = sigma1)
+z[components == 2] <- rnorm(sum(components == 2), mean = mu2, sd = sigma2)
+
+
+# --- 2. Likelihood and Prior Functions ---
+mixture_log_likelihood <- function(p, data, m1, s1, m2, s2) {
+  if (p <= 0 || p >= 1) return(-Inf)
+  f1 <- dnorm(data, mean = m1, sd = s1)
+  f2 <- dnorm(data, mean = m2, sd = s2)
+  total_density <- p * f1 + (1 - p) * f2
+  return(sum(log(total_density)))
+}
+
+log_prior <- function(p) {
+  if (p <= 0 || p >= 1) return(-Inf)
+  return(dbeta(p, shape1 = 1, shape2 = 1, log = TRUE))
+}
+
+log_target_posterior <- function(p, data, m1, s1, m2, s2) {
+  return(mixture_log_likelihood(p, data, m1, s1, m2, s2) + log_prior(p))
+}
+
+
+# --- 3. Independence Sampler Implementation ---
+n_iterations <- 10000
+p_trace <- numeric(n_iterations)
+
+# Initial value for p
+p_current <- 0.5
+p_trace[1] <- p_current
+acceptance_count <- 0
+
+for (t in 2:n_iterations) {
+  # Propose a candidate value from Beta(1, 1)
+  p_candidate <- rbeta(1, shape1 = 1, shape2 = 1)
+  
+  log_target_cand <- log_target_posterior(p_candidate, z, mu1, sigma1, mu2, sigma2)
+  log_target_curr <- log_target_posterior(p_current, z, mu1, sigma1, mu2, sigma2)
+  
+  log_proposal_cand <- dbeta(p_candidate, shape1 = 1, shape2 = 1, log = TRUE)
+  log_proposal_curr <- dbeta(p_current, shape1 = 1, shape2 = 1, log = TRUE)
+  
+  log_acceptance_ratio <- log_target_cand - log_target_curr + log_proposal_curr - log_proposal_cand
+  
+  if (log(runif(1)) < log_acceptance_ratio) {
+    p_current <- p_candidate
+    acceptance_count <- acceptance_count + 1
+  }
+  
+  p_trace[t] <- p_current
+}
+
+
+# --- 4. Post-Processing and MCMC Diagnostics ---
+# Define burn-in period (discard first 20% of iterations)
+burn_in <- round(n_iterations * 0.2)
+post_burn_in_trace <- p_trace[(burn_in + 1):n_iterations]
+
+# Print summary statistics
+acceptance_rate <- acceptance_count / (n_iterations - 1)
+print(paste("Acceptance Rate:", round(acceptance_rate * 100, 2), "%"))
+print(paste("Posterior Mean Estimate of p:", round(mean(post_burn_in_trace), 4)))
+
+
+# --- 5. Visualization (Plots) ---
+# Configure a 1x2 plotting area to show trace plot and histogram side by side
+
+par(mfrow = c(1, 2))
+
+# Plot 1: Trace Plot of the MCMC Chain
+
+plot(p_trace, type = "l", col = "gray50",
+     main = "Trace Plot for Parameter p",
+     xlab = "Iteration", ylab = "Value of p")
+# Add a red vertical line indicating where the burn-in period ends
+abline(v = burn_in, col = "red", lwd = 2, lty = 2)
+# Add a green horizontal line representing the true value of p
+abline(h = true_p, col = "darkgreen", lwd = 2)
+legend("topright", legend = c("Burn-in Cutoff", "True p"),
+       col = c("red", "darkgreen"), lty = c(2, 1), lwd = 2, cex = 0.8)
+
+# Plot 2: Histogram of Posterior Samples (Post-Burn-in)
+hist(post_burn_in_trace, breaks = 40, prob = TRUE, col = "lightblue", border = "white",
+     main = "Posterior Distribution of p",
+     xlab = "p", ylab = "Density")
+# Add a kernel density curve over the histogram
+lines(density(post_burn_in_trace), col = "darkblue", lwd = 2)
+# Add a green vertical line representing the true value of p
+abline(v = true_p, col = "darkgreen", lwd = 2)
+legend("topright", legend = c("Posterior Density", "True p"),
+       col = c("darkblue", "darkgreen"), lty = 1, lwd = 2, cex = 0.8)
+
+# Reset plotting layout parameters to default
+par(mfrow = c(1, 1))
+
+
+
+
+#5
+
+
+
+# -----------------------------------------------------------------
+# Example 8.7: Gibbs Sampler for Bivariate Normal Distribution
+# -----------------------------------------------------------------
+
+set.seed(123)
+
+# 1. Target Distribution Hyperparameters
+mu1 <- 0; mu2 <- 1
+sigma1 <- 2; sigma2 <- 4
+rho <- 0.7
+
+# 2. Setup Simulation Controls
+N <- 10000
+burn_in <- 2000
+samples <- matrix(NA, nrow = N, ncol = 2)
+colnames(samples) <- c("X1", "X2")
+
+# Initial configurations
+samples[1, "X1"] <- -3
+samples[1, "X2"] <- 3
+
+# 3. Gibbs Sampling Main Loop (Full Acceptance)
+for (t in 2:N) {
+  # Sample X1 | X2
+  current_x2 <- samples[t - 1, "X2"]
+  cond_mean_x1 <- mu1 + rho * (sigma1 / sigma2) * (current_x2 - mu2)
+  cond_sd_x1   <- sqrt((sigma1^2) * (1 - rho^2))
+  samples[t, "X1"] <- rnorm(1, mean = cond_mean_x1, sd = cond_sd_x1)
+  
+  # Sample X2 | X1
+  current_x1 <- samples[t, "X1"]
+  cond_mean_x2 <- mu2 + rho * (sigma2 / sigma1) * (current_x1 - mu1)
+  cond_sd_x2   <- sqrt((sigma2^2) * (1 - rho^2))
+  samples[t, "X2"] <- rnorm(1, mean = cond_mean_x2, sd = cond_sd_x2)
+}
+
+valid_samples <- samples[(burn_in + 1):N, ]
+
+# 4. Print Summary Comparison
+cat("### Example 8.7 Gibbs Sample Estimates ###\n")
+cat("Sample Mean of X1 :", round(mean(valid_samples[, "X1"]), 4), "\n")
+cat("Sample Mean of X2 :", round(mean(valid_samples[, "X2"]), 4), "\n")
+cat("Sample Correlation:", round(cor(valid_samples[, "X1"], valid_samples[, "X2"]), 4), "\n\n")
+
+# 5. Graphical Diagnostics
+par(mfrow = c(1, 2))
+plot(valid_samples, col = rgb(0, 0, 0.5, 0.15), pch = 19, main = "Joint Scatter Plot", xlab = "X1", ylab = "X2")
+contour(MASS::kde2d(valid_samples[, 1], valid_samples[, 2]), add = TRUE, col = "red", lwd = 2)
+
+plot(valid_samples[, "X1"], type = "l", col = "darkgreen", main = "Trace Plot", xlab = "Iterations", ylab = "Values")
+lines(valid_samples[, "X2"], col = "orange")
+legend("topright", legend = c("X1", "X2"), col = c("darkgreen", "orange"), lty = 1, bty = "n")
+par(mfrow = c(1, 1))
+
+
+
+#6
+
+
+# -----------------------------------------------------------------
+# Example 8.8: Multi-Scenario Analysis of Proposal Standard Deviations
+# Evaluating Convergence, ACF, and Batch-Mean Monte Carlo Error
+# -----------------------------------------------------------------
+
+set.seed(123)
+
+# 1. Setup Simulation Scale and Target Parameters
+nu <- 4          # Degrees of freedom for Student-t target
+N <- 20000       # Total iterations per scenario
+burn_in <- 5000  # Burn-in period to discard
+total_valid_N <- N - burn_in
+
+# Define the 4 target proposal standard deviations to test
+sd_scenarios <- c(0.05, 0.5, 2, 16)
+
+# Log density kernel for the Student-t distribution (up to a constant)
+log_target_kernel <- function(x, df) {
+  return(-((df + 1) / 2) * log(1 + (x^2) / df))
+}
+
+# Setup plotting canvas grid: 4 scenarios (rows) x 3 diagnostic types (columns)
+par(mfrow = c(4, 3), mar = c(4, 4, 2, 1))
+
+# -----------------------------------------------------------------
+# 2. Loop Through Each Proposal SD Scenario
+# -----------------------------------------------------------------
+for (s in 1:length(sd_scenarios)) {
+  current_sd <- sd_scenarios[s]
+  t_samples <- numeric(N)
+  t_samples[1] <- 0 # Initialize at the center mode
+  
+  accepted_count <- 0
+  
+  # Random Walk Metropolis Sampling Loop
+  for (t in 1:(N - 1)) {
+    current_x <- t_samples[t]
+    proposed_y <- rnorm(1, mean = current_x, sd = current_sd)
+    
+    log_alpha <- log_target_kernel(proposed_y, nu) - log_target_kernel(current_x, nu)
+    
+    if (log(runif(1)) < log_alpha) {
+      t_samples[t + 1] <- proposed_y
+      if (t > burn_in) accepted_count <- accepted_count + 1
+    } else {
+      t_samples[t + 1] <- current_x
+    }
+  }
+  
+  # Extract stable post-burn-in chain
+  valid_chain <- t_samples[(burn_in + 1):N]
+  acceptance_rate <- accepted_count / total_valid_N
+  
+  # -----------------------------------------------------------------
+  # 3. Compute Monte Carlo Error via Batch Means Method (K = 20)
+  # -----------------------------------------------------------------
+  K <- 20
+  v <- total_valid_N / K
+  batch_means <- numeric(K)
+  
+  for (j in 1:K) {
+    batch_start <- (j - 1) * v + 1
+    batch_end   <- j * v
+    batch_means[j] <- mean(valid_chain[batch_start:batch_end])
+  }
+  
+  grand_mean <- mean(valid_chain)
+  mc_variance <- sum((batch_means - grand_mean)^2) / (K * (K - 1))
+  mc_error    <- sqrt(mc_variance)
+  
+  # -----------------------------------------------------------------
+  # 4. Generate Graphical Panels for Current Scenario
+  # -----------------------------------------------------------------
+  # Panel 1: Trace Plot with Scenario Metadata Labels
+  plot(valid_chain, type = "l", col = "darkred", 
+       main = paste0("Trace Plot (sd = ", current_sd, ")"),
+       xlab = "Post-Burn-in Iterations", ylab = "Values")
+  abline(h = grand_mean, col = "blue", lty = 2, lwd = 1.5)
+  
+  # Panel 2: Autocorrelation Function (ACF) to see dependency decay
+  acf(valid_chain, lag.max = 50, col = "darkgreen", lwd = 1.5,
+      main = paste0("ACF (Accept Rate: ", round(acceptance_rate * 100, 1), "%)"))
+  
+  # Panel 3: Target Histogram vs True Theoretical Density Curve
+  hist(valid_chain, probability = TRUE, breaks = 40, col = "skyblue", border = "white",
+       main = paste0("MCE = ", round(mc_error, 5)), xlab = "Values")
+  # Superimpose the exact analytical density function curve line
+  curve(dt(x, df = nu), add = TRUE, col = "black", lwd = 2)
+  
+  # Print text summary to console for tracking numeric precision
+  cat(paste0("Scenario SD: ", sprintf("%5.2f", current_sd), 
+             " | Acceptance: ", sprintf("%5.1f%%", acceptance_rate * 100),
+             " | Post-Mean: ", sprintf("%8.5f", grand_mean),
+             " | Batch MC Error: ", sprintf("%.5f", mc_error), "\n"))
+}
+
+# Reset layout configuration parameters to default
+par(mfrow = c(1, 1))
+
+
+
+#7
+
+
+
+library(coda)
+
+# Function to generate a single Metropolis-Hastings chain
+normal.chain <- function(init_val, n_iter, proposal_sd) {
+  chain <- numeric(n_iter)
+  chain[1] <- init_val
+  
+  for (t in 2:n_iter) {
+    current <- chain[t - 1]
+    # Propose a new value from N(current, proposal_sd^2)
+    proposal <- rnorm(1, mean = current, sd = proposal_sd)
+    
+    # Calculate acceptance probability alpha
+    # Target distribution is standard normal N(0, 1)
+    log_target_current  <- dnorm(current, mean = 0, sd = 1, log = TRUE)
+    log_target_proposal <- dnorm(proposal, mean = 0, sd = 1, log = TRUE)
+    
+    log_alpha <- log_target_proposal - log_target_current
+    
+    if (log(runif(1)) < log_alpha) {
+      chain[t] <- proposal
+    } else {
+      chain[t] <- current
+    }
+  }
+  return(chain)
+}
+
+# Simulation settings
+init_values <- c(-10, -5, 5, 10)
+n_chains <- length(init_values)
+n_iter <- 10000
+
+# 1. Simulation with Proposal Variance = 0.04 (SD = 0.2)
+sd_low <- sqrt(0.04)
+chains_low_list <- list()
+
+for (i in 1:n_chains) {
+  chains_low_list[[i]] <- as.mcmc(normal.chain(init_values[i], n_iter, sd_low))
+}
+mcmc_low <- mcmc.list(chains_low_list)
+diag_low <- gelman.diag(mcmc_low)
+
+# 2. Simulation with Proposal Variance = 4 (SD = 2)
+sd_high <- sqrt(4)
+chains_high_list <- list()
+
+for (i in 1:n_chains) {
+  chains_high_list[[i]] <- as.mcmc(normal.chain(init_values[i], n_iter, sd_high))
+}
+mcmc_high <- mcmc.list(chains_high_list)
+diag_high <- gelman.diag(mcmc_high)
+
+# Print Gelman-Rubin diagnostic results
+cat("=== Gelman-Rubin Diagnostic (Proposal Variance = 0.04) ===\n")
+print(diag_low)
+
+cat("\n=== Gelman-Rubin Diagnostic (Proposal Variance = 4) ===\n")
+print(diag_high)
+
+# Optional: Plot to visualize convergence
+par(mfrow = c(2, 1))
+gelman.plot(mcmc_low, main = "Gelman Plot (Variance = 0.04)")
+gelman.plot(mcmc_high, main = "Gelman Plot (Variance = 4)")
+
+
+
+
+
+#==============================================================================
+# Metropolis-Hastings Simulation & Gelman-Rubin Diagnostic (Base R Only)
+# ==============================================================================
+
+# Function to generate a single Metropolis-Hastings chain
+normal.chain <- function(init_val, n_iter, proposal_sd) {
+  chain <- numeric(n_iter)
+  chain[1] <- init_val
+  
+  for (t in 2:n_iter) {
+    current <- chain[t - 1]
+    
+    # Propose a new candidate from the normal proposal distribution
+    proposal <- rnorm(1, mean = current, sd = proposal_sd)
+    
+    # Evaluate log-target densities for standard normal distribution N(0, 1)
+    log_target_current  <- dnorm(current, mean = 0, sd = 1, log = TRUE)
+    log_target_proposal <- dnorm(proposal, mean = 0, sd = 1, log = TRUE)
+    
+    # Calculate the log acceptance probability ratio
+    log_alpha <- log_target_proposal - log_target_current
+    
+    # Accept or reject the proposed value
+    if (log(runif(1)) < log_alpha) {
+      chain[t] <- proposal
+    } else {
+      chain[t] <- current
+    }
+  }
+  return(chain)
+}
+
+# Function to calculate Gelman-Rubin diagnostic (Potential Scale Reduction Factor)
+gelman.rubin.base <- function(chains_matrix) {
+  N <- nrow(chains_matrix) # Number of iterations
+  M <- ncol(chains_matrix) # Number of chains
+  
+  # 1. Compute empirical means for each individual chain
+  chain_means <- colMeans(chains_matrix)
+  
+  # 2. Compute the grand mean across all simulated samples
+  overall_mean <- mean(chain_means)
+  
+  # 3. Calculate between-chain variance (B) based on ANOVA principles
+  B <- (N / (M - 1)) * sum((chain_means - overall_mean)^2)
+  
+  # 4. Calculate within-chain variance (W) by averaging sample variances
+  chain_vars <- apply(chains_matrix, 2, var)
+  W <- mean(chain_vars)
+  
+  # 5. Estimate the marginal posterior variance (weighted average of W and B)
+  var_plus <- ((N - 1) / N) * W + (1 / N) * B
+  
+  # 6. Compute the final R_hat shrinkage factor
+  R_hat <- sqrt(var_plus / W)
+  
+  return(R_hat)
+}
+
+# ------------------------------------------------------------------------------
+# Simulation Setup
+# ------------------------------------------------------------------------------
+init_values <- c(-10, -5, 5, 10)
+n_chains <- length(init_values)
+n_iter <- 10000
+
+# Initialize matrices to store generated MCMC trajectories
+matrix_low  <- matrix(0, nrow = n_iter, ncol = n_chains)
+matrix_high <- matrix(0, nrow = n_iter, ncol = n_chains)
+
+# Run simulations for both low variance (0.04) and high variance (4.00)
+for (i in 1:n_chains) {
+  matrix_low[, i]  <- normal.chain(init_values[i], n_iter, proposal_sd = sqrt(0.04))
+  matrix_high[, i] <- normal.chain(init_values[i], n_iter, proposal_sd = sqrt(4))
+}
+
+# Compute convergence diagnostics
+r_hat_low  <- gelman.rubin.base(matrix_low)
+r_hat_high <- gelman.rubin.base(matrix_high)
+
+# Print diagnostic outcomes to the console
+cat("=== Gelman-Rubin Diagnostic (Base R) ===\n")
+cat("Proposal Variance = 0.04 -> R_hat:", round(r_hat_low, 4), "\n")
+cat("Proposal Variance = 4.00 -> R_hat:", round(r_hat_high, 4), "\n")
+
+# ------------------------------------------------------------------------------
+# Graphical Visualization (Trace Plots)
+# ------------------------------------------------------------------------------
+# Configure a 2-row layout grid for plotting
+par(mfrow = c(2, 1), mar = c(4, 4, 2, 1))
+
+# Assign distinct line colors for the 4 separate chains
+chain_colors <- c("#E41A1C", "#377EB8", "#4DAF4A", "#984EA3")
+
+# Plot 1: Trace plot for low proposal variance (0.04)
+plot(1:n_iter, matrix_low[, 1], type = "l", col = chain_colors[1],
+     ylim = c(-12, 12), xlab = "Iteration", ylab = "X",
+     main = paste("Trace Plot (Variance = 0.04) | R_hat =", round(r_hat_low, 4)))
+
+for (i in 2:n_chains) {
+  lines(1:n_iter, matrix_low[, i], col = chain_colors[i])
+}
+abline(h = 0, col = "black", lty = 2, lwd = 1.5) # Reference target mean
+
+# Plot 2: Trace plot for high proposal variance (4.00)
+plot(1:n_iter, matrix_high[, 1], type = "l", col = chain_colors[1],
+     ylim = c(-12, 12), xlab = "Iteration", ylab = "X",
+     main = paste("Trace Plot (Variance = 4.00) | R_hat =", round(r_hat_high, 4)))
+
+for (i in 2:n_chains) {
+  lines(1:n_iter, matrix_high[, i], col = chain_colors[i])
+}
+abline(h = 0, col = "black", lty = 2, lwd = 1.5) # Reference target mean
+
+# Restore default single-panel graphical device settings
+par(mfrow = c(1, 1))
+
+
+
+#8
+
+
+#MLE
+
+# Load necessary libraries
+library(boot)
+library(ggplot2)
+library(gridExtra)
+
+# 1. Preprocessing: Count the number of disasters per year
+data(coal)
+years <- floor(coal$date)
+year_range <- min(years):max(years)
+year_counts <- table(factor(years, levels = year_range))
+x <- as.numeric(year_counts)
+n <- length(x)
+
+# 2. MLE Calculation
+log_lik <- numeric(n - 1)
+for (k in 1:(n - 1)) {
+  # mu(before k), lambda(after k) estimation
+  mu_hat <- max(mean(x[1:k]), 1e-6)
+  lambda_hat <- max(mean(x[(k + 1):n]), 1e-6)
+  
+  # Log-likelihood formula
+  log_lik[k] <- sum(x[1:k] * log(mu_hat) - mu_hat) + 
+    sum(x[(k + 1):n] * log(lambda_hat) - lambda_hat)
+}
+
+# 3. Find the best k
+best_k_idx <- which.max(log_lik)
+best_k_year <- year_range[best_k_idx]
+
+# 4. Visualization preparation
+plot_data_ts <- data.frame(year = year_range, count = x)
+plot_data_ll <- data.frame(year = year_range[1:(n-1)], ll = log_lik)
+
+# Plot 1: Time Series of Disasters
+p1 <- ggplot(plot_data_ts, aes(x = year, y = count)) +
+  geom_step(color = "darkgreen", linewidth = 1) +
+  geom_vline(xintercept = best_k_year, color = "red", linetype = "dashed", linewidth = 1) +
+  annotate("text", x = best_k_year + 5, y = max(x, na.rm=TRUE), 
+           label = paste("Change Point:", best_k_year), color = "red", fontface = "bold") +
+  labs(title = "Number of Coal Mining Disasters per Year", x = "Year", y = "Count") +
+  theme_minimal()
+
+# Plot 2: Log-Likelihood
+p2 <- ggplot(plot_data_ll, aes(x = year, y = ll)) +
+  geom_line(color = "blue", linewidth = 1) +
+  geom_vline(xintercept = best_k_year, color = "red", linetype = "dashed", linewidth = 1) +
+  annotate("text", x = best_k_year + 5, y = max(plot_data_ll$ll, na.rm=TRUE), 
+           label = paste("Best k:", best_k_year), color = "red", fontface = "bold") +
+  labs(title = "Log-Likelihood by Change Point", x = "Year", y = "Log-Likelihood") +
+  theme_minimal()
+
+# Display plots
+grid.arrange(p1, p2, ncol = 1)
+
+
+#MCMC
+
+
+# Load necessary libraries
+library(ggplot2)
+library(gridExtra)
+
+# 1. Preprocessing: Count the number of disasters per year
+data(coal)
+years <- floor(coal$date)
+year_range <- min(years):max(years)
+year_counts <- table(factor(years, levels = year_range))
+x <- as.numeric(year_counts)
+n <- length(x)
+
+# 2. MCMC (Gibbs Sampler) with k including n (no change point case)
+set.seed(2026)
+n_iter <- 10000
+burn_in <- 2000
+
+# Initialization
+k <- floor(n / 2)
+mu <- mean(x[1:k])
+lambda <- mean(x[(k + 1):n])
+
+# Storage for MCMC samples
+samples <- matrix(NA, nrow = n_iter, ncol = 3)
+colnames(samples) <- c("mu", "lambda", "k")
+
+# Gibbs Sampling Loop
+for (i in 1:n_iter) {
+  # Step 1: Update mu
+  # If k=n, all data is used for mu
+  if (k == n) {
+    mu <- rgamma(1, shape = 0.001 + sum(x), rate = 0.001 + n)
+    lambda <- rgamma(1, shape = 0.001, rate = 0.001) # lambda becomes independent prior
+  } else {
+    mu <- rgamma(1, shape = 0.001 + sum(x[1:k]), rate = 0.001 + k)
+    lambda <- rgamma(1, shape = 0.001 + sum(x[(k + 1):n]), rate = 0.001 + (n - k))
+  }
+  
+  # Step 2: Update k considering k=n
+  log_probs <- sapply(1:n, function(j) {
+    if (j == n) {
+      # Log-likelihood when there is no change point (all governed by mu)
+      sum(dpois(x, mu, log = TRUE))
+    } else {
+      # Log-likelihood when change occurs at j
+      sum(dpois(x[1:j], mu, log = TRUE)) + sum(dpois(x[(j + 1):n], lambda, log = TRUE))
+    }
+  })
+  
+  # Normalize probabilities to prevent underflow
+  probs <- exp(log_probs - max(log_probs))
+  k <- sample(1:n, 1, prob = probs)
+  
+  samples[i, ] <- c(mu, lambda, k)
+}
+
+# Post-processing
+post_samples <- samples[-(1:burn_in), ]
+# If k=n, it signifies no change; otherwise map back to year
+post_k_values <- post_samples[, "k"]
+mean_k <- mean(post_k_values[post_k_values < n])
+
+
+# 3. Visualization with annotated mean change point
+
+# 1. Prepare data with actual years
+# min(years) is the starting year of the dataset
+start_year <- min(years)
+actual_years <- start_year:(start_year + n - 1)
+
+# 2. Visualization using Actual Years
+# Map the indices (1 to n) to actual years
+post_k_years <- start_year + post_k_values - 1
+mean_k_year <- mean(post_k_years[post_k_values < n])
+
+plot_data_hist <- data.frame(k_year = post_k_years)
+
+p1 <- ggplot(plot_data_hist, aes(x = k_year)) +
+  geom_histogram(bins = n, fill = "skyblue", color = "white") +
+  # Draw red vertical line at the mean year
+  geom_vline(xintercept = mean_k_year, color = "red", linetype = "dashed", linewidth = 1) +
+  # Annotate the mean year text
+  annotate("text", x = mean_k_year + 2, y = max(table(post_k_years)) * 0.8, 
+           label = paste("Mean Year:", round(mean_k_year)), color = "red", fontface = "bold") +
+  labs(title = "Posterior Distribution of Change Point (Year)", 
+       x = "Year", y = "Frequency") +
+  theme_minimal()
+
+# Plot 2: Trace plot using actual years
+plot_data_trace <- data.frame(iter = 1:nrow(post_samples), year = start_year + post_samples[, "k"] - 1)
+p2 <- ggplot(plot_data_trace, aes(x = iter, y = year)) +
+  geom_line(color = "gray") +
+  geom_hline(yintercept = mean_k_year, color = "red", linetype = "dashed") +
+  labs(title = "Trace Plot of Change Point (Year)", x = "Iteration", y = "Year") +
+  theme_minimal()
+
+grid.arrange(p1, p2, ncol = 1)
+
+
+
+
+
+# Load necessary libraries
+library(ggplot2)
+library(gridExtra)
+
+# 1. Preprocessing
+data(coal)
+years <- floor(coal$date)
+year_range <- min(years):max(years)
+x <- as.numeric(table(factor(years, levels = year_range)))
+n <- length(x)
+start_year <- min(years)
+
+# 2. Gibbs Sampler Function
+run_mcmc_chain <- function(seed, n_iter = 5000) {
+  set.seed(seed)
+  k <- sample(1:n, 1)
+  mu <- mean(x)
+  lambda <- mean(x)
+  samples <- matrix(NA, nrow = n_iter, ncol = 3)
+  colnames(samples) <- c("mu", "lambda", "k")
+  
+  for (i in 1:n_iter) {
+    # Update mu and lambda
+    if (k == n) {
+      mu <- rgamma(1, shape = 0.001 + sum(x), rate = 0.001 + n)
+      lambda <- rgamma(1, shape = 0.001, rate = 0.001)
+    } else {
+      mu <- rgamma(1, shape = 0.001 + sum(x[1:k]), rate = 0.001 + k)
+      lambda <- rgamma(1, shape = 0.001 + sum(x[(k + 1):n]), rate = 0.001 + (n - k))
+    }
+    # Update k
+    log_probs <- sapply(1:n, function(j) {
+      if (j == n) sum(dpois(x, mu, log = TRUE))
+      else sum(dpois(x[1:j], mu, log = TRUE)) + sum(dpois(x[(j + 1):n], lambda, log = TRUE))
+    })
+    probs <- exp(log_probs - max(log_probs))
+    k <- sample(1:n, 1, prob = probs)
+    samples[i, ] <- c(mu, lambda, k)
+  }
+  return(samples)
+}
+
+# 3. Run multiple chains for convergence diagnostics
+n_chains <- 3
+chain_list <- lapply(1:n_chains, function(i) run_mcmc_chain(seed = i + 2026))
+
+# 4. Calculate R-hat (Gelman-Rubin) directly
+calculate_rhat <- function(chains) {
+  n_chains <- length(chains)
+  n_iter <- nrow(chains[[1]])
+  n_params <- ncol(chains[[1]])
+  rhat <- sapply(1:n_params, function(p) {
+    x_all <- sapply(chains, function(m) m[, p])
+    chain_means <- colMeans(x_all)
+    W <- mean(apply(x_all, 2, var))
+    B <- n_iter * var(chain_means)
+    var_hat <- ((n_iter - 1) / n_iter) * W + (1 / n_iter) * B
+    return(sqrt(var_hat / W))
+  })
+  return(rhat)
+}
+
+rhat_values <- calculate_rhat(chain_list)
+names(rhat_values) <- c("mu", "lambda", "k")
+print("Gelman-Rubin Statistic (R-hat):")
+print(rhat_values)
+
+
+# 1. Prepare data for plotting
+# Merge all 3 chains into one data frame for ggplot
+plot_data <- data.frame()
+for(i in 1:n_chains) {
+  temp <- as.data.frame(chain_list[[i]])
+  temp$iter <- 1:nrow(temp)
+  temp$chain <- as.factor(i)
+  plot_data <- rbind(plot_data, temp)
+}
+
+# 2. Visualization: Trace plots for mu, lambda, and k
+library(gridExtra)
+
+# Function to create trace plot
+create_trace_plot <- function(param_name) {
+  ggplot(plot_data, aes(x = iter, y = .data[[param_name]], color = chain)) +
+    geom_line(alpha = 0.5) +
+    labs(title = paste("Trace Plot:", param_name), 
+         x = "Iteration", y = "Value") +
+    theme_minimal()
+}
+
+p1 <- create_trace_plot("mu")
+p2 <- create_trace_plot("lambda")
+p3 <- create_trace_plot("k")
+
+# Arrange the plots
+grid.arrange(p1, p2, p3, ncol = 1)
+
+
+
+
+##exercise
+
+
+
+#1
+
+
+# Target: Rayleigh distribution with sigma = 2
+# PDF: f(x) = (x / sigma^2) * exp(-x^2 / (2 * sigma^2))
+target_pdf <- function(x, sigma = 2) {
+  if (x < 0) return(0)
+  return((x / sigma^2) * exp(-x^2 / (2 * sigma^2)))
+}
+
+# Metropolis-Hastings Sampler
+mh_sampler <- function(n_iter, df_proposal, target_sigma = 2) {
+  samples <- numeric(n_iter)
+  current_x <- 2 # Initial value
+  
+  for (i in 1:n_iter) {
+    # Proposal: Chi-squared distribution
+    proposal_x <- rchisq(1, df = df_proposal)
+    
+    # M-H ratio: (target(prop) * prop(curr|prop)) / (target(curr) * prop(prop|curr))
+    # Note: Using dchisq as symmetric or specific transition logic here
+    ratio <- (target_pdf(proposal_x, target_sigma) * dchisq(current_x, df = df_proposal)) /
+      (target_pdf(current_x, target_sigma) * dchisq(proposal_x, df = df_proposal))
+    
+    alpha <- min(1, ratio)
+    
+    if (runif(1) < alpha) {
+      current_x <- proposal_x
+    }
+    samples[i] <- current_x
+  }
+  return(samples)
+}
+
+# Run simulation
+set.seed(2026)
+n_iter <- 5000
+samples_df2 <- mh_sampler(n_iter, df_proposal = 2)
+samples_df4 <- mh_sampler(n_iter, df_proposal = 4)
+
+# Visualization
+par(mfrow=c(2, 2))
+# Trace plots
+plot(samples_df2, type="l", main="Trace Plot (df=2)", col="blue", ylab="x")
+plot(samples_df4, type="l", main="Trace Plot (df=4)", col="red", ylab="x")
+# Histograms
+hist(samples_df2, breaks=50, prob=TRUE, main="Histogram (df=2)", col=rgb(0,0,1,0.2))
+hist(samples_df4, breaks=50, prob=TRUE, main="Histogram (df=4)", col=rgb(1,0,0,0.2))
+
+
+
+#2
+
+
+
+# 1. Target Distribution: Rayleigh(sigma = 2)
+# PDF: f(x) = (x / sigma^2) * exp(-x^2 / (2 * sigma^2))
+target_pdf <- function(x, sigma = 2) {
+  if (x < 0) return(0)
+  return((x / sigma^2) * exp(-x^2 / (2 * sigma^2)))
+}
+
+# 2. M-H Sampler with Gamma Proposal
+# Proposal: Y ~ Gamma(shape = Xt, rate = 1)
+run_adaptive_mh <- function(n_iter = 5000, start_x) {
+  samples <- numeric(n_iter)
+  current_x <- start_x
+  
+  for (i in 1:n_iter) {
+    # Generate proposal from Gamma(shape = current_x, rate = 1)
+    proposal_x <- rgamma(1, shape = current_x, rate = 1)
+    
+    # Calculate M-H ratio for non-symmetric proposal:
+    # ratio = [target(y) * q(x|y)] / [target(x) * q(y|x)]
+    num <- target_pdf(proposal_x) * dgamma(current_x, shape = proposal_x, rate = 1)
+    den <- target_pdf(current_x) * dgamma(proposal_x, shape = current_x, rate = 1)
+    
+    alpha <- min(1, num / den)
+    
+    # Accept or Reject
+    if (runif(1) < alpha) {
+      current_x <- proposal_x
+    }
+    samples[i] <- current_x
+  }
+  return(samples)
+}
+
+# 3. Execution: Run with different starting values (Xt)
+set.seed(2026)
+n_iter <- 5000
+start_values <- c(1, 4, 9)
+results <- lapply(start_values, function(sv) run_adaptive_mh(n_iter, sv))
+
+# 4. Visualization: Trace Plot Comparison
+library(ggplot2)
+plot_data <- data.frame(
+  value = unlist(results),
+  iter = rep(1:n_iter, length(start_values)),
+  start = as.factor(rep(start_values, each = n_iter))
+)
+
+ggplot(plot_data, aes(x = iter, y = value, color = start)) +
+  geom_line(alpha = 0.5) +
+  facet_wrap(~start, ncol = 1) +
+  labs(title = "Trace Plot: Gamma(Xt, 1) Proposal with Different Starts",
+       x = "Iteration", y = "Value (Xt)", color = "Initial X") +
+  theme_minimal()
+
+
+
+#3
+
+
+# Metropolis-Hastings algorithm for standard Cauchy distribution
+# Target density: f(x) = 1 / (pi * (1 + x^2))
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Parameters
+n_iterations <- 11000  # Total iterations (1000 burn-in + 10000 samples)
+burn_in <- 1000        # Number of samples to discard
+samples <- numeric(n_iterations)
+current_x <- 0         # Initial value
+
+# Metropolis-Hastings loop
+for (i in 1:n_iterations) {
+  # Generate a candidate from proposal distribution: Normal(current_x, 1)
+  candidate <- rnorm(1, mean = current_x, sd = 1)
+  
+  # Calculate acceptance ratio (log scale for numerical stability)
+  # log(f(x)) = -log(pi * (1 + x^2))
+  log_ratio <- log(1 + current_x^2) - log(1 + candidate^2)
+  
+  # Accept or reject
+  if (log(runif(1)) < log_ratio) {
+    current_x <- candidate
+  }
+  samples[i] <- current_x
+}
+
+# Remove burn-in samples
+final_samples <- samples[-(1:burn_in)]
+
+# Calculate deciles for comparison
+sample_deciles <- quantile(final_samples, probs = seq(0.1, 0.9, by = 0.1))
+theoretical_deciles <- qcauchy(seq(0.1, 0.9, by = 0.1))
+
+# Compare results
+comparison <- data.frame(
+  Decile = seq(0.1, 0.9, by = 0.1),
+  Sample_Deciles = as.vector(sample_deciles),
+  Theoretical_Deciles = theoretical_deciles
+)
+print(comparison)
+
+# Plotting: Histogram of generated samples vs Theoretical Cauchy density
+# Limit the range for better visualization
+par(mfrow = c(1,1))
+plot_range <- seq(-10, 10, length.out = 1000)
+hist(final_samples, breaks = 1000, prob = TRUE, xlim = c(-10, 10), 
+     main = "Histogram of MH Samples vs Standard Cauchy Density",
+     xlab = "x", ylab = "Density", col = "lightblue")
+
+# Add theoretical Cauchy density curve
+lines(plot_range, dcauchy(plot_range), col = "red", lwd = 2)
+legend("topright", legend = c("Generated Samples", "Theoretical Density"), 
+       fill = c("lightblue", NA), col = c(NA, "red"), lwd = c(NA, 2), bty = "n")
+
+
+#4
+
+
+# Metropolis algorithm for standard Laplace distribution
+# Target density: f(x) = 0.5 * exp(-abs(x))
+
+set.seed(123)
+
+metropolis_laplace <- function(n_iterations, sigma) {
+  samples <- numeric(n_iterations)
+  current_x <- 0
+  accept_count <- 0
+  
+  for (i in 1:n_iterations) {
+    # Random walk: candidate = current + increment(N(0, sigma^2))
+    candidate <- current_x + rnorm(1, mean = 0, sd = sigma)
+    
+    # Acceptance ratio calculation
+    # log(f(x')) / log(f(x)) = -abs(x') - (-abs(x))
+    log_ratio <- abs(current_x) - abs(candidate)
+    
+    if (log(runif(1)) < log_ratio) {
+      current_x <- candidate
+      accept_count <- accept_count + 1
+    }
+    samples[i] <- current_x
+  }
+  
+  return(list(samples = samples, accept_rate = accept_count / n_iterations))
+}
+
+# Parameters
+n_iter <- 10000
+sigmas <- c(0.1, 1, 10) # 다양한 분산 값 비교
+
+# Simulation
+results <- lapply(sigmas, function(s) metropolis_laplace(n_iter, s))
+
+# Comparison of Acceptance Rates
+for (i in 1:length(sigmas)) {
+  cat(sprintf("Sigma = %.1f, Acceptance Rate = %.2f%%\n", sigmas[i], results[[i]]$accept_rate * 100))
+}
+
+# Visualization: Trace plots
+par(mfrow=c(3, 1))
+for (i in 1:length(sigmas)) {
+  plot(results[[i]]$samples[1:1000], type = "l", 
+       main = paste("Trace Plot (Sigma =", sigmas[i], ")"),
+       xlab = "Iteration", ylab = "Value")
+}
+
+
+#5
+
+
+# Metropolis algorithm for standard Laplace distribution
+# Target density: f(x) = 0.5 * exp(-abs(x))
+# Proposal distribution: Uniform(-w, w)
+
+set.seed(42) # Set seed for reproducibility
+
+metropolis_uniform <- function(n_iterations, w) {
+  # Initialize storage for samples
+  samples <- numeric(n_iterations)
+  current_x <- 0
+  accept_count <- 0
+  
+  for (i in 1:n_iterations) {
+    # Generate candidate from Uniform(current_x - w, current_x + w)
+    candidate <- runif(1, min = current_x - w, max = current_x + w)
+    
+    # Calculate acceptance ratio
+    # log(f(candidate) / f(current)) = abs(current) - abs(candidate)
+    log_ratio <- abs(current_x) - abs(candidate)
+    
+    # Accept or reject candidate
+    if (log(runif(1)) < log_ratio) {
+      current_x <- candidate
+      accept_count <- accept_count + 1
+    }
+    samples[i] <- current_x
+  }
+  
+  return(list(samples = samples, accept_rate = accept_count / n_iterations))
+}
+
+# Experiment with different w values
+w_values <- c(0.1, 1, 10)
+results <- lapply(w_values, function(w) metropolis_uniform(10000, w))
+
+# Print acceptance rates
+for (i in 1:length(w_values)) {
+  cat(sprintf("w = %2.1f | Acceptance Rate = %5.2f%%\n", 
+              w_values[i], results[[i]]$accept_rate * 100))
+}
+
+# d  trace plots to compare mixingt
+
+
+#6
+
+
+# Metropolis algorithm for posterior distribution of theta
+# Target: Posterior proportional to (2+theta)^125 * (1-theta)^38 * theta^34
+
+set.seed(42)
+
+# Define the log-posterior function (log-likelihood)
+log_posterior <- function(theta) {
+  if (theta < 0 || theta > 1) return(-Inf) # Constraints on theta
+  return(125 * log(2 + theta) + 38 * log(1 - theta) + 34 * log(theta))
+}
+
+metropolis_theta <- function(n_iterations, w) {
+  samples <- numeric(n_iterations)
+  current_theta <- 0.5 # Initial value
+  accept_count <- 0
+  
+  for (i in 1:n_iterations) {
+    # Proposal: Uniform(-w, w)
+    candidate <- current_theta + runif(1, -w, w)
+    
+    # Check boundsa
+    if (candidate < 0 || candidate > 1) {
+      log_ratio <- -Inf
+    } else {
+      log_ratio <- log_posterior(candidate) - log_posterior(current_theta)
+    }
+    
+    if (log(runif(1)) < log_ratio) {
+      current_theta <- candidate
+      accept_count <- accept_count + 1
+    }
+    samples[i] <- current_theta
+  }
+  return(list(samples = samples, accept_rate = accept_count / n_iterations))
+}
+
+# Run simulation
+result <- metropolis_theta(10000, 0.1)
+
+# Plot posterior distribution
+hist(result$samples, breaks=50, prob=TRUE, main="Posterior Distribution of Theta", xlab="theta")
+cat("Acceptance Rate:", result$accept_rate * 100, "%\n")
+
+
+#7
+
+
+# Gibbs sampler for Bivariate Normal (rho = 0.9)
+set.seed(123)
+
+n_iter <- 2000
+burn_in <- 500
+rho <- 0.9
+var_cond <- 1 - rho^2
+
+# Storage
+x_samples <- numeric(n_iter)
+y_samples <- numeric(n_iter)
+
+# Gibbs sampling loop
+curr_y <- 0 # Initial value
+for (i in 1:n_iter) {
+  x_samples[i] <- rnorm(1, mean = rho * curr_y, sd = sqrt(var_cond))
+  y_samples[i] <- rnorm(1, mean = rho * x_samples[i], sd = sqrt(var_cond))
+  curr_y <- y_samples[i]
+}
+
+# Remove burn-in
+x_final <- x_samples[-(1:burn_in)]
+y_final <- y_samples[-(1:burn_in)]
+
+# 1. Visualization of Gibbs Chain
+plot(x_final, y_final, pch=20, col=rgb(0,0,1,0.3), main="Gibbs Samples (rho=0.9)")
+
+# 2. Linear Regression Y = beta0 + beta1*X + epsilon
+model <- lm(y_final ~ x_final)
+summary(model)
+
+# 3. Model Diagnostics (Residuals)
+par(mfrow=c(2, 2))
+plot(model) # Plots include Residuals vs Fitted and Q-Q plot
+
+par(mfrow=c(1, 1))
+
+
+#8
+
+
+# Gibbs sampler for Binomial-Beta joint distribution
+# Joint density: f(x, y) proportional to Binomial(x|n, y) * Beta(y|a, b)
+
+set.seed(42)
+
+# Parameters
+n <- 20    # Number of trials
+a <- 2     # Beta distribution parameter
+b <- 2     # Beta distribution parameter
+n_iter <- 5000
+
+# Storage
+x_samples <- numeric(n_iter)
+y_samples <- numeric(n_iter)
+
+# Initial value for y
+curr_y <- 0.5 
+
+# Gibbs sampling loop
+for (i in 1:n_iter) {
+  # 1. Sample x from conditional: Binomial(n, y)
+  x_samples[i] <- rbinom(1, size = n, prob = curr_y)
+  
+  # 2. Sample y from conditional: Beta(x+a, n-x+b)
+  y_samples[i] <- rbeta(1, shape1 = x_samples[i] + a, shape2 = n - x_samples[i] + b)
+  
+  # Update current_y for next iteration
+  curr_y <- y_samples[i]
+}
+
+# Visualization of the generated chain
+plot(x_samples, y_samples, pch=20, col=rgb(0,0,1,0.2),
+     main="Gibbs Sampling: Joint Distribution of X and Y",
+     xlab="X (Binomial)", ylab="Y (Beta)")
+
+
+
+#9
+
+
+# Gibbs sampler for the hierarchical Beta-Binomial-Poisson model
+# Target: Joint posterior of (x, y, n)
+
+set.seed(42) # Set seed for reproducibility
+
+# Model parameters
+lambda <- 16
+alpha  <- 2
+beta   <- 4
+n_iter <- 10000
+
+# Storage for samples
+x_samples <- numeric(n_iter)
+y_samples <- numeric(n_iter)
+n_samples <- numeric(n_iter)
+
+# Initial values
+curr_y <- 0.5
+curr_n <- 20
+curr_x <- 10
+
+# Gibbs sampling loop
+for (i in 1:n_iter) {
+  # 1. Update x | n, y ~ Binomial(n, y)
+  curr_x <- rbinom(1, size = curr_n, prob = curr_y)
+  
+  # 2. Update y | x, n ~ Beta(x + alpha, n - x + beta)
+  curr_y <- rbeta(1, shape1 = curr_x + alpha, shape2 = curr_n - curr_x + beta)
+  
+  # 3. Update n | x, y ~ x + Poisson(lambda * (1 - y))
+  curr_n <- curr_x + rpois(1, lambda = lambda * (1 - curr_y))
+  
+  # Store samples
+  x_samples[i] <- curr_x
+  y_samples[i] <- curr_y
+  n_samples[i] <- curr_n
+}
+
+# Visualize the marginal distributions
+par(mfrow=c(1, 3))
+hist(x_samples, main="Marginal of X", col="skyblue", border="white")
+hist(y_samples, main="Marginal of Y", col="salmon", border="white")
+hist(n_samples, main="Marginal of N", col="lightgreen", border="white")
+
+
+#10
+
+
+# Gibbs sampler for the Random Effects Model
+# Model: y_ij = mu + alpha_i + eps_ij
+# Target: Posterior of (alpha, mu, sigma_alpha^2, sigma^2)
+
+set.seed(42)
+
+# --- 1. Data Setup (Example) ---
+k <- 5   # Number of groups
+n <- 10  # Observations per group
+# Simulate some data (not needed if you have actual y)
+mu_true <- 10
+alpha_true <- rnorm(k, 0, 2)
+sigma_sq_true <- 1
+y <- matrix(rnorm(k * n, mu_true + alpha_true, sqrt(sigma_sq_true)), nrow=k, byrow=TRUE)
+
+# --- 2. Initialize Parameters ---
+n_iter <- 10000
+mu <- mean(y)
+alpha <- rep(0, k)
+sigma_alpha_sq <- 1
+sigma_sq <- 1
+
+# Storage
+res_mu <- numeric(n_iter)
+res_alpha <- matrix(0, nrow=n_iter, ncol=k)
+
+# --- 3. Gibbs Sampling Loop ---
+for (i in 1:n_iter) {
+  # (b) Update mu | y, alpha, sigma_sq
+  # mu ~ N(mean(y_ij - alpha_i), sigma^2 / (k*n))
+  y_bar_dot_dot <- mean(y - alpha) # simplified mean
+  mu <- rnorm(1, mean = mean(y - alpha), sd = sqrt(sigma_sq / (k * n)))
+  
+  # (a) Update alpha_i | y, mu, sigma_alpha_sq, sigma_sq
+  # alpha_i ~ N( (n*sigma_alpha^2 * mean(y_i - mu)) / (n*sigma_alpha^2 + sigma^2), ... )
+  for (j in 1:k) {
+    y_bar_i <- mean(y[j, ] - mu)
+    var_alpha <- (sigma_sq * sigma_alpha_sq) / (n * sigma_alpha_sq + sigma_sq)
+    mean_alpha <- (n * sigma_alpha_sq * y_bar_i) / (n * sigma_alpha_sq + sigma_sq)
+    alpha[j] <- rnorm(1, mean = mean_alpha, sd = sqrt(var_alpha))
+  }
+  
+  # (c) Update sigma_alpha_sq | alpha
+  # sigma_alpha_sq ~ IG(k/2, sum(alpha^2)/2)
+  sigma_alpha_sq <- 1 / rgamma(1, shape = k/2, rate = sum(alpha^2)/2)
+  
+  # (d) Update sigma_sq | y, mu, alpha
+  # sigma_sq ~ IG(kn/2, sum((y - mu - alpha)^2)/2)
+  sse <- sum((y - mu - alpha)^2)
+  sigma_sq <- 1 / rgamma(1, shape = (k * n) / 2, rate = sse / 2)
+  
+  # Store
+  res_mu[i] <- mu
+  res_alpha[i, ] <- alpha
+}
+
+# --- 4. Visualization ---
+par(mfrow=c(1, 2))
+plot(res_mu, type="l", main="Trace plot of mu", col="blue")
+hist(res_mu, main="Posterior of mu", col="lightblue")
+
+
+
+
+Part 8 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
