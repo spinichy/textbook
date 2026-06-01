@@ -1653,3 +1653,229 @@ ggplot() +
 ###part 4.1 ------------------------------------------------------------------------------------------------
 
 
+
+##step1. Data Preparation
+
+
+
+library(quantmod)
+library(ggplot2)
+library(scales)
+
+# [Data Preparation]
+ticker <- "005930.KS"
+samsung_data <- getSymbols(ticker, src = "yahoo", from = "2000-01-01", auto.assign = FALSE)
+
+# Convert xts to data frame for ggplot
+samsung_df <- data.frame(Date = index(samsung_data), samsung_data)
+colnames(samsung_df)[5] <- "Close" 
+
+# [Visualization using ggplot2]
+ggplot(samsung_df, aes(x = Date, y = Close)) +
+  geom_line() +
+  # Move Y axis to the right and format with commas
+  scale_y_continuous(position = "right", labels = comma) +
+  # Set X axis to show every single year
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(title = "Samsung Electronics Historical Price",
+       x = "Year",
+       y = "Price") +
+  theme_minimal() +
+  # Rotate X axis labels for better readability
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        plot.margin = margin(t = 10, r = 20, b = 10, l = 10))
+
+
+
+
+
+##Step2. #seasonal test
+
+
+
+
+returns <- diff(log(Cl(samsung_data)))
+returns <- na.omit(returns)
+
+# Create a data frame for monthly grouping
+df <- data.frame(
+  value = as.numeric(returns),
+  date = index(returns)
+) %>%
+  mutate(month = factor(month(date)))
+
+
+# 1. Kruskal-Wallis Test (KW-test)
+# Null Hypothesis: The distribution of returns is the same across all months.
+kw_test_result <- kruskal.test(value ~ month, data = df)
+print("--- Kruskal-Wallis Test Result ---")
+print(kw_test_result)
+
+
+# [KW-Test Implementation from Scratch]
+# 1. Convert values to ranks
+ranks <- rank(df$value)
+
+# 2. Calculate the sum of ranks for each month
+rank_sums <- tapply(ranks, df$month, sum)
+n_j <- tapply(ranks, df$month, length) # Number of observations per month
+N <- length(ranks)
+
+# 3. Calculate H-statistic
+# Formula: H = [12 / (N*(N+1))] * sum(R_j^2 / n_j) - 3*(N+1)
+H <- (12 / (N * (N + 1))) * sum((rank_sums^2) / n_j) - 3 * (N + 1)
+
+# 4. Result
+print("--- Manual KW-Test H-Statistic ---")
+print(H)
+# Note: For p-value, H follows Chi-square distribution with (s-1) degrees of freedom
+
+
+
+
+
+library(quantmod)
+library(seastests)
+library(dplyr)
+library(lubridate)
+
+# [Data Preparation]
+ticker <- "005930.KS"
+samsung_data <- getSymbols(ticker, src = "yahoo", from = "2000-01-01", auto.assign = FALSE)
+daily_returns <- na.omit(diff(log(Cl(samsung_data))))
+
+# 1. Aggregate to monthly log returns
+monthly_returns <- apply.monthly(daily_returns, sum)
+
+# 2. Convert to seasonal time series object (frequency = 12)
+monthly_ts <- ts(as.numeric(monthly_returns), frequency = 12)
+
+# 3. QS Test on monthly data (Correct approach)
+qs_result <- qs(monthly_ts)
+print("--- Correct Monthly QS Test Result ---")
+print(qs_result)
+
+
+
+# [Manual QS-Test Calculation]
+# We calculate the autocorrelation up to a specific lag and use the sum 
+# to approximate the QS-test statistic.
+
+# 1. Ensure data is prepared (monthly_returns object from previous step)
+clean_data <- as.numeric(monthly_returns)
+n <- length(clean_data)
+s <- 12 # Monthly frequency
+
+# 2. Calculate autocorrelation for each lag up to s-1
+# This mirrors how QS-test evaluates seasonal patterns across cycles
+lags <- 1:(s - 1)
+rho_k <- sapply(lags, function(k) {
+  y1 <- clean_data[(k + 1):n]
+  y2 <- clean_data[1:(n - k)]
+  cor(y1, y2)
+})
+
+# 3. Calculate the QS statistic: n * sum(rho_k^2)
+# This represents the cumulative seasonal signal
+qs_stat_manual <- n * sum(rho_k^2)
+
+# 4. Calculate p-value based on Chi-square distribution (df = s-1)
+p_val_manual <- pchisq(q = qs_stat_manual, df = s - 1, lower.tail = FALSE)
+
+# 5. Output the results
+print(paste("Manual QS-Test Statistic:", round(qs_stat_manual, 4)))
+print(paste("Manual QS-Test p-value:", round(p_val_manual, 4)))
+
+
+
+##Step3. Stationary test
+
+
+# Load the required package
+# install.packages("urca")
+library(urca)
+library(quantmod)
+
+# [Data Preparation]
+ticker <- "005930.KS"
+samsung_data <- getSymbols(ticker, src = "yahoo", from = "2000-01-01", auto.assign = FALSE)
+daily_returns <- na.omit(diff(log(Cl(samsung_data))))
+
+# [KPSS Test]
+# Null Hypothesis (H0): The series is stationary.
+# Alternative Hypothesis (H1): The series is non-stationary (has a unit root).
+kpss_test <- ur.kpss(as.numeric(daily_returns))
+
+# [Display Results]
+summary(kpss_test)
+
+
+# [Data Preparation]
+# Let y be the return series (already defined as daily_returns)
+y <- as.numeric(daily_returns)
+n <- length(y)
+t <- 1:n
+
+# 1. Detrending: Regress y on time (y = alpha + beta*t + e)
+# We use linear regression to remove the trend
+model <- lm(y ~ t)
+e <- residuals(model)
+
+# 2. Calculate Partial Sums (S_t)
+# S_t is the cumulative sum of residuals
+S <- cumsum(e)
+
+# 3. Estimate Long-run Variance (sigma_epsilon^2)
+# Using Newey-West estimator (simplified version)
+# We calculate variance of residuals with a lag adjustment
+# For simplicity, we use the sample variance as a baseline
+sigma2_hat <- sum(e^2) / n 
+
+# 4. Calculate LM Statistic
+# Formula: LM = (1/T^2) * sum(S_t^2) / sigma_hat^2
+LM <- (1 / n^2) * sum(S^2) / sigma2_hat
+
+# 5. Output Result
+print(paste("Manual KPSS LM Statistic:", round(LM, 4)))
+
+# Note: The critical values for KPSS test are fixed (e.g., 0.463 for 5% level)
+# If LM > 0.463, reject the Null Hypothesis (Stationary)
+if(LM > 0.463) {
+  print("Result: Reject H0 (Series is Non-stationary)")
+} else {
+  print("Result: Fail to reject H0 (Series is Stationary)")
+}
+
+
+
+#Step4. autocorrelation function
+
+
+
+# [Data Preparation]
+# 'daily_returns' is the log return series prepared earlier
+y <- as.numeric(na.omit(daily_returns))
+head(y)
+# [1. Calculate and Plot ACF and PACF]
+# We use a layout to show both plots side-by-side
+par(mfrow = c(1, 2))
+
+# ACF: Measures autocorrelation at various lags
+# The blue dashed line represents the significance threshold (usually 95%)
+acf(y, lag.max = 20, main = "ACF of Samsung Returns")
+
+# PACF: Measures partial autocorrelation (direct correlation removing intermediate lags)
+pacf(y, lag.max = 20, main = "PACF of Samsung Returns")
+
+# [2. Numerical Data Retrieval]
+# To see the actual values instead of just the plots
+acf_values <- acf(y, lag.max = 20, plot = FALSE)
+pacf_values <- pacf(y, lag.max = 20, plot = FALSE)
+
+print("--- First 10 ACF Values ---")
+print(acf_values$acf[2:11])
+
+print("--- First 10 PACF Values ---")
+print(pacf_values$acf[1:10])
+
+
