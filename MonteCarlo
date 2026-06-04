@@ -10495,3 +10495,1065 @@ Part 8 -------------------------------------------------------------------------
 
 
 
+##example
+
+
+#1
+
+
+# Define the function f(x) = x^3 * (1 - x)^4
+f <- function(x) {
+  x^3 * (1 - x)^4
+}
+
+# Integration parameters
+a <- 0
+b <- 1
+n <- 1000
+h <- (b - a) / n
+
+# Create evaluation points and calculate function values
+x_points <- seq(a, b, by = h)
+y_points <- f(x_points)
+
+# Calculate approximate integral using trapezoidal rule
+integral_approx <- (h / 2) * (y_points[1] + 2 * sum(y_points[2:n]) + y_points[n+1])
+
+# Calculate exact integral using the built-in integrate function
+exact_result <- integrate(f, lower = a, upper = b)$value
+
+# Plotting
+plot(x_points, y_points, type = "l", col = "blue", lwd = 2,
+     main = expression(paste("Integral of ", x^3, (1-x)^4)),
+     xlab = "x", ylab = "f(x)")
+
+# Fill the area under the curve
+polygon(c(x_points, rev(x_points)), c(y_points, rep(0, length(y_points))),
+        col = "orange", border = NA)
+lines(x_points, y_points, col = "blue", lwd = 2)
+
+# Add text to the plot showing the results
+text(0.6, max(y_points) * 0.8, labels = paste("Approx:", round(integral_approx, 6)), pos = 4)
+text(0.6, max(y_points) * 0.7, labels = paste("Exact:", round(exact_result, 6)), pos = 4)
+
+
+
+#2
+
+
+# Parameters
+rho_val <- 0.5
+r_val <- 0.3
+n_val <- 3
+
+# Define the function
+f <- function(y, rho, r, n) {
+  1 / (cosh(y) - rho * r)^(n - 1)
+}
+
+# 1. Calculate the integral
+result <- integrate(f, lower = 0, upper = Inf, rho = rho_val, r = r_val, n = n_val)
+print(paste("Integral value:", result$value))
+
+# 2. Plot the function
+# We plot up to y=10 because the function approaches 0 very quickly
+y_vals <- seq(0, 10, length.out = 500)
+f_vals <- f(y_vals, rho_val, r_val, n_val)
+
+plot(y_vals, f_vals, type = "l", col = "darkgreen", lwd = 2,
+     main = expression(paste("Integral (rho = 0.5, r = 0.3, n = 3): ", 1 / (cosh(y) - rho*r)^(n-1))),
+     xlab = "y", ylab = "f(y)")
+
+# Fill the area under the curve
+polygon(c(y_vals, max(y_vals), min(y_vals)), 
+        c(f_vals, 0, 0), 
+        col = "lightgreen", border = NA)
+lines(y_vals, f_vals, col = "darkgreen", lwd = 2)
+
+# Add the result to the plot
+text(5, max(f_vals)*0.8, labels = paste("Integral:", round(result$value, 6)), 
+     col = "darkgreen", font = 2)
+
+
+#3
+
+
+# Load necessary libraries
+# We use the 'gaussquad' or 'integrate' function to compute the total area
+# The density function for r is defined based on the complex series expansion
+
+# Define the density function for sample correlation coefficient R
+# f(r; rho, n)
+sample_corr_density <- function(r, rho, n) {
+  # Constants
+  c1 <- (2^(n-3) * (1 - rho^2)^((n-1)/2) * (1 - r^2)^((n-4)/2)) / (pi * factorial(n-3))
+  
+  # Infinite series calculation (summing first 100 terms is sufficient for convergence)
+  sum_terms <- sapply(r, function(ri) {
+    k <- 0:100
+    terms <- (gamma((n + k - 1) / 2)^2 * (2 * rho * ri)^k) / factorial(k)
+    sum(terms)
+  })
+  
+  return(c1 * sum_terms)
+}
+
+# Parameters
+n <- 20 # Sample size
+rho_values <- c(-0.5, 0, 0.5)
+r_vals <- seq(-0.999, 0.999, length.out = 500)
+
+# Plotting
+windows()
+plot(NULL, xlim = c(-1, 1), ylim = c(0, 4), 
+     xlab = "Sample Correlation (r)", ylab = "Density f(r)",
+     main = "PDF of Sample Correlation Coefficient R (n=20)")
+
+colors <- c("blue", "black", "red")
+for (i in 1:length(rho_values)) {
+  rho <- rho_values[i]
+  dens <- sample_corr_density(r_vals, rho, n)
+  lines(r_vals, dens, col = colors[i], lwd = 2)
+  
+  # Calculate integral from -1 to 1
+  total_integral <- integrate(sample_corr_density, -1, 1, rho = rho, n = n)$value
+  cat(sprintf("Integral of PDF for rho = %.1f is: %.4f\n", rho, total_integral))
+}
+
+legend("topleft", legend = paste("rho =", rho_values), col = colors, lwd = 2)
+
+
+
+#4
+
+
+# Function to solve the quadratic equation with validity checks
+# The comments are in English as requested.
+
+solve_equation_validated <- function(a, n, y_start = -10, y_end = 10, tol = 1e-7) {
+  
+  # 1. Input validation for n
+  if (n <= 2) {
+    stop("Error: n must be an integer greater than 2.")
+  }
+  
+  # 2. Check the condition for real roots using the discriminant D
+  # Based on D = a^2 * n - (n-1)^2 <= 0 condition for real roots
+  ## |a| <= (n-1) / sqrt(n)
+  limit_a <- (n - 1) / sqrt(n)
+  
+  if (abs(a) > limit_a) {
+    stop(sprintf("Error: No real roots exist for a = %.4f when n = %d. |a| must be <= %.4f.", a, n, limit_a))
+  }
+  
+  # 3. Define the function f(y)
+  f <- function(y) {
+    y^2 + (2 * a / (n - 1)) * y + (a^2 - n + 2)
+  }
+  
+  # 4. Automatic bracket search (to ensure f(start) * f(end) < 0)
+  find_bracket <- function(f, low, high) {
+    x <- seq(low, high, length.out = 100)
+    for (i in 1:(length(x) - 1)) {
+      if (f(x[i]) * f(x[i+1]) < 0) return(c(x[i], x[i+1]))
+    }
+    return(NULL)
+  }
+  
+  bracket <- find_bracket(f, y_start, y_end)
+  if (is.null(bracket)) {
+    stop("Error: Could not find an interval where the function changes sign.")
+  }
+  
+  # 5. Bisection method
+  y_s <- bracket[1]; y_e <- bracket[2]
+  while ((y_e - y_s) / 2 > tol) {
+    y_mid <- (y_s + y_e) / 2
+    if (f(y_s) * f(y_mid) < 0) {
+      y_e <- y_mid
+    } else {
+      y_s <- y_mid
+    }
+  }
+  
+  return((y_s + y_e) / 2)
+}
+
+# Example usage:
+# Valid case: n=5, a=1 (|1| <= 1.789 is TRUE)
+tryCatch({
+  root <- solve_equation_validated(a = 1, n = 5)
+  cat("The real root is:", root, "\n")
+}, error = function(e) message(e$message))
+
+# Invalid case: n=5, a=2 (|2| <= 1.789 is FALSE)
+tryCatch({
+  root_invalid <- solve_equation_validated(a = 2, n = 5)
+}, error = function(e) message("Caught expected error: ", e$message))
+
+
+
+
+# Plot the function f(y) and visualize the roots
+# The comments are in English as requested.
+
+plot_equation <- function(a, n) {
+  # Check if real roots exist
+  limit_a <- (n - 1) / sqrt(n)
+  if (abs(a) > limit_a) {
+    stop(sprintf("No real roots for a = %.4f when n = %d.", a, n))
+  }
+  
+  # Define the function
+  f <- function(y) y^2 + (2 * a / (n - 1)) * y + (a^2 - n + 2)
+  
+  # Set plot range
+  # Roots of quadratic: y = [-B +/- sqrt(D)] / 2A
+  B <- 2 * a / (n - 1)
+  C <- a^2 - n + 2
+  D <- B^2 - 4 * C
+  root1 <- (-B - sqrt(D)) / 2
+  root2 <- (-B + sqrt(D)) / 2
+  
+  # Range for plot
+  y_range <- seq(min(root1, root2) - 2, max(root1, root2) + 2, length.out = 100)
+  
+  # Plot
+  plot(y_range, f(y_range), type = "l", col = "blue", lwd = 2,
+       main = paste("Plot of f(y) for a =", a, ", n =", n),
+       xlab = "y", ylab = "f(y)")
+  abline(h = 0, col = "red", lty = 2) # X-axis
+  points(c(root1, root2), c(0, 0), col = "black", pch = 19) # Roots
+  
+  # Add labels for roots
+  text(root1, 0, labels = paste("Root1:", round(root1, 2)), pos = 3)
+  text(root2, 0, labels = paste("Root2:", round(root2, 2)), pos = 3)
+}
+
+# Example usage:
+# Valid case where real roots exist
+plot_equation(a = 1, n = 5)
+
+
+
+#5
+
+
+
+# Load required libraries
+if (!require(ggplot2)) install.packages("ggplot2")
+if (!require(ggrepel)) install.packages("ggrepel")
+library(ggplot2)
+library(ggrepel)
+
+# Function to solve and plot roots with labels
+solve_and_plot_roots <- function(a, n, y_start = -20, y_end = 20) {
+  
+  # 1. Define coefficients and function
+  B <- 2 * a / (n - 1)
+  C <- a^2 - n + 2
+  f <- function(y) y^2 + B * y + C
+  
+  # 2. Solve roots using the previous logic
+  vertex_y <- -B / 2
+  
+  find_root_in_interval <- function(low, high) {
+    if (f(low) * f(high) > 0) return(NULL)
+    result <- tryCatch(uniroot(f, interval = c(low, high)), error = function(e) NULL)
+    return(if (!is.null(result)) result$root else NULL)
+  }
+  
+  roots <- unique(c(find_root_in_interval(y_start, vertex_y), 
+                    find_root_in_interval(vertex_y, y_end)))
+  roots <- roots[!is.null(roots)]
+  
+  # 3. Plotting with labels
+  plot_data <- data.frame(y = seq(min(y_start, min(roots, na.rm=T) - 5), 
+                                  max(y_end, max(roots, na.rm=T) + 5), length.out = 300))
+  plot_data$f_y <- f(plot_data$y)
+  
+  # Prepare label data
+  label_data <- data.frame(y = roots, f_y = 0, label = round(roots, 4))
+  
+  p <- ggplot(plot_data, aes(x = y, y = f_y)) +
+    geom_line(color = "blue", size = 1) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+    geom_point(data = label_data, aes(x = y, y = f_y), color = "darkred", size = 3) +
+    # Add text labels with repulsion
+    geom_text_repel(data = label_data, aes(x = y, y = f_y, label = label),
+                    nudge_y = 0.5, color = "darkred", fontface = "bold") +
+    labs(title = sprintf("Quadratic Function Roots (a=%.2f, n=%d)", a, n),
+         subtitle = paste("Roots found at:", paste(round(roots, 4), collapse = ", ")),
+         x = "y", y = "f(y)") +
+    theme_minimal()
+  
+  print(p)
+  return(roots)
+}
+
+# Example usage:
+found_roots <- solve_and_plot_roots(a = 0.5, n = 20)
+
+
+
+
+
+
+# Implementation of Brent's method from scratch
+solve_brent_manual <- function(f, low, high, tol = 1e-7) {
+  
+  # Brent's method initialization
+  a <- low
+  b <- high
+  fa <- f(a) #function(y) y^2 + B * y + C
+  fb <- f(b) #function(y) y^2 + B * y + C
+  
+  if (fa * fb > 0) stop("Function must have different signs at interval endpoints.")
+  
+  c <- a
+  fc <- fa
+  d <- b - a
+  e <- d
+  
+  while (abs(fb) > tol) {
+    # Prepare for Inverse Quadratic Interpolation
+    if (fa != fc && fb != fc) {
+      # Use Inverse Quadratic Interpolation formula
+      s <- (a * fb * fc) / ((fa - fb) * (fa - fc)) +
+        (b * fa * fc) / ((fb - fa) * (fb - fc)) +
+        (c * fa * fb) / ((fc - fa) * (fc - fb))
+    } else {
+      # Use Secant Method
+      s <- b - fb * (b - a) / (fb - fa)
+    }
+    
+    # Check if s is valid or fallback to Bisection
+    if (!((s > (3 * a + b) / 4 && s < b) || (s > b && s < (3 * a + b) / 4)) || 
+        (abs(d) < tol)) {
+      s <- (a + b) / 2 # Bisection
+    }
+    
+    fs <- f(s) #function(y) y^2 + B * y + C
+    d <- e
+    e <- b - a
+    
+    # Update brackets
+    c <- b
+    fc <- fb
+    
+    if (fa * fs < 0) {
+      b <- s
+      fb <- fs
+    } else {
+      a <- s
+      fa <- fs
+    }
+    
+    if (abs(fa) < abs(fb)) {
+      # Swap to ensure b is the best estimate
+      tmp <- a; a <- b; b <- tmp
+      tmp <- fa; fa <- fb; fb <- tmp
+    }
+  }
+  return(b)
+}
+
+# Integrate into the previous logic
+solve_all_roots_manual <- function(a, n, y_start = -20, y_end = 20) {
+  B <- 2 * a / (n - 1)
+  C <- a^2 - n + 2
+  f <- function(y) y^2 + B * y + C
+  vertex_y <- -B / 2
+  
+  # Search intervals
+  roots <- c()
+  for (interval in list(c(y_start, vertex_y), c(vertex_y, y_end))) {
+    if (f(interval[1]) * f(interval[2]) <= 0) {
+      roots <- c(roots, solve_brent_manual(f, interval[1], interval[2]))
+    }
+  }
+  return(unique(roots))
+}
+
+# Example usage:
+roots <- solve_all_roots_manual(a = 0.5, n = 20)
+cat("Roots found by manual Brent's method:", roots, "\n")
+
+
+
+
+#6
+
+
+
+
+# Load required libraries
+library(ggplot2)
+library(ggrepel)
+
+# Function to solve and plot roots using Newton-Raphson Method
+solve_and_plot_roots_newton <- function(a, n, y_start = -20, y_end = 20) {
+  
+  # 1. Define coefficients and function
+  B <- 2 * a / (n - 1)
+  C <- a^2 - n + 2
+  f  <- function(y) y^2 + B * y + C
+  df <- function(y) 2 * y + B  # Derivative of f(y)
+  
+  # 2. Newton-Raphson root finding function
+  newton_raphson <- function(y_guess, tol = 1e-9, max_iter = 100) {
+    y <- y_guess
+    for (i in 1:max_iter) {
+      dy <- f(y) / df(y)
+      y  <- y - dy
+      # Stop if the change is smaller than tolerance
+      if (abs(dy) < tol) return(y)
+    }
+    return(y) # Return the best estimate found
+  }
+  
+  # 3. Solve roots
+  # Using the vertex as a natural separator for the two roots
+  vertex_y <- -B / 2
+  root1 <- newton_raphson(y_start) # Start from the left
+  root2 <- newton_raphson(y_end)   # Start from the right
+  
+  roots <- unique(round(c(root1, root2), 6))
+  
+  # 4. Plotting
+  plot_data <- data.frame(y = seq(min(y_start, min(roots) - 2), 
+                                  max(y_end, max(roots) + 2), length.out = 300))
+  plot_data$f_y <- f(plot_data$y)
+  
+  label_data <- data.frame(y = roots, f_y = 0, label = roots)
+  
+  p <- ggplot(plot_data, aes(x = y, y = f_y)) +
+    geom_line(color = "blue", size = 1) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+    geom_point(data = label_data, aes(x = y, y = f_y), color = "darkred", size = 3) +
+    geom_text_repel(data = label_data, aes(x = y, y = f_y, label = label),
+                    nudge_y = 5, color = "darkred", fontface = "bold") +
+    labs(title = sprintf("Quadratic Function Roots (Newton-Raphson, a=%.2f, n=%d)", a, n),
+         subtitle = paste("Roots found at:", paste(roots, collapse = ", ")),
+         x = "y", y = "f(y)") +
+    theme_minimal()
+  
+  print(p)
+  return(roots)
+}
+
+# Example usage:
+found_roots <- solve_and_plot_roots_newton(a = 0.5, n = 20)
+found_roots
+
+
+
+#7
+
+
+# Define the log-likelihood function
+# Log-likelihood: 2 * log(theta) - theta * sum(y)
+log_lik <- function(theta, y) {
+  2 * log(theta) - theta * sum(y)
+}
+
+# Observed data
+y_data <- c(0.5, 1.5)
+sum_y <- sum(y_data)
+
+# 1. Plot the log-likelihood function
+# Define a range for theta values to plot
+theta_vals <- seq(0.1, 5, length.out = 100)
+log_lik_vals <- log_lik(theta_vals, y_data)
+
+# Create the plot
+windows()
+plot(theta_vals, log_lik_vals, type = "l", col = "blue", lwd = 2,
+     xlab = expression(theta), ylab = "Log-Likelihood",
+     main = "Log-Likelihood Function and MLE")
+
+# 2. Find the MLE using optim
+# We use the negative log-likelihood for optimization
+neg_log_lik <- function(theta, y) -log_lik(theta, y)
+mle_result <- optim(par = 1, fn = neg_log_lik, y = y_data, method = "BFGS")
+mle_theta <- mle_result$par
+mle_val <- log_lik(mle_theta, y_data)
+
+# 3. Add the MLE point to the graph
+points(mle_theta, mle_val, col = "red", pch = 19, cex = 1.5)
+abline(v = mle_theta, col = "red", lty = 2)
+text(mle_theta, mle_val, labels = paste("MLE =", round(mle_theta, 3)), 
+     pos = 4, col = "red")
+
+# Adding a legend
+legend("topright", legend = c("Log-Likelihood", "MLE Point"),
+       col = c("blue", "red"), lty = c(1, NA), pch = c(NA, 19))
+
+
+
+#8
+
+
+# 1. Log-likelihood function for censored Poisson data
+# This is the function we want to maximize
+log_lik_censored <- function(theta, x) {
+  # x: vector of counts (x0, x1, x2, x3)
+  # log(L(theta)) = sum(xi * log(pi))
+  p0 <- exp(-theta)
+  p1 <- theta * exp(-theta)
+  p2 <- (theta^2 / 2) * exp(-theta)
+  p_ge3 <- 1 - exp(-theta) * (1 + theta + theta^2 / 2)
+  
+  # log-likelihood calculation
+  x[1] * log(p0) + x[2] * log(p1) + x[3] * log(p2) + x[4] * log(p_ge3)
+}
+
+# Observed data
+counts <- c(30, 55, 63, 75)
+theta_vals <- seq(0.5, 3, length.out = 100)
+log_lik_vals <- sapply(theta_vals, log_lik_censored, x = counts)
+
+# 2. Plot the log-likelihood
+windows()
+plot(theta_vals, log_lik_vals, type = "l", col = "blue", lwd = 2,
+     xlab = expression(theta), ylab = "Log-Likelihood",
+     main = "Log-Likelihood for Censored Poisson Data")
+
+# 3. Find MLE using the previously defined logic (or optim)
+# We maximize the log-likelihood function
+mle_result <- optim(par = 1.5, fn = log_lik_censored, x = counts, 
+                    method = "BFGS", control = list(fnscale = -1))
+mle_theta <- mle_result$par
+mle_val <- mle_result$value
+
+# 4. Add MLE point to the plot
+points(mle_theta, mle_val, col = "red", pch = 19, cex = 1.5)
+abline(v = mle_theta, col = "red", lty = 2)
+text(mle_theta, mle_val, labels = paste("MLE =", round(mle_theta, 3)), 
+     pos = 4, col = "red")
+
+# Legend
+legend("bottomright", legend = c("Log-Likelihood", "MLE Point"),
+       col = c("blue", "red"), lty = c(1, NA), pch = c(NA, 19))
+
+
+#9
+
+
+# Load library for numerical derivative
+library(numDeriv)
+
+# Define the target function f(x)
+f <- function(x) {
+  log(1 + log(x)) / log(1 + x)
+}
+
+# Define the derivative of f(x)
+f_prime <- function(x) {
+  grad(f, x)
+}
+
+# Find the root of f_prime(x) = 0 in the interval [2, 10]
+# We use a range where the derivative changes sign
+root_result <- uniroot(f_prime, interval = c(2, 10))
+opt_x <- root_result$root
+opt_y <- f(opt_x)
+
+# Visualization
+x_vals <- seq(2, 10, length.out = 100)
+y_vals <- f(x_vals)
+
+plot(x_vals, y_vals, type = "l", col = "blue", lwd = 2,
+     main = "Optimization of f(x) using uniroot()",
+     xlab = "x", ylab = "f(x)")
+
+# Add vertical line and point for the maximum
+abline(v = opt_x, col = "red", lty = 2)
+points(opt_x, opt_y, col = "red", pch = 19, cex = 1.5)
+
+# Add numeric label for the maximum point (x, y)
+# The label is placed to the right of the point
+label_text <- paste0("(", round(opt_x, 3), ", ", round(opt_y, 3), ")")
+text(opt_x, opt_y, labels = label_text, pos = 4, col = "red", font = 2)
+
+# Legend
+legend("topright", legend = c("f(x)", "Maximum point"),
+       col = c("blue", "red"), lty = c(1, NA), pch = c(NA, 19))
+
+
+
+
+
+# Define the target function f(x)
+f <- function(x) {
+  log(1 + log(x)) / log(1 + x)
+}
+
+# Define the negative function for maximization
+neg_f <- function(x) {
+  -f(x)
+}
+
+# Use nlm to minimize -f(x), starting at p = 6
+# This will find the maximum within the vicinity of the interval [2, 10]
+nlm_result <- nlm(neg_f, p = 6)
+
+# Extract the optimal x and the maximum value
+opt_x <- nlm_result$estimate
+opt_y <- -nlm_result$minimum 
+
+# Visualization
+x_vals <- seq(2, 10, length.out = 100)
+y_vals <- f(x_vals)
+
+plot(x_vals, y_vals, type = "l", col = "blue", lwd = 2,
+     main = "Optimization using nlm() in interval [2, 10]",
+     xlab = "x", ylab = "f(x)")
+
+# Add maximum point and numeric label
+points(opt_x, opt_y, col = "red", pch = 19, cex = 1.5)
+
+# Adding the numeric label (x, y)
+label_text <- paste0("(", round(opt_x, 3), ", ", round(opt_y, 3), ")")
+text(opt_x, opt_y, labels = label_text, pos = 4, col = "red", font = 2)
+
+
+
+
+
+
+# Define the target function f(x)
+f <- function(x) {
+  log(1 + log(x)) / log(1 + x)
+}
+
+# Use optimize to find the maximum in the interval [2, 10]
+# maximum = TRUE directs the function to find the maximum value
+opt_result <- optimize(f, interval = c(2, 10), maximum = TRUE)
+
+# Extract optimal x and y values
+opt_x <- opt_result$maximum
+opt_y <- opt_result$objective
+
+# Visualization
+x_vals <- seq(2, 10, length.out = 100)
+y_vals <- f(x_vals)
+
+plot(x_vals, y_vals, type = "l", col = "blue", lwd = 2,
+     main = "Optimization using optimize()",
+     xlab = "x", ylab = "f(x)")
+
+# Add maximum point and numeric label
+points(opt_x, opt_y, col = "red", pch = 19, cex = 1.5)
+
+# Adding the numeric label (x, y)
+label_text <- paste0("(", round(opt_x, 3), ", ", round(opt_y, 3), ")")
+text(opt_x, opt_y, labels = label_text, pos = 4, col = "red", font = 2)
+
+
+
+#10
+
+
+
+# Setup sample data
+set.seed(123)
+n <- 100
+x_data <- rgamma(n, shape = 2.0, rate = 0.5)
+x_bar <- mean(x_data)
+
+# Define Profile Log-likelihood function for r
+# Lambda is concentrated out as lambda = r / x_bar
+profile_log_lik <- function(r, x) {
+  lambda <- r / mean(x)
+  n * r * log(lambda) - n * lgamma(r) + (r - 1) * sum(log(x)) - lambda * sum(x)
+}
+
+# Create range of r values to plot
+r_vals <- seq(0.5, 5, length.out = 100)
+log_lik_vals <- sapply(r_vals, profile_log_lik, x = x_data)
+
+# Find MLE for r using optimize
+mle_r_res <- optimize(profile_log_lik, interval = c(0.5, 5), x = x_data, maximum = TRUE)
+mle_r <- mle_r_res$maximum
+mle_val <- mle_r_res$objective
+
+# Plot the Profile Log-likelihood
+plot(r_vals, log_lik_vals, type = "l", col = "blue", lwd = 2,
+     main = "Profile Log-Likelihood of r",
+     xlab = "r (Shape parameter)", ylab = "Log-Likelihood")
+
+# Add MLE point and label
+abline(v = mle_r, col = "red", lty = 2)
+points(mle_r, mle_val, col = "red", pch = 19, cex = 1.5)
+text(mle_r, mle_val, labels = paste("MLE r =", round(mle_r, 3)), 
+     pos = 4, col = "red", font = 2)
+
+
+
+#11
+
+
+
+
+# Define the target function: f(x, y) = x^2 - 4x + y^2 - y - xy
+f <- function(v) v[1]^2 - 4*v[1] + v[2]^2 - v[2] - v[1]*v[2]
+
+# Nelder-Mead iteration step function
+nelder_mead_step <- function(s) {
+  # [Sorting phase] Keep points ordered by function values (B: Best, G: Good, W: Worst)
+  vals <- sapply(s, f)
+  idx <- order(vals)
+  s <- s[idx]
+  
+  B <- s[[1]]
+  G <- s[[2]]
+  W <- s[[3]]
+  
+  M <- (B + G) / 2 # Calculate the centroid of the best and good points
+  
+  # [Phase 1: Reflection]
+  # Reflect the worst point (W) through the centroid (M)
+  R <- 2*M - W
+  if (f(R) < f(G) && f(R) >= f(B)) return(list(B, G, R))
+  
+  # [Phase 2: Expansion]
+  # If reflection is better than the best point, try expanding further
+  if (f(R) < f(B)) {
+    E <- 2*R - M
+    # If expansion is better than reflection, adopt E; otherwise adopt R
+    return(if(f(E) < f(R)) list(B, G, E) else list(B, G, R))
+  }
+  
+  # [Phase 3: Contraction]
+  # If reflection is worse than G, contract W towards the centroid
+  C <- (M + W) / 2
+  if (f(C) < f(W)) {
+    return(list(B, G, C))
+  }
+  
+  # [Phase 4: Shrinkage]
+  # If all previous steps fail, shrink the simplex towards the best point (B)
+  S2 <- (B + G) / 2
+  S3 <- (B + W) / 2
+  return(list(B, S2, S3))
+}
+
+# --- Execution and Visualization ---
+
+# Define initial simplex points
+simplex <- list(c(0, 0), c(1.2, 0), c(0, 0.8))
+history <- list(simplex)
+
+# Run optimization for 20 iterations
+for (i in 1:20) {
+  simplex <- nelder_mead_step(simplex)
+  history[[i + 1]] <- simplex
+}
+
+# Visualization: Set the plot area
+windows()
+plot(0, 0, xlim=c(-1, 4), ylim=c(-1, 3), type="n", 
+     xlab="x", ylab="y", main="Nelder-Mead Simplex Optimization Path")
+
+# Plot the simplex path
+for (i in 1:length(history)) {
+  pts <- do.call(rbind, history[[i]])
+  polygon(pts, border=rgb(0, 0, 1, alpha=0.2)) 
+  points(pts, col="blue", pch=20, cex=0.5)
+}
+
+# Mark the final optimal point found
+final_best <- history[[length(history)]][[1]]
+points(final_best[1], final_best[2], col="red", pch=19, cex=1.5)
+
+# [NEW] Add text for the optimal value
+# Calculate the final objective function value
+min_val <- f(final_best)
+label_text <- sprintf("Min: (%.2f, %.2f)\nVal: %.4f", 
+                      final_best[1], final_best[2], min_val)
+
+# Add text to the plot near the final red dot
+text(final_best[1] + 0.5, final_best[2] + 0.3, label_text, col="red", cex=0.8, font=2)
+
+legend("topright", legend=c("Simplex Path", "Final Best"), 
+       col=c("blue", "red"), pch=19)
+
+
+
+
+# Define the function
+f <- function(x, y) x^2 - 4*x + y^2 - y - x*y
+
+# Theoretical minimum at (3, 2)
+theoretical_x <- 3
+theoretical_y <- 2
+min_value <- f(theoretical_x, theoretical_y)
+
+# Print the result
+cat("Mathematical Minimum Point: (", theoretical_x, ",", theoretical_y, ")\n")
+cat("Theoretical Minimum Value: ", min_value, "\n")
+
+# Verify with a small test
+# If the algorithm works well, it should approach this value.
+
+
+
+
+#12
+
+
+
+# Setup sample data
+set.seed(123)
+n <- 100
+x_data <- rgamma(n, shape = 2.0, rate = 0.5)
+x_bar <- mean(x_data)
+
+# Define Negative Log-likelihood function for optim
+# Note: optim minimizes by default, so we return negative log-likelihood
+neg_profile_log_lik <- function(r, x) {
+  # Lambda is concentrated out as lambda = r / x_bar
+  lambda <- r / mean(x)
+  # Calculate log-likelihood
+  ll <- n * r * log(lambda) - n * lgamma(r) + (r - 1) * sum(log(x)) - lambda * sum(x)
+  # Return negative log-likelihood for minimization
+  return(-ll)
+}
+
+# Find MLE for r using optim
+# Initial guess is 2.0, and we use Brent method for 1D optimization
+mle_r_res <- optim(par = 2.0, 
+                   fn = neg_profile_log_lik, 
+                   x = x_data, 
+                   method = "Brent", 
+                   lower = 0.5, 
+                   upper = 5.0)
+
+mle_r <- mle_r_res$par
+mle_val <- -mle_r_res$value # Convert back to log-likelihood
+
+# Plot the Profile Log-likelihood
+r_vals <- seq(0.5, 5, length.out = 100)
+log_lik_vals <- sapply(r_vals, function(r) -neg_profile_log_lik(r, x_data))
+
+plot(r_vals, log_lik_vals, type = "l", col = "blue", lwd = 2,
+     main = "Profile Log-Likelihood of r",
+     xlab = "r (Shape parameter)", ylab = "Log-Likelihood")
+
+# Add MLE point and label
+abline(v = mle_r, col = "red", lty = 2)
+points(mle_r, mle_val, col = "red", pch = 19, cex = 1.5)
+text(mle_r, mle_val, labels = paste("MLE r =", round(mle_r, 3)), 
+     pos = 4, col = "red", font = 2)
+
+
+#13
+
+
+# Setup sample data: Mixture of 3 Gamma distributions
+set.seed(543)
+m <- 300 # Number of observations
+lambda_true <- c(0.6, 0.25, 0.15) # True lambda values (must sum to 1)
+
+# Generate mixture data
+comp <- sample(1:3, m, replace = TRUE, prob = rep(1/3, 3))
+x_data <- numeric(m)
+for (i in 1:m) {
+  x_data[i] <- rgamma(1, shape = 0.5, scale = 1 / (2 * lambda_true[comp[i]]))
+}
+
+# Define the negative log-likelihood function
+# Note: lambda[3] is implicitly determined by 1 - lambda[1] - lambda[2]
+neg_log_lik <- function(lambda_params, y) {
+  l1 <- lambda_params[1]
+  l2 <- lambda_params[2]
+  l3 <- 1 - l1 - l2
+  
+  # Ensure constraints: lambda_j > 0
+  if (l1 <= 0 || l2 <= 0 || l3 <= 0) return(1e10)
+  
+  # Gamma PDF: shape = 0.5, rate = 2*lambda
+  f1 <- dgamma(y, shape = 0.5, rate = 2 * l1)
+  f2 <- dgamma(y, shape = 0.5, rate = 2 * l2)
+  f3 <- dgamma(y, shape = 0.5, rate = 2 * l3)
+  
+  # Mixture density: sum(1/3 * f_j)
+  # log(sum(f_j) / 3) = log(sum(f_j)) - log(3)
+  ll <- sum(log((f1 + f2 + f3) / 3))
+  return(-ll) # Return negative for minimization
+}
+
+# Optimization using L-BFGS-B to handle box constraints
+# Initial guess for l1 and l2
+init_params <- c(0.6, 0.25) 
+mle_res <- optim(par = init_params, 
+                 fn = neg_log_lik, 
+                 y = x_data, 
+                 method = "L-BFGS-B", 
+                 lower = c(0.001, 0.001), 
+                 upper = c(0.998, 0.998))
+
+# Extract results
+lambda_est <- c(mle_res$par, 1 - sum(mle_res$par))
+names(lambda_est) <- c("lambda1", "lambda2", "lambda3")
+
+print("Estimated Lambda values:")
+print(lambda_est)
+
+# Plotting the data distribution vs fitted mixture model
+hist(x_data, breaks = 50, prob = TRUE, main = "Data Histogram and Mixture Model", xlab = "Y")
+curve((dgamma(x, 0.5, 2*lambda_est[1]) + dgamma(x, 0.5, 2*lambda_est[2]) + 
+         dgamma(x, 0.5, 2*lambda_est[3])) / 3, add = TRUE, col = "red", lwd = 2)
+
+
+
+
+#14
+
+
+
+# Observed data: y1=125, y2=18, y3=20, y4=34
+y1 <- 125
+y2 <- 18
+y3 <- 20
+y4 <- 34
+
+# Initial guess for theta
+theta <- 0.5
+tol <- 1e-10
+max_iter <- 1000
+
+for (i in 1:max_iter) {
+  # Save current theta for convergence check
+  theta_old <- theta
+  
+  # E-step: Calculate expected value of y12
+  # Based on the multinomial cell probability model:
+  # p11 = 1/2, p12 = theta/4, p2 = (1-theta)/4, p3 = (1-theta)/4, p4 = theta/4
+  y12_expected <- y1 * (theta / (2 + theta))
+  
+  # M-step: Update theta using the formula provided in the image
+  theta <- (y12_expected + y4) / (y12_expected + y4 + y2 + y3)
+  
+  # Check for convergence
+  if (abs(theta - theta_old) < tol) {
+    cat("Converged at iteration:", i, "\n")
+    break
+  }
+}
+
+# Final result
+cat("Estimated theta:", theta, "\n")
+
+
+
+#15
+
+
+
+# Data setup
+y_obs <- c(39, 2, 101, 20, 31, 15, 148)
+c_censored <- c(118, 91, 427)
+
+# Parameters
+n <- 10
+r <- 6
+mu <- mean(c(y_obs, c_censored)) # Initial guess
+epsilon <- 1e-6
+max_iter <- 50
+
+# To store history for plotting
+mu_history <- c(mu)
+
+# EM Algorithm loop
+for (i in 1:max_iter) {
+  mu_old <- mu
+  
+  # E-step
+  expected_censored <- c_censored + mu_old
+  
+  # M-step
+  mu <- (sum(y_obs) + sum(expected_censored)) / n
+  
+  # Store history
+  mu_history <- c(mu_history, mu)
+  
+  # Check for convergence
+  if (abs(mu - mu_old) < epsilon) {
+    break
+  }
+}
+
+# Plotting the convergence of mu
+windows()
+plot(0:(length(mu_history)-1), mu_history, type = "o", pch = 16, col = "blue",
+     xlab = "Iteration", ylab = expression(hat(mu)),
+     main = "Convergence of EM Algorithm for Mean Survival Time")
+grid()
+
+# Add final convergence value text to the plot
+final_mu <- round(mu, 3)
+text(x = length(mu_history)-1, y = mu, labels = paste("Final:", final_mu), 
+     pos = 3, col = "red", font = 2)
+
+
+
+#16
+
+
+
+# 1. Data generation
+set.seed(2026)
+n <- 500
+pi_true <- c(0.4, 0.6)
+mu_true <- c(0, 3)
+sigma_true <- c(1, 1)
+
+# Generate data based on the mixture model
+z <- sample(1:2, n, replace = TRUE, prob = pi_true)
+y <- rnorm(n, mean = mu_true[z], sd = sigma_true[z])
+
+# 2. EM Algorithm initialization
+pi_est <- c(0.5, 0.5)
+mu_est <- c(-1, 4)
+sigma_est <- c(1, 1)
+
+max_iter <- 50
+for (i in 1:max_iter) {
+  # --- E-step: Compute Responsibilities (gamma) ---
+  # Calculate likelihoods for both components using current estimates
+  f1 <- dnorm(y, mu_est[1], sigma_est[1])
+  f2 <- dnorm(y, mu_est[2], sigma_est[2])
+  
+  # Posterior probability (Responsibility) calculation
+  prob1 <- pi_est[1] * f1
+  prob2 <- pi_est[2] * f2
+  gamma <- prob1 / (prob1 + prob2)
+  
+  # --- M-step: Update parameters ---
+  # Update means using weighted average based on gamma
+  mu_est[1] <- sum(gamma * y) / sum(gamma)
+  mu_est[2] <- sum((1 - gamma) * y) / sum(1 - gamma)
+  
+  # Update mixture weights (pi) based on average responsibility
+  pi_est[1] <- mean(gamma)
+  pi_est[2] <- 1 - pi_est[1]
+  
+  # Note: Variances can be updated similarly if needed
+}
+
+# 3. Print results
+cat("Estimated pi:", pi_est, "\n")
+cat("Estimated mu:", mu_est, "\n")
+
+
+
+
+
+# Add a point for the final value
+points(length(mu_history)-1, mu, col = "red", pch = 16, cex = 1.5)
+
+
+
+
