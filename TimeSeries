@@ -1879,3 +1879,346 @@ print("--- First 10 PACF Values ---")
 print(pacf_values$acf[1:10])
 
 
+
+
+###part 4.2 ------------------------------------------------------------------------------------------------
+
+
+
+
+
+## Mean & Seasonal Naive Approach
+
+
+
+#Step1. data preparation and visualization
+
+
+library(quantmod)
+library(ggplot2)
+library(gridExtra)
+# Use the correct ticker for Hyundai Mobis: 012330.KS
+ticker <- "012330.KS"
+
+# Fetch data from Yahoo Finance
+# Set start date to a very early date to get all historical data
+getSymbols(ticker, 
+           src = "yahoo", 
+           from = "1990-01-01", 
+           to = "2026-06-01", 
+           auto.assign = TRUE)
+
+# Access the data using the correct ticker name
+mobis_data <- get("012330.KS")
+str(mobis_data)
+
+# Check the tail to verify recent data
+head(mobis_data);tail(mobis_data)
+
+
+# Convert to data frame for ggplot
+df <- data.frame(Date = index(mobis_data), coredata(mobis_data))
+colnames(df) <- c("Date", "Open", "High", "Low", "Close", "Volume", "Adjusted")
+
+
+# Calculate max price for the break sequence
+max_price <- max(df$Close, na.rm = TRUE)
+
+# Plot 1: Closing Price with 50,000 KRW breaks
+p_price <- ggplot(df, aes(x = Date, y = Close)) +
+  geom_line(color = "steelblue") +
+  # Set breaks to 50,000 unit steps
+  scale_y_continuous(labels = scales::comma, 
+                     breaks = seq(0, max_price, by = 50000)) + 
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(title = "Hyundai Mobis Closing Price (012330.KS)", 
+       y = "Price (KRW)", x = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Plot 2: Trading Volume (kept as original, or adjust breaks if needed)
+p_vol <- ggplot(df, aes(x = Date, y = Volume)) +
+  geom_bar(stat = "identity", fill = "darkgray") +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(title = "Trading Volume", 
+       y = "Volume", x = "Year") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Display plots
+grid.arrange(p_price, p_vol, ncol = 1)
+
+
+
+#Step2. forecast
+
+
+
+# Load necessary libraries
+library(quantmod)
+library(ggplot2)
+library(forecast)
+library(scales)
+
+# 1. Prepare reference period data
+ref_period <- window(Cl(mobis_data), start = "2009-01-01", end = "2011-06-30")
+daily_returns <- ROC(ref_period, type = "discrete", na.pad = FALSE)
+
+# 2. Use meanf() to calculate the model
+mean_model <- meanf(as.vector(daily_returns), h = length(daily_returns))
+
+# 3. Calculate cumulative returns
+actual_cum_returns <- cumprod(1 + as.numeric(daily_returns)) - 1
+mean_cum_returns <- cumprod(1 + as.numeric(mean_model$mean)) - 1
+
+# 4. Prepare data for plotting
+plot_df <- data.frame(
+  Date = index(daily_returns),
+  Actual = actual_cum_returns,
+  Mean_Based = mean_cum_returns
+)
+
+# 5. Determine the range for Y-axis
+y_min <- floor(min(plot_df$Actual, plot_df$Mean_Based) * 2) / 2
+y_max <- ceiling(max(plot_df$Actual, plot_df$Mean_Based) * 2) / 2
+
+# 6. Plot the graph
+ggplot(plot_df, aes(x = Date)) +
+  geom_line(aes(y = Actual, color = "Actual Returns"), size = 0.8) +
+  geom_line(aes(y = Mean_Based, color = "meanf() Projection"), size = 1, linetype = "dashed") +
+  geom_hline(yintercept = 0, color = "black", linetype = "dashed") +
+  # X-axis: 3-month intervals forced to start from 2009-01-01
+  scale_x_date(
+    breaks = seq(as.Date("2009-01-01"), as.Date("2011-07-01"), by = "3 months"),
+    labels = date_format("%Y-%b")
+  ) +
+  scale_y_continuous(
+    labels = percent, 
+    breaks = seq(y_min, y_max, by = 0.5),
+    limits = c(y_min, y_max)
+  ) +
+  scale_color_manual(values = c("Actual Returns" = "steelblue", "meanf() Projection" = "red")) +
+  labs(
+    title = "Actual Cumulative Returns vs. meanf() Forecast (2009.01-2011.06)",
+    x = "Date",
+    y = "Cumulative Return (%)",
+    color = "Legend"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+
+
+
+# Load necessary libraries
+library(quantmod)
+library(ggplot2)
+library(forecast)
+library(scales)
+library(dplyr)
+
+# 1. Prepare Data
+actual_data <- window(Cl(mobis_data), start = "2026-01-01", end = "2026-06-01")
+actual_returns <- ROC(actual_data, type = "discrete", na.pad = FALSE)
+actual_cum <- cumprod(1 + as.numeric(actual_returns)) - 1
+
+# Extract values for labeling
+start_val <- 0
+end_val <- as.numeric(tail(actual_cum, 1))
+
+ref_period <- window(Cl(mobis_data), start = "2009-06-02", end = "2011-06-30")
+ref_daily_returns <- ROC(ref_period, type = "discrete", na.pad = FALSE)
+
+# 2. Forecast Data (2026-06-02 to 2028-06-30)
+forecast_dates <- seq(as.Date("2026-06-02"), as.Date("2028-06-30"), by = "day")
+h_len <- length(forecast_dates)
+
+ref_returns <- as.numeric(ref_daily_returns)
+hist_pattern <- rep(ref_returns, length.out = h_len)
+last_val <- 1 + end_val
+forecast_cum_pattern <- last_val * cumprod(1 + hist_pattern) - 1
+
+mean_model <- meanf(as.vector(ref_daily_returns), h = h_len)
+forecast_cum_mean <- last_val * cumprod(1 + as.numeric(mean_model$mean)) - 1
+
+# 3. Combine for plotting
+plot_df <- data.frame(
+  Date = rep(c(index(actual_returns), forecast_dates), 2),
+  Return = c(actual_cum, forecast_cum_pattern, actual_cum, forecast_cum_mean),
+  Type = c(rep("Actual (2026)", length(actual_cum)), rep("Historical Pattern Projection", length(forecast_cum_pattern)),
+           rep("Actual (2026)", length(actual_cum)), rep("Meanf() Average Projection", length(forecast_cum_mean)))
+)
+
+# 4. Y-axis: 50% interval logic
+y_max_limit <- ceiling(max(plot_df$Return) / 0.5) * 0.5
+y_min_limit <- floor(min(plot_df$Return) / 0.5) * 0.5
+
+# 5. Prepare Quarterly Labels
+quarterly_dates <- seq(as.Date("2026-03-31"), as.Date("2028-06-30"), by = "3 months")
+quarterly_labels <- plot_df %>%
+  filter(Date %in% quarterly_dates, Type == "Historical Pattern Projection")
+
+# 6. Plot
+ggplot(plot_df, aes(x = Date, y = Return, color = Type)) +
+  geom_line(size = 0.8) +
+  geom_hline(yintercept = 0, color = "black", linetype = "dashed") +
+  # Quarterly Labels in Black
+  geom_text(data = quarterly_labels, aes(label = percent(Return, accuracy = 0.1)), 
+            vjust = -1, size = 3.5, color = "black", fontface = "bold") +
+  geom_point(data = quarterly_labels, color = "darkred", size = 2) +
+  # Start and End Labels
+  annotate("text", x = as.Date("2026-01-01"), y = 0, label = "0.0%", vjust = -1, hjust = -0.1, color = "black") +
+  annotate("text", x = as.Date("2026-06-01"), y = end_val, label = percent(end_val, accuracy = 0.1), vjust = -1, hjust = 1.1, color = "black") +
+  scale_x_date(
+    limits = c(as.Date("2026-01-01"), as.Date("2028-07-01")),
+    breaks = seq(as.Date("2026-01-01"), as.Date("2028-07-01"), by = "3 months"),
+    labels = date_format("%Y-%b")
+  ) +
+  scale_y_continuous(
+    labels = percent, 
+    breaks = seq(y_min_limit, y_max_limit, by = 0.5), 
+    limits = c(y_min_limit, y_max_limit)
+  ) +
+  scale_color_manual(values = c("Actual (2026)" = "blue", "Historical Pattern Projection" = "red", "Meanf() Average Projection" = "green")) +
+  labs(title = "Hyundai Mobis: Actual vs. Historical vs. Meanf() Forecast", x = "Date", y = "Cumulative Return (%)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+
+#Random walk(drift)
+
+
+
+# Load necessary libraries
+library(quantmod)
+library(ggplot2)
+library(scales)
+library(dplyr)
+
+# 1. Prepare data
+ref_data <- window(Cl(mobis_data), start = "2009-01-01", end = "2011-06-30")
+actual_data <- window(Cl(mobis_data), start = "2026-01-01", end = "2026-06-01")
+returns <- na.omit(ROC(ref_data, type = "discrete"))
+
+# 2. Calculate Random Walk parameters
+mu <- mean(returns, na.rm = TRUE)
+sigma <- sd(returns, na.rm = TRUE)
+
+# 3. Simulate future price path
+set.seed(123)
+forecast_dates <- seq(as.Date("2026-06-02"), as.Date("2028-07-01"), by = "day")
+h_len <- length(forecast_dates)
+last_price <- as.numeric(tail(actual_data, 1))
+
+random_shocks <- rnorm(h_len, mean = 0, sd = 1)
+future_returns <- mu + sigma * random_shocks
+simulated_path <- last_price * cumprod(1 + future_returns)
+
+# 4. Combine data for plotting
+plot_df <- rbind(
+  data.frame(Date = index(actual_data), Price = as.numeric(actual_data), Type = "Actual (2026)"),
+  data.frame(Date = forecast_dates, Price = simulated_path, Type = "Random Walk Simulation")
+)
+
+# 5. Prepare Quarterly Labels (Price + Cumulative Return)
+initial_price <- as.numeric(actual_data[1])
+quarterly_dates <- seq(as.Date("2026-03-31"), as.Date("2028-07-01"), by = "3 months")
+quarterly_labels <- plot_df %>%
+  filter(Date %in% quarterly_dates) %>%
+  mutate(
+    CumReturn = (Price - initial_price) / initial_price,
+    Label = paste0(format(round(Price, 0), big.mark=","), "\n(", percent(CumReturn, accuracy = 0.1), ")")
+  )
+
+# 6. Visualize
+ggplot(plot_df, aes(x = Date, y = Price, color = Type)) +
+  geom_line(size = 0.8) +
+  geom_point(data = quarterly_labels, size = 2) +
+  # Display Price and Cumulative Return
+  geom_text(data = quarterly_labels, aes(label = Label), 
+            vjust = -0.5, size = 3, color = "black", fontface = "bold") +
+  scale_color_manual(values = c("Actual (2026)" = "blue", "Random Walk Simulation" = "red")) +
+  scale_y_continuous(labels = label_comma()) +
+  scale_x_date(
+    limits = c(as.Date("2026-01-01"), as.Date("2028-07-01")),
+    breaks = seq(as.Date("2026-01-01"), as.Date("2028-07-01"), by = "3 months"),
+    date_labels = "%Y-%m"
+  ) +
+  labs(
+    title = "Hyundai Mobis: Price & Cumulative Return (Quarterly), Drift",
+    x = "Date",
+    y = "Price (KRW)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "bottom")
+
+
+
+
+#Random walk(pure)
+
+
+
+
+# 1. Prepare data
+ref_data <- window(Cl(mobis_data), start = "2009-01-01", end = "2011-06-30")
+actual_data <- window(Cl(mobis_data), start = "2026-01-01", end = "2026-06-01")
+returns <- na.omit(ROC(ref_data, type = "discrete"))
+
+# 2. Calculate Random Walk parameters
+mu <- 0
+sigma <- sd(returns, na.rm = TRUE)
+
+# 3. Simulate future price path
+set.seed(123)
+forecast_dates <- seq(as.Date("2026-06-02"), as.Date("2028-07-01"), by = "day")
+h_len <- length(forecast_dates)
+last_price <- as.numeric(tail(actual_data, 1))
+
+random_shocks <- rnorm(h_len, mean = 0, sd = 1)
+future_returns <- mu + sigma * random_shocks
+simulated_path <- last_price * cumprod(1 + future_returns)
+
+# 4. Combine data for plotting
+plot_df <- rbind(
+  data.frame(Date = index(actual_data), Price = as.numeric(actual_data), Type = "Actual (2026)"),
+  data.frame(Date = forecast_dates, Price = simulated_path, Type = "Random Walk Simulation")
+)
+
+# 5. Prepare Quarterly Labels (Price + Cumulative Return)
+initial_price <- as.numeric(actual_data[1])
+quarterly_dates <- seq(as.Date("2026-03-31"), as.Date("2028-07-01"), by = "3 months")
+quarterly_labels <- plot_df %>%
+  filter(Date %in% quarterly_dates) %>%
+  mutate(
+    CumReturn = (Price - initial_price) / initial_price,
+    Label = paste0(format(round(Price, 0), big.mark=","), "\n(", percent(CumReturn, accuracy = 0.1), ")")
+  )
+
+# 6. Visualize
+ggplot(plot_df, aes(x = Date, y = Price, color = Type)) +
+  geom_line(size = 0.8) +
+  geom_point(data = quarterly_labels, size = 2) +
+  # Display Price and Cumulative Return
+  geom_text(data = quarterly_labels, aes(label = Label), 
+            vjust = -0.5, size = 3, color = "black", fontface = "bold") +
+  scale_color_manual(values = c("Actual (2026)" = "blue", "Random Walk Simulation" = "red")) +
+  scale_y_continuous(labels = label_comma()) +
+  scale_x_date(
+    limits = c(as.Date("2026-01-01"), as.Date("2028-07-01")),
+    breaks = seq(as.Date("2026-01-01"), as.Date("2028-07-01"), by = "3 months"),
+    date_labels = "%Y-%m"
+  ) +
+  labs(
+    title = "Hyundai Mobis: Price & Cumulative Return (Quarterly), Pure",
+    x = "Date",
+    y = "Price (KRW)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "bottom")
+
