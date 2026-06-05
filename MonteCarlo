@@ -11557,3 +11557,530 @@ points(length(mu_history)-1, mu, col = "red", pch = 16, cex = 1.5)
 
 
 
+
+
+
+##exercise
+
+
+#1
+
+
+
+# Define the function to integrate
+f <- function(x) {
+  return(exp(x) * cos(x))
+}
+
+# Parameters for Trapezoidal Rule
+a <- 0          # Lower limit
+b <- pi         # Upper limit
+n <- 8          # Number of subintervals
+h <- (b - a) / n # Width of each subinterval
+
+# Calculate Trapezoidal Rule result
+# Formula: (h / 2) * (f(x0) + 2*f(x1) + ... + 2*f(xn-1) + f(xn))
+x_values <- seq(a, b, by = h)
+y_values <- f(x_values)
+
+# Summing up the values according to the trapezoidal rule
+trapezoidal_result <- (h / 2) * (y_values[1] + 2 * sum(y_values[2:(n)]) + y_values[n + 1])
+
+# Calculate result using R's integrate() function
+integrate_result <- integrate(f, a, b)
+
+# Compare results
+cat("Trapezoidal rule result (n=8):", trapezoidal_result, "\n")
+cat("integrate() function result:", integrate_result$value, "\n")
+
+
+
+#2
+
+
+
+# Define a custom function to calculate the Cauchy CDF
+# location corresponds to eta, scale corresponds to theta
+my_cauchy_cdf <- function(x, location = 0, scale = 1) {
+  # Calculate CDF using the arctangent formula
+  cdf <- (1 / pi) * atan((x - location) / scale) + 0.5
+  return(cdf)
+}
+
+# Set test values for comparison
+x_val <- 2
+eta <- 0   # Location parameter
+theta <- 1 # Scale parameter (theta > 0)
+
+# Calculate results using the custom function and the built-in R function
+custom_result <- my_cauchy_cdf(x_val, eta, theta)
+built_in_result <- pcauchy(x_val, location = eta, scale = theta)
+
+# Print the results and the difference between them
+cat("Custom function result:", custom_result, "\n")
+cat("Built-in pcauchy() result:", built_in_result, "\n")
+cat("Difference:", abs(custom_result - built_in_result), "\n")
+
+
+
+#3
+
+
+
+# Given data
+y <- c(4.0, 5.5, 7.5, 4.5, 3.0)
+
+# Define the likelihood function
+# Using the product of Cauchy densities: product of [1 + (theta - yi)^2]^-1
+likelihood <- function(theta, y) {
+  # Apply the product calculation across the vector of theta values
+  sapply(theta, function(t) prod(1 + (t - y)^2)^(-1))
+}
+
+# Define the posterior density function (unnormalized)
+# Using ifelse() to handle vectors of theta correctly
+posterior_unnormalized <- function(theta, y) {
+  # Return 0 for negative theta, otherwise return the likelihood
+  ifelse(theta < 0, 0, likelihood(theta, y))
+}
+
+# 1. Calculate the normalization constant
+norm_const <- integrate(posterior_unnormalized, lower = 0, upper = Inf, y = y)$value
+
+# 2. Define the normalized posterior density function
+posterior_normalized <- function(theta, y) {
+  return(posterior_unnormalized(theta, y) / norm_const)
+}
+
+# 3. Calculate Posterior Mean
+post_mean <- integrate(function(theta) theta * posterior_normalized(theta, y), 
+                       lower = 0, upper = Inf)$value
+
+# 4. Calculate E[theta^2]
+post_mean_sq <- integrate(function(theta) theta^2 * posterior_normalized(theta, y), 
+                          lower = 0, upper = Inf)$value
+
+# 5. Calculate Posterior Variance
+post_var <- post_mean_sq - post_mean^2
+
+# Print results
+cat("Posterior Mean:", post_mean, "\n")
+cat("Posterior Variance:", post_var, "\n")
+
+
+
+#4
+
+
+
+library(ggplot2)
+
+# Define the function
+f <- function(x) {
+  return(log(x) / (1 + x))
+}
+
+# Find the x that maximizes the function
+opt <- optimize(f, interval = c(0.1, 10), maximum = TRUE)
+max_x <- opt$maximum
+max_f <- opt$objective
+
+# Create a data frame for plotting
+df <- data.frame(x = seq(0.1, 10, length.out = 500))
+df$y <- f(df$x)
+
+# Get default y-axis breaks
+default_y_breaks <- pretty(df$y)
+
+# Create the ggplot
+windows()
+ggplot(df, aes(x = x, y = y)) +
+  geom_line(color = "blue", linewidth = 1) +
+  # Add point at maximum
+  annotate("point", x = max_x, y = max_f, color = "red", size = 3) +
+  # Add vertical dashed line to x-axis
+  annotate("segment", x = max_x, y = max_f, xend = max_x, yend = -Inf, 
+           linetype = "dashed", color = "gray") +
+  # Add horizontal dashed line to y-axis
+  annotate("segment", x = max_x, y = max_f, xend = 0, yend = max_f, 
+           linetype = "dashed", color = "gray") +
+  # Add text label for the coordinate (x, f(x)) next to the red point
+  annotate("text", x = max_x, y = max_f, 
+           label = paste0(" (", round(max_x, 2), ", ", round(max_f, 3), ")"), 
+           hjust = -0.1, vjust = -0.5, color = "red", fontface = "bold") +
+  # Keep default y-axis breaks and add the max_f value
+  scale_y_continuous(breaks = sort(c(default_y_breaks, round(max_f, 3)))) +
+  scale_x_continuous(breaks = sort(c(seq(0, 10, 2), round(max_x, 2)))) +
+  labs(title = "Function Maximization",
+       x = "x", y = "f(x)") +
+  theme_minimal()
+
+
+
+#5
+
+
+
+library(stats4)
+
+# Data provided
+x <- c(4.0, 5.5, 7.5, 4.5, 3.0)
+
+# Define the negative log-likelihood function
+# Note: mle() minimizes the negative log-likelihood
+neg_log_lik <- function(theta) {
+  -sum(log(1 / (pi * (1 + (x - theta)^2))))
+}
+
+# Find MLE starting from a reasonable initial value (e.g., mean of data)
+fit_mle <- mle(neg_log_lik, start = list(theta = mean(x)))
+
+# Summary includes the estimate and standard error
+summary(fit_mle)
+
+
+
+
+# Data
+x <- c(4.0, 5.5, 7.5, 4.5, 3.0)
+n <- length(x)
+
+# Log-likelihood derivatives
+# l'(theta) = sum( 2*(xi - theta) / (1 + (xi - theta)^2) )
+# l''(theta) = sum( (2*(xi - theta)^2 - 2*(1 + (xi - theta)^2)) / (1 + (xi - theta)^2)^2 )
+
+first_deriv <- function(theta) sum(2 * (x - theta) / (1 + (x - theta)^2))
+second_deriv <- function(theta) sum(2 * ((x - theta)^2 - 1) / (1 + (x - theta)^2)^2)
+
+# Newton-Raphson iteration
+theta_est <- mean(x) # Initial guess
+for (i in 1:10) {
+  theta_est <- theta_est - first_deriv(theta_est) / second_deriv(theta_est)
+}
+
+# Standard error calculation using Observed Information: sqrt(-1 / l''(theta_est))
+se <- sqrt(-1 / second_deriv(theta_est))
+
+cat("MLE estimate:", theta_est, "\n")
+cat("Standard error:", se, "\n")
+
+
+
+#6
+
+
+
+
+# Define the log-likelihood function
+log_lik <- function(theta) {
+  1997 * log(2 + theta) + 1810 * log(1 - theta) + 32 * log(theta)
+}
+
+# Define the first derivative
+score_func <- function(theta) {
+  1997 / (2 + theta) - 1810 / (1 - theta) + 32 / theta
+}
+
+# Define the second derivative
+hessian_func <- function(theta) {
+  -1997 / (2 + theta)^2 - 1810 / (1 - theta)^2 - 32 / theta^2
+}
+
+# Newton-Raphson with step-halving to keep theta in (0, 1)
+theta <- 0.1
+tol <- 1e-8
+max_iter <- 100
+
+for (i in 1:max_iter) {
+  delta <- -score_func(theta) / hessian_func(theta)
+  
+  # Step-halving: ensure theta stays between 0 and 1
+  step <- 1
+  while(theta + step * delta <= 0 || theta + step * delta >= 1) {
+    step <- step / 2
+  }
+  
+  new_theta <- theta + step * delta
+  if (abs(new_theta - theta) < tol) {
+    theta <- new_theta
+    break
+  }
+  theta <- new_theta
+}
+
+# Results
+mle_theta <- theta
+se <- sqrt(-1 / hessian_func(mle_theta))
+
+cat("MLE of theta:", mle_theta, "\n")
+cat("Standard Error:", se, "\n")
+
+
+# Load the required library
+library(stats4)
+
+# Define the negative log-likelihood function
+# mle() minimizes the negative log-likelihood
+neg_log_lik <- function(theta) {
+  # Add a constraint to keep theta within (0, 1)
+  if (theta <= 0 || theta >= 1) return(Inf)
+  
+  # Negative of the log-likelihood function
+  - (1997 * log(2 + theta) + 1810 * log(1 - theta) + 32 * log(theta))
+}
+
+# Use mle() to estimate theta
+# Providing a starting value within (0, 1) is necessary
+fit <- mle(neg_log_lik, start = list(theta = 0.5))
+
+# Display the results
+summary(fit)
+
+# Extracting the standard error directly
+# The standard error is provided in the summary output
+
+
+
+#7
+
+
+
+# Load required library
+library(stats4)
+
+# Data
+# x: count of salmon, n: number of boats
+x <- c(1, 2, 3, 4, 5)
+n <- c(34, 25, 12, 5, 1)
+total_n <- sum(n)
+
+# Negative log-likelihood function
+# f(x|lambda) = (exp(-lambda) * lambda^x / factorial(x)) / (1 - exp(-lambda))
+neg_log_lik <- function(lambda) {
+  if (lambda <= 0) return(Inf)
+  # log(L) = sum(n_i * (log(lambda^x_i) - lambda - log(x_i!) - log(1 - exp(-lambda))))
+  log_L <- sum(n * (x * log(lambda) - lambda - lfactorial(x) - log(1 - exp(-lambda))))
+  return(-log_L)
+}
+
+# Use mle() to estimate lambda
+fit <- mle(neg_log_lik, start = list(lambda = 2))
+
+# Display results
+summary(fit)
+
+
+
+
+
+# Clear workspace
+rm(list = ls())
+
+# Data
+obs_x <- c(1, 2, 3, 4, 5)
+freq <- c(34, 25, 12, 5, 1)
+n <- sum(freq)
+sum_xi <- sum(obs_x * freq)
+
+# Score function: l'(lambda)
+score_func <- function(lambda) {
+  -n + (sum_xi / lambda) - (n * exp(-lambda) / (1 - exp(-lambda)))
+}
+
+# Hessian function: l''(lambda)
+hessian_func <- function(lambda) {
+  -(sum_xi / lambda^2) + (n * exp(-lambda) / (1 - exp(-lambda))^2)
+}
+
+# Newton-Raphson iteration
+lambda <- 2 # Initial guess
+tol <- 1e-8
+max_iter <- 100
+
+for (i in 1:max_iter) {
+  delta <- -score_func(lambda) / hessian_func(lambda)
+  lambda <- lambda + delta
+  if (abs(delta) < tol) break
+}
+
+# Results
+mle_lambda <- lambda
+se <- sqrt(-1 / hessian_func(mle_lambda))
+
+cat("MLE of lambda:", mle_lambda, "\n")
+cat("Standard Error:", se, "\n")
+
+
+
+#8
+
+
+# Define the Powell function
+powell_function <- function(x) {
+  # x[1], x[2], x[3], x[4] correspond to x1, x2, x3, x4
+  (x[1] + 10 * x[2])^2 + 5 * (x[3] - x[4])^2 + (x[2] - 2 * x[3])^4 + 10 * (x[1] - x[4])^4
+}
+
+# Define initial parameters
+initial_x <- c(3, -1, 0, 1)
+
+# Initialize a matrix to store the path of x
+path <- matrix(ncol = 4, nrow = 0)
+path <- rbind(path, initial_x)
+
+# Define a wrapper function to update the path during optimization
+optim_with_trace <- function(x) {
+  path <<- rbind(path, x)
+  powell_function(x)
+}
+
+# Perform optimization
+result <- optim(par = initial_x, fn = optim_with_trace, method = "Nelder-Mead",
+                control = list(maxit = 1000))
+
+# Calculate function values for the path
+f_values <- apply(path, 1, powell_function)
+iterations <- 0:(length(f_values) - 1)
+
+# Plotting the value of the function over iterations
+plot(iterations, f_values, 
+     type = "b", pch = 19, col = "blue",
+     xlab = "Iteration", ylab = "Function Value",
+     main = "Convergence of Nelder-Mead Optimization")
+
+# Add red point for the minimum value
+final_idx <- length(f_values)
+points(iterations[final_idx], f_values[final_idx], col = "red", pch = 19, cex = 1.5)
+
+# Add text for the minimum value
+text_label <- paste("Min:", round(f_values[final_idx], 4))
+text(iterations[final_idx], f_values[final_idx], labels = text_label, 
+     pos = 3, col = "red", font = 2)
+
+
+
+
+#9
+
+
+
+# Load necessary libraries
+library(ggplot2)
+
+# 1. Data Setup
+# Observed frequencies: MM, MF, FF
+obs_counts <- c(32, 41, 36)
+
+# 2. Define Negative Log-Likelihood Function
+# p = P(Male), d = P(Dizygotic)
+neg_log_likelihood <- function(param) {
+  p <- param[1]
+  d <- param[2]
+  
+  # Return a large value if parameters are out of bounds
+  if (p < 0 || p > 1 || d < 0 || d > 1) return(1e10)
+  
+  m <- 1 - d
+  q <- 1 - p
+  
+  # Model probabilities
+  probs <- c(m * p + d * p^2, 
+             2 * d * p * q, 
+             m * q + d * q^2)
+  
+  # Add epsilon to prevent log(0) error
+  probs <- probs + 1e-10
+  
+  # Calculate negative log-likelihood: -sum(n * log(p))
+  -sum(obs_counts * log(probs))
+}
+
+# 3. Perform Optimization
+result <- optim(par = c(0.5, 0.5), fn = neg_log_likelihood, 
+                method = "L-BFGS-B", 
+                lower = c(0.001, 0.001), 
+                upper = c(0.999, 0.999))
+
+# Print Results
+cat("Maximum Likelihood Estimates:\n")
+cat("p (P(Male)):", result$par[1], "\n")
+cat("d (P(Dizygotic)):", result$par[2], "\n")
+
+# 4. Visualization with ggplot2
+# Create a grid of parameter values
+p_grid <- seq(0.01, 0.99, length.out = 100)
+d_grid <- seq(0.01, 0.99, length.out = 100)
+grid_data <- expand.grid(p = p_grid, d = d_grid)
+
+# Calculate Negative Log-Likelihood for each grid point
+grid_data$nll <- apply(grid_data, 1, neg_log_likelihood)
+
+# Plot the likelihood surface
+windows()
+ggplot(grid_data, aes(x = p, y = d, z = nll)) +
+  geom_contour_filled(bins = 20) +
+  geom_point(aes(x = result$par[1], y = result$par[2]), color = "red", size = 3) +
+  labs(title = "Likelihood Surface (MLE)",
+       x = "P(Male) [p]",
+       y = "P(Dizygotic) [d]",
+       fill = "Negative Log-Likelihood") +
+  theme_minimal()
+
+
+
+#10
+
+
+
+# Load the necessary library
+library(ggplot2)
+
+# Observed data
+y1 <- 44
+y2 <- 19
+
+# Initialize parameters
+theta <- 0.5
+tolerance <- 1e-8
+max_iter <- 100
+
+# Store the history of theta for visualization
+theta_history <- data.frame(iteration = 0, theta = theta)
+
+for (i in 1:max_iter) {
+  # E-Step: Calculate the expected value of the latent variable x2
+  x2_hat <- y1 * (theta / (1 + theta))
+  
+  # M-Step: Update theta
+  new_theta <- (3 * x2_hat) / (2 * (x2_hat + y2))
+  
+  # Append to history
+  theta_history <- rbind(theta_history, data.frame(iteration = i, theta = new_theta))
+  
+  # Check for convergence
+  if (abs(new_theta - theta) < tolerance) {
+    break
+  }
+  
+  theta <- new_theta
+}
+
+# Identify the final point
+final_iter <- nrow(theta_history) - 1
+final_theta <- theta_history$theta[nrow(theta_history)]
+
+# Visualization: Plot the convergence of theta
+windows()
+ggplot(theta_history, aes(x = iteration, y = theta)) +
+  geom_line(color = "steelblue", size = 1) +
+  geom_point(color = "steelblue") +
+  # Add a red point for the final converged value
+  geom_point(aes(x = final_iter, y = final_theta), color = "red", size = 3) +
+  # Add text label for the final value
+  annotate("text", x = final_iter, y = final_theta, 
+           label = paste0("Final: ", round(final_theta, 4)), 
+           vjust = -1.5, color = "red", fontface = "bold") +
+  labs(title = "Convergence of Theta in EM Algorithm",
+       x = "Iteration",
+       y = "Theta Estimate") +
+  theme_minimal()
