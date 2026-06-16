@@ -3160,5 +3160,140 @@ ggplot(plot_df, aes(x = Period, y = Sales, fill = Type)) +
 
 
 
+#Prophet
+
+
+
+
+
+# 1. Data Loading and Preprocessing
+library(openxlsx)
+icecream_rawdata <- read.xlsx(xlsxFile = "아이스크림_판매량_데이터.xlsx")
+str(icecream_rawdata)
+
+
+
+# Load required libraries
+library(prophet)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(stringr)
+library(ggplot2)
+library(scales)   # For comma formatting
+library(ggrepel)  # For non-overlapping text labels
+
+# 1. Preprocessing the data
+df_long <- icecream_rawdata %>% 
+  filter(구분 == "총매출") %>%
+  select(-구분) %>%
+  pivot_longer(cols = everything(), names_to = "quarter", values_to = "y") %>%
+  mutate(
+    year = as.numeric(str_extract(quarter, "^\\d{4}")),
+    q = as.numeric(str_extract(quarter, "(?<=\\.)\\d")),
+    month = (q - 1) * 3 + 1,
+    ds = as.POSIXct(paste(year, month, "01", sep = "-"))
+  ) %>%
+  select(ds, y)
+
+# 2. Fit the Prophet model
+m <- prophet(df_long, 
+             yearly.seasonality = TRUE, 
+             weekly.seasonality = FALSE, 
+             daily.seasonality = FALSE)
+
+# 3. Create future dataframe and predict
+future <- make_future_dataframe(m, periods = 20, freq = 'quarter')
+forecast <- predict(m, future)
+
+# 4. Prepare data for plotting
+forecast <- forecast %>%
+  mutate(
+    ds = as.POSIXct(ds),
+    type = ifelse(ds <= max(df_long$ds), "Historical", "Forecast"),
+    label = ifelse(type == "Forecast", round(yhat, 0), NA) # Add label for forecast only
+  )
+
+# 5. Visualization with ggplot2
+ggplot(forecast, aes(x = ds)) +
+  geom_ribbon(aes(ymin = yhat_lower, ymax = yhat_upper), fill = "skyblue", alpha = 0.3) +
+  geom_line(data = filter(forecast, type == "Historical"), aes(y = yhat), color = "black", linewidth = 1) +
+  geom_point(data = df_long, aes(y = y), color = "black", size = 2) +
+  
+  # Forecast line and points
+  geom_line(data = filter(forecast, type == "Forecast"), aes(y = yhat), color = "red", linewidth = 1, linetype = "dashed") +
+  geom_point(data = filter(forecast, type == "Forecast"), aes(y = yhat), color = "red", size = 2) +
+  
+  # Add labels to forecast points (Corrected: added aes(y = yhat, label = label))
+  geom_text_repel(data = filter(forecast, type == "Forecast"), 
+                  aes(y = yhat, label = label), 
+                  size = 3, color = "red", max.overlaps = 20) +
+  
+  # Formatting axes
+  scale_y_continuous(labels = comma) + 
+  scale_x_datetime(date_breaks = "3 months", labels = date_format("%Y.%q")) + 
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  labs(title = "Total Sales Forecast (Prophet)",
+       subtitle = "Black: Historical Data | Red: 5-Year Forecast with Values",
+       x = "Quarter", y = "Sales")
+
+
+
+
+
+# Load required libraries
+library(prophet)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(stringr)
+library(ggplot2)
+library(scales)
+
+# 1. Define the actual sales data
+actual_df <- data.frame(
+  Period = c("2020H1", "2020H2", "2021H1", "2021H2", "2022H1", "2022H2", "2023H1", "2023H2", "2024H1"),
+  Sales = c(781876, 761364, 664027, 701315, 661593, 714260, 694247, 783588, 677133),
+  Type = "Actual"
+)
+
+# 2. Process the Prophet forecast data to match half-yearly format
+# Assuming 'forecast' object is already created from the previous Prophet model
+forecast_df <- forecast %>%
+  mutate(
+    Year = year(ds),
+    Quarter = quarter(ds),
+    # Convert quarterly dates to H1/H2 periods
+    Period = paste0(Year, ifelse(Quarter <= 2, "H1", "H2"))
+  ) %>%
+  group_by(Period) %>%
+  summarise(Sales = sum(yhat)) %>%
+  mutate(Type = "Forecast")
+
+# 3. Combine Actual and Forecast data for comparison
+plot_df <- bind_rows(actual_df, forecast_df) %>%
+  # Filter to match the periods available in the actual data
+  filter(Period %in% actual_df$Period)
+
+# 4. Visualization: Bar chart comparing Actual vs Forecast
+ggplot(plot_df, aes(x = Period, y = Sales, fill = Type)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  # Add text labels on top of bars
+  geom_text(aes(label = comma(round(Sales, 0))), 
+            position = position_dodge(width = 0.9), vjust = -0.5, size = 3) +
+  # Format y-axis with commas and set color scheme
+  scale_y_continuous(labels = label_comma()) +
+  scale_fill_manual(values = c("Actual" = "steelblue", "Forecast" = "firebrick")) +
+  labs(
+    title = "Actual Sales vs Prophet Forecast (2020-2024)",
+    x = "Half-Year Period", 
+    y = "Sales Volume (KRW)"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
 
 
