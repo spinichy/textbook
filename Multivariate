@@ -1,1 +1,65 @@
+#-------------------------------------------------------------------------------
+##data preparation
+#-------------------------------------------------------------------------------
 
+
+# example.1
+library(smsets)
+str(smsets::sparrows) 
+
+# example.2
+library(smsets)
+str(smsets::skulls) 
+
+# example.3
+library(ade4)
+data("butterfly") 
+str(butterfly)
+
+#data: example.4
+
+# Create the dataframe for the Higham et al. (1980) dataset
+# The data represents measurements of 7 groups of canids.
+# X1: Mandible width, X2: Mandible height, X3: First molar length,
+# X4: First molar width, X5: Length from 1st to 3rd molar,
+# X6: Length from 1st to 4th premolar.
+
+higham_data <- data.frame(
+  Group = c("Modern Dog", "Golden Jackal", "Chinese Wolf", 
+            "Indian Wolf", "Dhole", "Dingo", "Prehistoric Dog"),
+  X1 = c(9.7, 8.1, 13.5, 11.5, 10.7, 9.6, 10.3),
+  X2 = c(21.0, 16.7, 27.3, 24.3, 23.5, 22.6, 22.1),
+  X3 = c(19.4, 18.3, 26.8, 24.5, 21.4, 21.1, 19.1),
+  X4 = c(7.7, 7.0, 10.6, 9.3, 8.5, 8.3, 8.1),
+  X5 = c(32.0, 30.3, 41.9, 40.0, 28.8, 34.4, 32.2),
+  X6 = c(36.5, 32.9, 48.1, 44.6, 37.6, 43.1, 35.0)
+)
+
+library(MASS)
+
+
+# Data: European Employment by 9 different industries
+
+# Source: Euromonitor (1995), except for Germany and the United Kingdom, 
+#         where more recent values were obtained from the United Nations Statistical Yearbook, 2000.
+# Note: AGR = Agriculture, hunting, forestry; MIN = Mining and quarrying; 
+#       MAN = Manufacturing; PS = Electricity, gas and water; CON = Construction; 
+#       SER = Services; FIN = Finance; SPS = Social and personal services; 
+#       TC = Transport and communications.
+
+euro_employment <- data.frame(
+  Country = c("벨기에", "덴마크", "프랑스", "독일", "그리스", "아일랜드", "이탈리아", "룩셈부르크", "네덜란드", "포르투갈", 
+              "스페인", "영국", "오스트리아", "핀란드", "아이슬란드", "노르웨이", "스웨덴", "스위스", "알바니아", "불가리아", 
+              "체코슬로바키아", "헝가리", "폴란드", "루마니아", "구소련", "구유고슬라비아", "키프로스", "지브롤터", "몰타", "터키"),
+  Group = c("EU", "EU", "EU", "EU", "EU", "EU", "EU", "EU", "EU", "EU", 
+            "EU", "EU", "EFTA", "EFTA", "EFTA", "EFTA", "EFTA", "EFTA", "Eastern", "Eastern", 
+            "Eastern", "Eastern", "Eastern", "Eastern", "Eastern", "Eastern", "Other", "Other", "Other", "Other"),
+  AGR = c(2.6, 5.6, 5.1, 3.2, 22.2, 13.8, 8.4, 3.3, 4.2, 11.5, 9.9, 2.2, 7.4, 8.5, 10.5, 5.8, 3.2, 5.6, 55.5, 19.0, 12.8, 15.3, 23.6, 22.0, 18.5, 5.0, 13.5, 0.0, 2.6, 44.8),
+  MIN = c(0.2, 0.1, 0.3, 0.7, 0.5, 0.6, 1.1, 0.1, 0.1, 0.5, 0.5, 0.7, 0.3, 0.2, 0.0, 1.1, 0.3, 0.0, 19.4, 0.0, 37.3, 28.9, 3.9, 2.6, 0.0, 2.2, 0.3, 0.0, 0.6, 0.9),
+  MAN = c(20.8, 20.4, 20.2, 24.8, 19.2, 19.8, 21.9, 19.6, 19.2, 23.6, 21.1, 21.3, 26.9, 19.3, 18.7, 14.6, 19.0, 24.7, 0.0, 35.0, 0.0, 0.0, 24.1, 37.9, 28.8, 38.7, 19.0, 6.8, 27.9, 15.3),
+  PS = c(0.8, 0.7, 0.9, 1.0, 1.0, 1.2, 0.0, 0.7, 0.7, 0.7, 0.6, 1.2, 1.2, 1.2, 0.9, 1.1, 0.8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.9, 2.0, 0.0, 2.2, 0.5, 2.0, 1.5, 0.2),
+  CON = c(6.3, 6.4, 6.4, 9.4, 6.8, 7.1, 9.1, 9.9, 0.6, 8.2, 9.5, 7.0, 8.5, 6.8, 10.0, 6.5, 6.4, 9.2, 3.4, 6.7, 8.4, 6.4, 6.3, 5.8, 10.2, 8.1, 9.1, 16.9, 4.6, 5.2),
+  SER = c(16.9, 14.5, 16.7, 17.2, 18.2, 17.8, 21.6, 21.2, 18.5, 19.8, 20.1, 20.2, 19.1, 14.6, 14.5, 17.6, 14.2, 20.5, 3.3, 9.4, 10.2, 13.3, 10.3, 6.9, 7.9, 13.8, 23.7, 24.5, 10.2, 12.4),
+  FIN = c(8.7, 9.1, 10.2, 9.6, 5.3, 8.4, 4.6, 8.7, 11.5, 6.3, 5.9, 12.4, 6.7, 8.6, 8.0, 7.6, 9.4, 10.7, 15.3, 1.5, 1.6, 0.0, 1.3, 0.6, 0.6, 3.1, 6.7, 10.8, 3.9, 2.4),
+  SPS = c(36.9, 36.3, 33.1, 28.4, 19.8, 25.5, 28.0, 29.6, 38.3, 24.6, 26.7, 28.4, 23.3, 33.2, 30.7, 37.5, 39.5, 23.1, 0.0, 20.9, 22.9, 27.3, 24.5, 15.3, 25.6, 19.1, 21.2, 34.0, 41.6, 14.5),
+  TC = c(6.8, 7.0, 6.4, 5.6, 6.9, 5.8, 5.3, 6.8, 6.8, 4.8, 5.8, 6.5, 6.4, 7.5, 6.7, 8.1, 7.2, 6.2, 3.0, 7.5, 6.9, 8.8, 5.2, 6.8, 8.4, 7.8, 6.0, 5.0, 7.2, 4.4)
