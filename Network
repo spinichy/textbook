@@ -1,1 +1,516 @@
+Part 2 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+#-------------------------------------------------------------------------------
+## Matrix type -John sent a letter to Jane
+#-------------------------------------------------------------------------------
+
+
+#sociogrammatrix;incidence matrix
+mat <- matrix(data = 0, nrow = 2, ncol = 2)
+colnames(mat) <- rownames(mat) <- c("John", "Jane")
+mat["John","Jane"] <- 1
+mat
+
+#from igraph to network object
+library(igraph)
+obj_igraph1 <- graph_from_adjacency_matrix(mat)
+class(obj_igraph1)
+obj_igraph1
+
+
+# converted the igraph object to the network package format.
+library(intergraph) 
+obj_network1 <- intergraph::asNetwork(obj_igraph1)
+class(obj_network1)
+obj_network1
+
+#from network to  igraph object
+
+library(statnet)
+obj_network2 <- network(mat)
+class(obj_network2)
+obj_network2
+
+library(intergraph)
+obj_igraph2 <- intergraph::asIgraph(obj_network2)
+class(obj_igraph2)
+obj_igraph2
+
+V(obj_igraph2)$vertex.names
+
+#-------------------------------------------------------------------------------
+## Matrix type -John sent a letter to Jane - statnet
+#-------------------------------------------------------------------------------
+library(statnet)
+
+#from matrix to network object
+mynet <- network(mat, directed = TRUE)
+mynet
+
+#node level attribution, %v% : "Vertex attribute"
+mynet %v% 'vertex.names'
+mynet %v% 'gender' <- c("male", "female")
+mynet %v% 'gender'
+mynet %v% 'age' <- c(22,28)
+mynet %v% 'age'
+
+c(mynet %v% 'gender', mynet %v% 'age')
+
+table(mynet %v% 'gender')
+mean(mynet %v% 'age')
+
+
+
+#link level variable
+as.edgelist(mynet)
+attr(x = as.edgelist(mynet),which = "vnames")
+
+mynet %e% 'n_letter' <- 2
+mynet
+
+##summary
+
+# 1. Create a matrix (1 edge from John to Jane)
+mat <- matrix(data = 0, nrow = 2, ncol = 2)
+colnames(mat) <- rownames(mat) <- c("John", "Jane")
+mat["John", "Jane"] <- 1 
+
+# 2. Create a network object
+# Explicitly set directed to TRUE
+mynet <- network(mat, directed = TRUE) 
+
+# 3. Add vertex attributes
+mynet %v% 'gender' <- c("male", "female")
+mynet %v% 'age' <- c(22, 28)
+
+# 4. Add edge attributes
+# Check if at least one edge exists before adding the attribute
+if(network.edgecount(mynet) > 0) {
+  mynet %e% 'n_letter' <- 2
+}
+
+# 5. Review the network summary
+summary(mynet)
+
+
+
+#------------------------------------------------------------------------------
+## Matrix type -John sent a letter to Jane - by using igraph 
+#------------------------------------------------------------------------------
+
+library(igraph)
+#sociogrammatrix;incidence matrix
+mat <- matrix(data = 0, nrow = 2, ncol = 2)
+colnames(mat) <- rownames(mat) <- c("John", "Jane")
+mat["John","Jane"] <- 1
+mat
+
+myig <- graph_from_adjacency_matrix(mat);myig
+
+#node level variable
+V(myig)$name
+V(myig)$gender <- c("male", "female")
+V(myig)$age <- c(22, 28)
+
+table(V(myig)$gender)
+mean(V(myig)$age)
+
+#link level variable
+E(myig)
+E(myig)$n_letter <- 2
+
+
+summary(myig)
+
+
+
+#-------------------------------------------------------------------------------
+## link listed type -John sent a letter to Jane
+#-------------------------------------------------------------------------------
+
+edgelist <- data.frame(i = "John", j = "Jane", stringsAsFactors = FALSE)
+edgelist
+
+#-------------------------------------------------------------------------------
+## link listed type -John sent a letter to Jane - statnet
+#-------------------------------------------------------------------------------
+
+library(statnet)
+mynet <- network(edgelist)
+mynet
+
+#-------------------------------------------------------------------------------
+## link listed type -John sent a letter to Jane - igraph
+#-------------------------------------------------------------------------------
+
+library(igraph)
+myig <- graph_from_edgelist(as.matrix(edgelist))
+myig
+
+#-------------------------------------------------------------------------------
+## node level & listed type -John sent two letters to Jane, Jane reply a e-mail to Jane
+#-------------------------------------------------------------------------------
+
+#node level
+vertex_df <- data.frame(name = c("John", "Jane"),
+                        gender = c("male", "female"), 
+                        age = c(22,28), 
+                        stringsAsFactors = FALSE)
+#link level
+edge_df <- data.frame(i = c("John", "Jane"),
+                      j = c("Jane", "John"), 
+                      kind = c("letter","email"),
+                      intensity = c(2,1),
+                      stringsAsFactors = FALSE)
+
+
+#############################################################
+library(tidyverse)
+
+vertex_df <- vertex_df %>% 
+  mutate(lbl_v = str_c(name, "\n(", gender, ", ", age, ")")) 
+edge_df <- edge_df %>% 
+  mutate(lbl_e = str_c(kind, "\n(", intensity, ")")) 
+
+# Set up the output file
+png("P1_Ch04_Fig01.png", width = 15, height = 15, units = "cm", res = 300)
+set.seed(20221224)
+
+# Separate the object creation and the plotting
+net <- network(x = edge_df, vertices = vertex_df)
+
+# Plotting the network without pipe to ensure proper graphic context
+plot(net, label = "lbl_v", edge.label = "lbl_e", 
+     vertex.col = "green", vertex.cex = 3, vertex.sides = c(4, 50), 
+     edge.curve = 0.3, edge.col = c("red", "blue"), 
+     arrowhead.cex = 3, usecurve = TRUE) 
+
+# Add title and subtitle immediately after plot
+title(main = "Jane sent 2 emails to John, John sent 1 email to Jane",
+      sub = "Jane (Gender, Age) & John (Gender, Age)",
+      cex.main = 1.2, 
+      cex.sub = 1.0)
+
+dev.off()
+#############################################################
+
+
+#-------------------------------------------------------------------------------
+## node level & listed type -John sent two letters to Jane, Jane reply a e-mail to Jane - statnet
+#-------------------------------------------------------------------------------
+
+
+library(statnet)
+#node level
+vertex_df <- data.frame(name = c("John", "Jane"),
+                        gender = c("male", "female"), 
+                        age = c(22,28), 
+                        stringsAsFactors = FALSE)
+#link level
+edge_df <- data.frame(i = c("John", "Jane"),
+                      j = c("Jane", "John"), 
+                      kind = c("letter","email"),
+                      intensity = c(2,1),
+                      stringsAsFactors = FALSE)
+
+mynet <- network(x = edge_df, vertex.attr = vertex_df)
+mynet[,]
+mynet[1,]
+mynet[,2]
+
+list.network.attributes(mynet) #graph
+network::list.vertex.attributes(mynet) #point(vertex)
+network::list.edge.attributes(mynet) #edge(link)
+
+
+get.network.attribute(x = mynet, attrname = "directed") #graph directed
+get.network.attribute(x = mynet, attrname = "n") #graph size(=number of nodes)
+get.vertex.attribute(x = mynet, attrname = "gender") #variable of node level
+get.edge.attribute(x = mynet, attrname = "intensity") #variable of edge level
+
+
+mynet_copy <- mynet
+get.network.attribute(x = mynet_copy, attrname = "directed") 
+set.network.attribute(x = mynet_copy, attrname = "directed", value = FALSE) #No directed
+get.network.attribute(x = mynet_copy, attrname = "directed") 
+
+
+set.network.attribute(x = mynet_copy, attrname = "temporary", 
+                      value = "제1장4장예시데이터")
+mynet_copy
+
+mynet
+set.vertex.attribute(x = mynet, attrname = "sex", value = c("남","여"))
+set.edge.attribute(x = mynet, attrname = "valence", value = c("긍정적","중립적"))
+mynet %v% "sex"
+mynet %e% "valence"
+mynet
+
+delete.network.attribute(x = mynet_copy, attrname = "temporary")
+list.network.attributes(mynet_copy)
+
+delete.vertex.attribute(x = mynet_copy, attrname = "gender")
+list.vertex.attributes(mynet_copy)
+
+delete.edge.attribute(x = mynet_copy, attrname = "intensity")
+list.edge.attributes(mynet_copy)
+
+vertex_df2 <- as.data.frame(x = mynet, unit = 'vertices')
+vertex_df2
+
+edge_df2 <- as.data.frame(x = mynet, unit = 'edges')
+edge_df2
+
+
+#-------------------------------------------------------------------------------
+## node level & listed type -John sent two letters to Jane, Jane reply a e-mail to Jane - igraph
+#-------------------------------------------------------------------------------
+
+
+library(igraph)
+myig <- graph_from_data_frame(d = edge_df, vertices = vertex_df)
+myig
+myig[,]
+myig[1,]
+myig[,2]
+
+graph_attr(myig) #graph
+vertex_attr(myig) #node(point)
+edge_attr(myig) #edge(link)
+
+myig <- set_graph_attr(graph = myig, name = "temporary", value = "제1장4장예시데이터")
+myig <- set_vertex_attr(graph = myig, name = "sex", value = c("남","여"))
+myig <- set_edge_attr(graph = myig, name = "valence", value =  c("긍정적","중립적"))
+myig
+
+myig <- delete_graph_attr(graph = myig, name = "temporary")
+myig <- delete_vertex_attr(graph = myig, name = "gender")
+myig <- delete_edge_attr(graph = myig, name = "kind")
+myig
+
+vertex_df <- igraph::as_data_frame(x = myig, what = "vertices")
+vertex_df
+edge_df <- igraph::as_data_frame(x = myig, what = "edges")
+edge_df
+VE_df <- igraph::as_data_frame(x = myig, what = "both")
+VE_df
+
+
+#-------------------------------------------------------------------------------
+## two-mode (Binary) network - statnet
+#-------------------------------------------------------------------------------
+
+library(statnet)
+mode2_edge_df <- data.frame(
+  actor = c("A1", "A1", "A1", "A2", "A2", "A3", "A4", "A4", "A5"),
+  event = c("E1", "E2", "E3", "E1", "E3", "E3", "E2", "E3", "E1"),
+  att = c(1,1,1, 2,1, 2, 1,1, 3))
+mode2_edge_df
+
+
+library(tidyverse)
+mode2_node_df <- data.frame(
+  id=c("A1","E1","A2","E2","A3","E3","A4","A5")
+) %>% 
+  mutate(
+    Ntype=ifelse(str_detect(id,"E"),"event","actor")
+  )
+mode2_node_df
+
+mode2_node_df <- data.frame(
+  id=c(str_c("A",1:5),str_c("E",1:3))
+) %>% 
+  mutate(
+    Ntype=ifelse(str_detect(id,"E"),"event","actor"),
+    Norder=str_extract(id,"[[:digit:]]{1,}")  
+  ) %>% 
+  arrange(Norder, Ntype) 
+
+
+mode2_edge_df
+mode2_node_df 
+mynet <- network(x = mode2_edge_df,
+                 directed = FALSE,  # No direction
+                 bipartite = TRUE,  # two-mode network 
+                 vertices=mode2_node_df)
+mynet
+
+
+
+mat <- matrix(NA,5,3)
+colnames(mat) <- str_c("E",1:3)
+rownames(mat) <- str_c("A",1:5)
+mat[,1] <- c(1,2,0,0,3)
+mat[,2] <- c(1,0,0,1,0)
+mat[,3] <- c(1,1,2,1,0)
+mat
+
+
+mynet2 <- network(mat,directed=FALSE,bipartite=TRUE)
+mynet2
+
+
+mynet2 %v% 'Ntype' <- ifelse(str_detect(mynet2 %v% "vertex.names","E"),
+                             "event","actor")
+mynet2
+table(mynet2 %v% 'Ntype',mynet2 %v% 'vertex.names')
+
+
+as.vector(t(mat))
+as.vector(t(mat))[as.vector(t(mat))!=0]
+
+mynet2 %e% 'att' <- as.vector(t(mat))[as.vector(t(mat))!=0]
+
+mynet %e% 'att'
+mynet2 %e% 'att'
+all(mynet %e% 'att' == mynet2 %e% 'att')
+
+
+######################################################################
+png("P1_Ch04_Fig02.png",width=15,height=15,units="cm",res=300)
+mynet %v% 'Nshape' <- ifelse(mynet %v% 'Ntype' == "event",4,50)
+mynet %v% 'Ncolor' <- ifelse(mynet %v% 'Ntype' == "event","green","purple")
+
+set.seed(20221224)
+plot(mynet,label="vertex.names",
+     edge.label= factor(mynet %e% 'att'),  #label
+     vertex.col="Ncolor",vertex.cex=3,vertex.sides="Nshape", #node
+     edge.col = factor(mynet %e% 'att')) #link
+dev.off()
+######################################################################
+
+#-------------------------------------------------------------------------------
+## two-mode (Binary) network - igraph
+#-------------------------------------------------------------------------------
+
+library(igraph)
+mode2_node_df <- mode2_node_df %>% 
+  mutate(type = (Ntype == "event"))
+mode2_node_df
+myig <- graph_from_data_frame(d = mode2_edge_df, 
+                              directed = FALSE, 
+                              vertices = mode2_node_df)
+mode2_edge_df
+myig
+
+bipartite_projection(graph = myig)
+
+
+#-------------------------------------------------------------------------------
+## Projecting a bipartite network into a one-mode network
+#-------------------------------------------------------------------------------
+
+
+mode2_edge_df <- data.frame(
+  actor = c("A1", "A1", "A1", "A2", "A2", "A3", "A4", "A4", "A5"),
+  event = c("E1", "E2", "E3", "E1", "E3", "E3", "E2", "E3", "E1"),
+  att = c(1,1,1, 2,1, 2, 1,1, 3))
+mode2_node_df <- data.frame(
+  id=c(str_c("A",1:5),str_c("E",1:3))
+) %>% 
+  mutate(
+    Ntype=ifelse(str_detect(id,"E"),"event","actor"),
+    Norder=str_extract(id,"[[:digit:]]{1,}")  
+  ) %>% 
+  arrange(Norder, Ntype) 
+mynet <- network(x = mode2_edge_df,
+                 directed = FALSE,  # No direction
+                 bipartite = TRUE,  # two-mode network 
+                 vertices=mode2_node_df)
+
+
+mynet[,]
+ptpmat <- mynet[,] %*% t(mynet[,]) #actor-actor
+diag(ptpmat) <- 0
+ptpmat
+
+etemat <- t(mynet[,]) %*% mynet[,] #event-event 
+diag(etemat) <- 0
+etemat
+
+mynetig <- intergraph::asIgraph(x = set.network.attribute(x = mynet, 
+                                                          attrname = "bipartite", 
+                                                          value = FALSE))
+
+V(mynetig)$type <- V(mynetig)$Ntype == "event" 
+
+mynetig
+mynetig <- bipartite_projection(graph = mynetig) #actor-actor, #event-event
+mynetig
+
+p2pnet <- intergraph::asNetwork(x = mynetig$proj1)
+p2pnet
+
+ptpmat #actor-actor
+as.matrix(x = p2pnet, type = "adjacency", attrname = "weight")
+
+mynet
+factor(mynet %v% "vertex.names")
+mynet %v% "vertex.names"
+
+mynet %v% "vertex.names" <- as.integer(factor(mynet %v% "vertex.names"))
+wnet <- as.data.frame(x = mynet, unit = "edge")
+wnet
+
+
+get.edge.attribute(x = mynet, attrname = "att")
+get.node.attr(nw = mynet, attrname = "vertex.names")
+
+
+library(tnet)
+mytnet <- tnet::as.tnet(net = as.matrix(wnet), 
+                        type = "weighted two-mode tnet")
+mytnet # i: person, p: event
+
+
+mytnet_p <- tnet::projecting_tm(net = mytnet, 
+                                method = "sum") #actor-actor
+mytnet_p
+
+mytnet[,c(2,1,3)]
+mytnetep <- tnet::projecting_tm(net = mytnet[,c(2,1,3)], 
+                                method = "sum") #event-event
+mytnetep
+tnet::projecting_tm(net = mytnet[,c(1,2)], 
+                    method = "sum") #actor-actor
+
+mytnet_p
+myptpnet <- network(mytnet_p, directed = TRUE) #symmatric
+myptpnet
+
+
+mypypig <- graph_from_data_frame(d = mytnet_p, directed = TRUE)
+mypypig
+
+
+######################################################################
+
+myptpnet %v% "vertex.names" <- str_c("A",1:5)
+myptpnet %e% 'w_width' <- ifelse(myptpnet %e% 'w'==3,20,
+                                 ifelse(myptpnet %e% 'w'==2,10,2))
+p2pnet %e% 'w_width' <- ifelse(p2pnet %e% 'weight'==2,10,2)
+png("P1_Ch04_Fig03.png",width=20,height=13,units="cm",res=300)
+par(mfrow=c(1,2))
+set.seed(20221226)
+plot(myptpnet,
+     label="vertex.names",edge.lwd="w_width",edge.col="w",
+     vertex.col="pink",vertex.cex=3,
+     usecurve=TRUE,arrowhead.cex=4,
+     main="행위자-행위자 네트워크\n(링크가중 반영, 비대칭행렬)")
+set.seed(20221226)
+plot(p2pnet,
+     label="vertex.names",edge.lwd="w_width",edge.col="w_width",
+     vertex.col="pink",vertex.cex=3,
+     usecurve=FALSE,
+     main="행위자-행위자 네트워크\n(참여여부만 반영, 대칭행렬)")
+dev.off()
+
+######################################################################
+
+
+
+Part 3 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 
