@@ -63,3 +63,768 @@ euro_employment <- data.frame(
   FIN = c(8.7, 9.1, 10.2, 9.6, 5.3, 8.4, 4.6, 8.7, 11.5, 6.3, 5.9, 12.4, 6.7, 8.6, 8.0, 7.6, 9.4, 10.7, 15.3, 1.5, 1.6, 0.0, 1.3, 0.6, 0.6, 3.1, 6.7, 10.8, 3.9, 2.4),
   SPS = c(36.9, 36.3, 33.1, 28.4, 19.8, 25.5, 28.0, 29.6, 38.3, 24.6, 26.7, 28.4, 23.3, 33.2, 30.7, 37.5, 39.5, 23.1, 0.0, 20.9, 22.9, 27.3, 24.5, 15.3, 25.6, 19.1, 21.2, 34.0, 41.6, 14.5),
   TC = c(6.8, 7.0, 6.4, 5.6, 6.9, 5.8, 5.3, 6.8, 6.8, 4.8, 5.8, 6.5, 6.4, 7.5, 6.7, 8.1, 7.2, 6.2, 3.0, 7.5, 6.9, 8.8, 5.2, 6.8, 8.4, 7.8, 6.0, 5.0, 7.2, 4.4)
+
+
+
+#-------------------------------------------------------------------------------
+## Chapter1 - Multivariable ANOVA(Manova)
+#-------------------------------------------------------------------------------
+
+
+
+##part1
+
+
+#-------------------------------------------------------------------------------
+
+## Step1. Homogeneity of Variance Test - one independence
+
+#-------------------------------------------------------------------------------
+
+str(smsets::sparrows) 
+
+# F-test for equality of variances
+# Syntax: var.test(dependent_var ~ independent_var, data = dataset)
+var.test(Total_length ~ Survivorship, data = sparrows)
+
+
+# Need 'car' package
+library(car)
+# Levene's test using the median (more robust than mean)
+leveneTest(Total_length ~ Survivorship, data = sparrows, center = median)
+
+
+
+# Univariate Van Valen Test (Equality of dispersion)
+# Calculate absolute deviations from the median
+medians <- tapply(sparrows$Total_length, sparrows$Survivorship, median)
+abs_dev <- abs(sparrows$Total_length - medians[as.character(sparrows$Survivorship)])
+
+# Perform a t-test on the absolute deviations
+van_valen_result <- t.test(abs_dev ~ sparrows$Survivorship)
+print(van_valen_result)
+
+
+#-------------------------------------------------------------------------------
+
+## Step2. Homogeneity of Variance Test - two more independence
+
+#-------------------------------------------------------------------------------
+
+
+# 1. Install and load the biotools package
+if(!require(biotools)) install.packages("biotools")
+library(biotools)
+
+# 2. Perform Box's M test
+# Independent variable (grouping): Survivorship
+# Dependent variables: Total_length, Alar_extent, L_beak_head, L_humerus, L_keel_sternum
+boxM_result <- boxM(data = sparrows[, 2:6], grouping = sparrows$Survivorship)
+
+# 3. Display the results
+print(boxM_result)
+
+
+
+###############################################################################
+#Manual for boxM
+
+
+# 1. 데이터 준비
+sparrows_data <- sparrows[, 2:6]
+group <- sparrows$Survivorship
+
+# 2. 각 그룹의 공분산 행렬 계산
+cov_NS <- cov(sparrows_data[group == "NS", ])
+cov_S  <- cov(sparrows_data[group == "S", ])
+
+# 3. 그룹별 샘플 크기 및 자유도 계산
+n1 <- sum(group == "NS")
+n2 <- sum(group == "S")
+df1 <- n1 - 1
+df2 <- n2 - 1
+
+# 4. 결합 공분산 행렬 (Pooled Covariance Matrix) 계산
+pooled_cov <- ((df1 * cov_NS) + (df2 * cov_S)) / (df1 + df2)
+
+# 5. Box's M 통계량 계산 (M = (n1+n2-2) * log|Sp| - (n1-1) * log|S1| - (n2-1) * log|S2|)
+# We use determinant(x)$modulus to get log of the determinant
+log_det_pool <- determinant(pooled_cov, logarithm = TRUE)$modulus
+log_det_NS   <- determinant(cov_NS, logarithm = TRUE)$modulus
+log_det_S    <- determinant(cov_S, logarithm = TRUE)$modulus
+
+M <- (df1 + df2) * log_det_pool - (df1 * log_det_NS) - (df2 * log_det_S)
+
+# 6. 카이제곱 통계량으로 변환 (Approximation)
+# In simple cases, M follows a Chi-square distribution with degrees of freedom:
+# df = (number of groups - 1) * (number of variables * (number of variables + 1) / 2)
+p <- ncol(sparrows_data)
+df_chi <- (2 - 1) * (p * (p + 1) / 2)
+
+# Calculation of Chi-square value
+chi_sq <- M * (1 - (2 * p^2 + 3 * p - 1) / (6 * (p + 1) * (2 - 1)) * (1/df1 + 1/df2 - 1/(df1 + df2)))
+
+# 7. p-value 계산
+p_val <- 1 - pchisq(chi_sq, df = df_chi)
+
+# 결과 확인
+cat("Chi-Square value:", chi_sq, "\n")
+cat("P-value:", p_val, "\n")
+
+
+################################################################################
+
+
+
+# Multivariate Van Valen Test using Euclidean distance
+# 1. Prepare data and grouping
+data_mat <- sparrows[, 2:6]
+group_var <- sparrows$Survivorship
+
+# 2. Calculate group medians for each variable
+medians_mat <- aggregate(data_mat, by = list(group = group_var), FUN = median)[,-1]
+# 3. Calculate Euclidean distance of each observation from its group median
+dist_from_median <- numeric(nrow(data_mat))
+
+for(i in 1:nrow(data_mat)) {
+  # Find the median vector corresponding to the observation's group
+  med_vec <- medians_mat[which(levels(group_var) == group_var[i]), ]
+  # Calculate Euclidean distance
+  dist_from_median[i] <- sqrt(sum((data_mat[i, ] - med_vec)^2))
+}
+
+# 4. Perform a t-test on the calculated distances
+# If p > 0.05, it suggests homogeneous multivariate dispersion
+multivariate_van_valen <- t.test(dist_from_median ~ group_var)
+print(multivariate_van_valen)
+
+
+
+#-------------------------------------------------------------------------------
+
+## Step1. Independent Samples t-test
+
+#-------------------------------------------------------------------------------
+
+
+
+str(sparrows)
+
+# Subset data for the two groups based on Survivorship
+# Group 1: Survived (S)
+group_s <- sparrows$Total_length[sparrows$Survivorship == "S"]
+
+# Group 2: Did not survive (NS)
+group_ns <- sparrows$Total_length[sparrows$Survivorship == "NS"]
+
+# Perform independent two-sample t-test
+# We assume unequal variances by default (Welch's t-test)
+t_test_result <- t.test(group_s, group_ns, var.equal = TRUE) 
+
+# Display the results
+print(t_test_result)
+
+
+# Perform Welch's t-test by explicitly setting var.equal = FALSE
+# This is the robust method when the assumption of equal variances is violated
+welch_t_test <- t.test(Total_length ~ Survivorship, 
+                       data = sparrows, 
+                       var.equal = FALSE)
+
+# Display the results
+print(welch_t_test)
+
+
+
+#-------------------------------------------------------------------------------
+
+## Step2. oneway Anova
+
+#-------------------------------------------------------------------------------
+
+library(tidyverse)
+aov(formula = Total_length ~ Survivorship, 
+    data = sparrows) %>% 
+  summary()
+
+oneway.test(formula = Total_length ~ Survivorship, 
+            data = sparrows, 
+            var.equal = FALSE)
+
+
+#-------------------------------------------------------------------------------
+
+## Step3. Independent Samples t-test - Multivariate
+
+#-------------------------------------------------------------------------------
+
+##adjust p-value
+
+# 1. Prepare variables and setup
+vars_to_test <- c("Total_length", "Alar_extent", "L_beak_head", "L_humerus", "L_keel_sternum")
+alpha <- 0.05
+
+# 2. Perform Welch's t-tests and get raw p-values
+p_values <- sapply(vars_to_test, function(var) {
+  formula <- as.formula(paste(var, "~ Survivorship"))
+  t_test <- t.test(formula, data = sparrows, var.equal = FALSE)
+  return(t_test$p.value)
+})
+
+# 3. Calculate adjusted p-values for each method
+p_adj_bonf  <- p.adjust(p_values, method = "bonferroni")
+p_adj_holm  <- p.adjust(p_values, method = "holm")
+p_adj_hoch  <- p.adjust(p_values, method = "hochberg")
+p_adj_sidak <- 1 - (1 - p_values)^length(p_values)
+
+# 4. Create a comprehensive result table for each method
+# Each method is evaluated against the alpha level of 0.05
+results_detailed <- data.frame(
+  Variable    = vars_to_test,
+  Raw_p       = round(p_values, 5),
+  Bonferroni  = ifelse(p_adj_bonf < alpha, "Reject H0", "Fail to Reject"),
+  Holm        = ifelse(p_adj_holm < alpha, "Reject H0", "Fail to Reject"),
+  Hochberg    = ifelse(p_adj_hoch < alpha, "Reject H0", "Fail to Reject"),
+  Sidak       = ifelse(p_adj_sidak < alpha, "Reject H0", "Fail to Reject")
+)
+
+# 5. Display the final decision matrix
+print(results_detailed)
+
+
+
+##Hotelling t^2 (mean)
+
+# 1. Install and load the Hotelling package
+if(!require(Hotelling)) install.packages("Hotelling")
+library(Hotelling)
+
+# 2. Perform Hotelling's T^2 test
+# We use the formula interface: y1 + y2 + y3 + ... ~ group_variable
+t2_result <- hotelling.test(Total_length + Alar_extent + L_beak_head + 
+                              L_humerus + L_keel_sternum ~ Survivorship, 
+                            data = sparrows)
+
+# 3. Display the results
+print(t2_result)
+
+
+
+#-------------------------------------------------------------------------------
+
+## Step4.Manova - Multivariate
+
+#-------------------------------------------------------------------------------
+
+
+# Perform MANOVA using the cbind() function to group dependent variables
+# Survivorship is the independent factor variable
+manova_result <- manova(cbind(Total_length, Alar_extent, L_beak_head, L_humerus, L_keel_sternum) 
+                        ~ Survivorship, data = sparrows)
+
+# Display the summary of the multivariate test (e.g., Wilks' Lambda)
+summary(manova_result)
+
+# Perform follow-up univariate ANOVA for each variable if MANOVA is significant
+summary.aov(manova_result)
+
+
+
+
+
+##part2
+
+
+
+
+#-------------------------------------------------------------------------------
+
+## Step1. Homogeneity of Variance Test - one independence
+
+#-------------------------------------------------------------------------------
+
+str(smsets::skulls)
+
+# Bartlett's test for homogeneity of variances across all 5 groups
+bartlett.test(Maximum_breadth ~ Period, data = skulls)
+
+
+
+library(car)
+# Levene's test using the median (more robust than mean)
+leveneTest(Maximum_breadth ~ Period, data = skulls, center = median)
+
+
+
+
+# 1. Calculate the median of Maximum_breadth for each period
+medians <- tapply(skulls$Maximum_breadth, skulls$Period, median)
+
+# 2. Calculate the absolute deviations of each data point from its group median
+abs_dev <- abs(skulls$Maximum_breadth - medians[as.character(skulls$Period)])
+
+# 3. Perform ANOVA on the absolute deviations to test the equality of dispersion
+# This is essentially the Van Valen test (equivalent to Brown-Forsythe test)
+van_valen_anova <- aov(abs_dev ~ skulls$Period)
+
+# 4. Display the results of the ANOVA
+summary(van_valen_anova)
+
+
+
+#-------------------------------------------------------------------------------
+
+## Step2. Homogeneity of Variance Test - two more independence
+
+#-------------------------------------------------------------------------------
+
+# Perform Box's M test
+# Independent variable (grouping): Survivorship
+# Dependent variables: Total_length, Alar_extent, L_beak_head, L_humerus, L_keel_sternum
+library(biotools)
+boxM_result <- boxM(data = skulls[, 2:5], grouping = skulls$Period)
+boxM_result
+
+
+# Multivariate Van Valen Test using Euclidean distance
+# 1. Prepare data and grouping
+data_mat <- skulls[, 2:5]
+group_var <- skulls$Period
+
+# 2. Calculate group medians for each variable
+medians_mat <- aggregate(data_mat, by = list(group = group_var), FUN = median)[,-1]
+# 3. Calculate Euclidean distance of each observation from its group median
+dist_from_median <- numeric(nrow(data_mat))
+
+for(i in 1:nrow(data_mat)) {
+  # Find the median vector corresponding to the observation's group
+  med_vec <- medians_mat[which(levels(group_var) == group_var[i]), ]
+  # Calculate Euclidean distance
+  dist_from_median[i] <- sqrt(sum((data_mat[i, ] - med_vec)^2))
+}
+
+# 4. Perform a t-test on the calculated distances
+# If p > 0.05, it suggests homogeneous multivariate dispersion
+multivariate_van_valen <- aov(dist_from_median ~ group_var)
+library(tidyverse)
+multivariate_van_valen %>% 
+  summary()
+
+
+
+
+
+#-------------------------------------------------------------------------------
+
+## Step4.Manova - Multivariate
+
+#-------------------------------------------------------------------------------
+
+
+# MANOVA to test if there are differences in the mean vectors across periods
+manova_result <- manova(as.matrix(skulls[, 2:5]) ~ Period, data = skulls)
+
+# Summarize the MANOVA results
+summary(manova_result)
+
+summary_manova <- summary(manova_result)
+eigenvalues <- summary_manova$Eigenvalues
+eigenvalues
+
+W <- summary_manova$SS$Residuals
+B <- summary_manova$SS$Period
+summary_manova$SS
+eigenvalues <- eigen(solve(W) %*% B)$values
+
+print(eigenvalues)
+
+eigen(solve(W) %*% B)$vector
+
+
+
+# 1. Use the full dataframe including the 'Period' column
+# This ensures aggregate can find 'Period' to group the data
+group_means <- aggregate(. ~ Period, data = skulls, mean)
+
+# 2. Extract only the numerical columns for matrix multiplication
+# (skulls[, 2:5] corresponds to the 4 measurements)
+means_matrix <- as.matrix(group_means[, 2:5])
+
+# 3. Calculate scores using the eigenvector (weights) from previous step
+# 'weights' is the first column of the eigenvector matrix you already calculated
+weights <- eigen(solve(W) %*% B)$vectors[, 1]
+group_scores <- means_matrix %*% weights
+
+# Add Period names to the result for readability
+rownames(group_scores) <- group_means$Period
+
+
+# 시대별 정렬을 위한 순서 지정
+period_order <- c("Early predynastic", "Late predynastic", 
+                  "12th and 13th Dynasty", "Ptolemaic period", "Roman period")
+
+# 해당 순서대로 인덱싱
+group_scores_chronological <- group_scores[period_order, , drop = FALSE]
+
+# 결과 출력
+print(group_scores_chronological)
+
+
+#-------------------------------------------------------------------------------
+##PostHocTest
+#-------------------------------------------------------------------------------
+
+# 1. First, perform individual ANOVAs for each variable to check which contribute to MANOVA result
+aov_results <- summary.aov(manova_result)
+
+# 2. Tukey's HSD (Tukey-Kramer for unbalanced designs)
+# We apply this to each dependent variable
+
+TukeyHSD(aov(Maximum_breadth ~ Period, data = skulls)) 
+
+
+library(ggpubr)
+library(ggplot2)
+
+# Create a data frame from TukeyHSD results
+tukey_res <- TukeyHSD(aov(Maximum_breadth ~ Period, data = skulls))
+tukey_df <- as.data.frame(tukey_res$Period)
+tukey_df$comparison <- rownames(tukey_df)
+\
+# Plot using ggplot
+# Plot using ggplot with updated orientation argument
+ggplot(tukey_df, aes(x = diff, y = comparison)) +
+  geom_point() +
+  geom_errorbar(aes(xmin = lwr, xmax = upr), orientation = "y", width = 0.2) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
+  theme_minimal() +
+  labs(title = "Tukey HSD Post-hoc Test", 
+       x = "Difference in means", 
+       y = "") +
+  # Updated theme for larger and bold y-axis text
+  theme(axis.text.y = element_text(size = 12, face = "bold"))
+
+
+# 3. Scheffé test (requires 'DescTools' package)
+# install.packages("DescTools")
+library(DescTools)
+PostHocTest(aov(Maximum_breadth ~ Period, data = skulls), method = "scheffe")
+
+
+# 1. Perform Scheffe Test and extract results
+scheffe_res <- PostHocTest(aov(Maximum_breadth ~ Period, data = skulls), method = "scheffe")
+scheffe_df <- as.data.frame(scheffe_res$Period)
+scheffe_df$comparison <- rownames(scheffe_df)
+
+# 2. Visualize using ggplot
+library(ggplot2)
+
+ggplot(scheffe_df, aes(x = diff, y = comparison)) +
+  geom_point(size = 3, color = "steelblue") +
+  # Use geom_errorbar with orientation="y" for horizontal error bars
+  geom_errorbar(aes(xmin = lwr.ci, xmax = upr.ci), 
+                orientation = "y", width = 0.2, color = "darkblue") +
+  # Add a vertical line at 0 to indicate no difference
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
+  theme_minimal() +
+  labs(title = "Scheffé Post-hoc Test Results",
+       subtitle = "Maximum Breadth by Period",
+       x = "Difference in Means (95% CI)",
+       y = "") +
+  theme(axis.text.y = element_text(size = 10, face = "bold"),
+        plot.title = element_text(hjust = 0.5, face = "bold"))
+
+
+
+levels(skulls$Period)
+contrast_vector <- c(0, 0.5, 0.5, -0.5, -0.5)
+
+library(multcomp)
+model <- aov(Maximum_breadth ~ Period, data = skulls)
+my_contrast <- glht(model, linfct = mcp(Period = contrast_vector))
+
+summary(my_contrast)
+
+# 4. Dunnett test (requires 'multcomp' package)
+# Useful if comparing to a control group, e.g., the first period
+# install.packages("multcomp")
+library(multcomp)
+summary(glht(aov(Maximum_breadth ~ Period, data = skulls), linfct = mcp(Period = "Dunnett")))
+
+
+# 1. Perform Dunnett test and extract the results
+# Setting the 12th and 13th Dynasty as the baseline (reference group)
+dunnett_res <- summary(glht(aov(Maximum_breadth ~ Period, data = skulls), 
+                            linfct = mcp(Period = "Dunnett")))
+
+# Convert the results into a data frame for plotting
+res_df <- data.frame(
+  comparison = names(dunnett_res$test$coefficients),
+  diff = dunnett_res$test$coefficients,
+  # Calculate 95% confidence intervals using the standard error
+  lwr = dunnett_res$test$coefficients - 1.96 * dunnett_res$test$sigma,
+  upr = dunnett_res$test$coefficients + 1.96 * dunnett_res$test$sigma,
+  p_val = dunnett_res$test$pvalues
+)
+
+# 2. Visualize using ggplot
+library(ggplot2)
+windows()
+ggplot(res_df, aes(x = diff, y = comparison)) +
+  geom_point(size = 3, color = "darkgreen") +
+  # Use geom_errorbar with orientation="y" for horizontal bars
+  geom_errorbar(aes(xmin = lwr, xmax = upr), orientation = "y", width = 0.2) +
+  # Add a vertical line at 0 representing the baseline (12th and 13th Dynasty)
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
+  theme_minimal() +
+  labs(title = "Dunnett Test Results (Baseline: 12th & 13th Dynasty)",
+       x = "Difference in Means from Baseline",
+       y = "") +
+  theme(axis.text.y = element_text(size = 10, face = "bold"))
+
+# 5. LSD test (requires 'agricolae' package)
+# install.packages("agricolae")
+library(agricolae)
+
+LSD.test(aov(Maximum_breadth ~ Period, data = skulls), "Period", p.adj = "none") 
+
+
+# 1. Perform LSD Test
+model <- aov(Maximum_breadth ~ Period, data = skulls)
+lsd_res <- LSD.test(model, "Period", p.adj = "none")
+lsd_res
+
+# 1. Prepare data directly from lsd_res
+# We use the 'groups' and 'means' data provided in the object
+plot_df <- lsd_res$groups
+plot_df$Period <- rownames(plot_df)
+# Map the standard error (se) from the 'means' dataframe
+plot_df$se <- lsd_res$means$se 
+
+# 2. Visualize
+ggplot(plot_df, aes(x = Period, y = Maximum_breadth, fill = Period)) +
+  geom_bar(stat = "identity", alpha = 0.7) +
+  # Use 'se' column for error bars
+  geom_errorbar(aes(ymin = Maximum_breadth - se, 
+                    ymax = Maximum_breadth + se), width = 0.2) +
+  # Add the grouping letters 'a', 'ab', 'b', 'bc', 'c'
+  geom_text(aes(label = groups, y = Maximum_breadth + se + 1.0), 
+            size = 5, fontface = "bold") +
+  theme_minimal() +
+  labs(title = "Fisher's LSD Test Results",
+       subtitle = "Maximum Breadth by Period (Grouping Letters Included)",
+       x = "Period",
+       y = "Mean Maximum Breadth") +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+
+
+###example-2, distance
+
+
+
+
+
+library(ggplot2)
+library(reshape2)
+
+str(butterfly)
+data_matrix <- butterfly$envir
+data_matrix
+#-------------------------------------------------------------------------------
+#Euclidean Distance_Noramlized
+#-------------------------------------------------------------------------------
+
+# Scale the data to ensure variables with larger ranges do not dominate the distance calculation
+scaled_data <- scale(data_matrix)
+
+dist_mat <- as.matrix(dist(scaled_data, method = "euclidean"))
+
+# 2. Identify the absolute minimum pair for each item
+# We need to find the min value for each row, ignoring the 0 (diagonal)
+temp_mat <- dist_mat
+diag(temp_mat) <- NA
+
+# Get the minimum value for each row
+min_per_row <- apply(temp_mat, 1, min, na.rm = TRUE)
+
+# 3. Create a logic matrix for coloring (which cells are the minimum for their respective row?)
+# This creates a T/F matrix where TRUE is the minimum for that row
+is_min_matrix <- (dist_mat == min_per_row) & (dist_mat > 0)
+
+# 4. Prepare data for ggplot
+melted_dist <- melt(dist_mat)
+melted_min <- melt(is_min_matrix)
+colnames(melted_dist) <- c("Var1", "Var2", "value")
+melted_dist$is_min <- melted_min$value
+
+
+# 6. Create Heatmap
+ggplot(data = melted_dist, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(value, 2), color = is_min), size = 4.5) +
+  scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red"), guide = "none") +
+  scale_fill_gradient(low = "white", high = "steelblue", na.value = "transparent") +
+  labs(title = "Heatmap of Environmental Distances",
+       x = "Environment", y = "Environment", fill = "Distance") +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+#-------------------------------------------------------------------------------
+#E Correlation Distance, Bhattacharyya Distance & KL Divergence
+#-------------------------------------------------------------------------------
+
+
+data_matrix <- butterfly$envir
+
+# 2. Correlation Distance
+# Measures the dissimilarity between variables based on their correlation
+cor_dist <- as.dist(1 - cor(t(data_matrix)))
+
+# 3. Bhattacharyya Distance & KL Divergence
+# These metrics require probability distributions. 
+# We normalize the rows so they sum to 1 (treating them as probability distributions).
+prob_data <- data_matrix / rowSums(data_matrix)
+prob_data
+# Bhattacharyya Distance
+library(philentropy)
+bhatta_dist <- distance(prob_data, method = "bhattacharyya")
+
+# Kullback-Leibler (KL) Divergence
+# Note: KL is asymmetric (dist(P,Q) != dist(Q,P)). 
+# This returns a matrix of pairwise directed divergences.
+kl_div <- distance(prob_data, method = "kullback-leibler")
+
+# Display results
+cat("--- Correlation Distance ---\n")
+print(as.matrix(cor_dist))
+
+cat("\n--- Bhattacharyya Distance ---\n")
+print(bhatta_dist)
+
+cat("\n--- KL Divergence (Directed) ---\n")
+print(kl_div)
+
+
+
+cor_mat <- as.matrix(cor_dist)
+cor(t(data_matrix))
+# 3. Identify the minimum distance per row (excluding diagonal 0)
+temp_mat <- cor_mat
+diag(temp_mat) <- NA 
+cor_mat
+# Find the minimum value in each row
+min_per_row <- apply(temp_mat, 1, min, na.rm = TRUE)
+
+# 4. Create a logical matrix to highlight the minimum values
+# Check if the value in the matrix equals the row minimum
+is_min_matrix <- (cor_mat == min_per_row)
+
+# 5. Prepare data for visualization with ggplot2
+melted_cor <- melt(cor_mat)
+melted_min <- melt(is_min_matrix)
+colnames(melted_cor) <- c("Var1", "Var2", "value")
+melted_cor$is_min <- melted_min$value
+
+# 6. Create the heatmap
+# Highlight minimum distances in red
+windows()
+ggplot(data = melted_cor, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile(color = "white") +
+  # Use conditional coloring for the text labels
+  geom_text(aes(label = round(value, 2), color = is_min), size = 4.5) +
+  scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red"), guide = "none") +
+  scale_fill_gradient(low = "white", high = "steelblue", na.value = "transparent") +
+  labs(title = "Heatmap of Environmental Correlation Distance",
+       x = "Environment", 
+       y = "Environment", 
+       fill = "Distance") +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+
+#-------------------------------------------------------------------------------
+## Similarity - cosine
+#-------------------------------------------------------------------------------
+
+data_matrix <- butterfly$envir
+data_matrix
+
+install.packages('lsa')
+library(lsa)
+
+# 2. Calculate Cosine Similarity
+# cosine() function from 'lsa' package calculates the similarity between columns.
+# We transpose the matrix (t()) so that rows become vectors to compare environments.
+cos_sim_matrix <- cosine(t(data_matrix))
+
+# 3. Convert Similarity to Distance
+# Since Similarity ranges from -1 to 1, we convert it to distance:
+# Distance = 1 - Cosine Similarity (resulting in 0 to 2 range)
+cos_dist_matrix <- 1 - cos_sim_matrix
+
+# 4. Find the minimum distance per row (excluding diagonal 0)
+temp_mat <- cos_dist_matrix
+diag(temp_mat) <- NA
+min_per_row <- apply(temp_mat, 1, min, na.rm = TRUE)
+
+# 5. Create a logical matrix to highlight the minimum values
+is_min_matrix <- (cos_dist_matrix == min_per_row)
+
+# 6. Prepare data for visualization
+melted_cos <- melt(cos_dist_matrix)
+melted_min <- melt(is_min_matrix)
+colnames(melted_cos) <- c("Var1", "Var2", "value")
+melted_cos$is_min <- melted_min$value
+
+# 7. Create Heatmap
+ggplot(data = melted_cos, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(value, 2), color = is_min), size = 4.5) +
+  scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red"), guide = "none") +
+  scale_fill_gradient(low = "white", high = "steelblue", na.value = "transparent") +
+  labs(title = "Heatmap of Cosine Distance",
+       x = "Environment", y = "Environment", fill = "Distance") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+#-------------------------------------------------------------------------------
+## Mantel - correlation test
+#-------------------------------------------------------------------------------
+
+
+
+
+library(vegan)
+
+# 2. Data Preparation
+# Assume we have two matrices: 
+# mat1: e.g., Environmental distance matrix
+# mat2: e.g., Geographic or Biological distance matrix
+# Let's create dummy matrices for demonstration
+set.seed(123)
+env_dist <- as.dist(matrix(runif(256), nrow=16)) # Example: 16x16 matrix
+geo_dist <- as.dist(matrix(runif(256), nrow=16)) # Example: 16x16 matrix
+
+# 3. Run Mantel Test
+# method: "pearson", "spearman", or "kendall"
+# permutations: number of random permutations for the test (999 is standard)
+mantel_result <- mantel(env_dist, geo_dist, method = "pearson", permutations = 999)
+
+# 4. Print the result
+print(mantel_result)
+
+# 5. Interpretation
+cat("\n--- Result Summary ---\n")
+cat("Mantel statistic (r):", mantel_result$statistic, "\n")
+cat("Significance (p-value):", mantel_result$signiv, "\n")
