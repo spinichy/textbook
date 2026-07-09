@@ -67,7 +67,9 @@ euro_employment <- data.frame(
 
 
 #-------------------------------------------------------------------------------
+
 ## Chapter1 - Multivariable ANOVA(Manova)
+
 #-------------------------------------------------------------------------------
 
 
@@ -828,3 +830,345 @@ print(mantel_result)
 cat("\n--- Result Summary ---\n")
 cat("Mantel statistic (r):", mantel_result$statistic, "\n")
 cat("Significance (p-value):", mantel_result$signiv, "\n")
+
+
+
+#-------------------------------------------------------------------------------
+
+## Chapter2 -Principal Component Analysis(PCA)
+
+#-------------------------------------------------------------------------------
+
+
+##part1
+
+
+#-------------------------------------------------------------------------------
+#correlation
+#-------------------------------------------------------------------------------
+library(smsets)
+str(smsets::sparrows)
+
+sparrows_cor <- cor(sparrows[,2:6])
+library(corrplot)
+windows()
+corrplot(corr = sparrows_cor, 
+         method = 'number', 
+         type = 'lower', 
+         cl.pos = 'n', 
+         tl.srt = 45,
+         mar = c(0, 0, 2, 0))
+mtext("Correlation Matrix of Sparrow Morphometrics", at = 2.5, line = 0.5, cex = 1.2)
+
+
+#-------------------------------------------------------------------------------
+#PCA
+#-------------------------------------------------------------------------------
+# Perform Principal Component Analysis
+# scale. = TRUE scales the variables to have unit variance
+pca_result <- prcomp(sparrows[, 2:6], scale. = TRUE)
+
+# View the summary of the PCA results
+summary(pca_result)
+
+# Display the loadings (rotation) of the principal components
+pca_result$rotation
+
+# Basic scree plot to visualize the variance explained by each principal component
+plot(pca_result, type = "l", main = "Scree Plot")
+
+#-------------------------------------------------------------------------------
+#SVD
+#-------------------------------------------------------------------------------
+
+# 1. Prepare data: Center and scale the data
+# Standardize variables (mean=0, sd=1)
+scaled_sparrows <- scale(sparrows[, 2:6])
+
+# 2. Perform SVD
+# X = U %*% D %*% V^T
+svd_res <- svd(scaled_sparrows)
+
+# 3. Extract components
+# Loadings (V matrix) are the rotation matrix
+loadings <- svd_res$v
+colnames(loadings) <- paste0("PC", 1:5)
+rownames(loadings) <- colnames(sparrows[, 2:6])
+
+# Principal Components (Scores: Z = U %*% D)
+# Or simply: Z = X %*% V
+pca_scores <- scaled_sparrows %*% svd_res$v
+colnames(pca_scores) <- paste0("PC", 1:5)
+pca_scores
+
+(t(scaled_sparrows[1,])) %*% t(t(svd_res$v[,1]))
+pca_scores[1,1]
+
+
+# 4. Check results
+# Show the first 6 rows of Principal Components
+head(pca_scores)
+
+# Show the Loadings (eigenvectors)
+loadings
+
+
+#eigen value
+eigen(sparrows_cor)
+
+#-------------------------------------------------------------------------------
+#gpca_scores: raph - PC1, PC2
+#-------------------------------------------------------------------------------
+# Load the library
+library(ggplot2)
+
+# Create a scatter plot of PC1 vs PC2
+# Color the points by their Survivorship status
+windows()
+ggplot(sparrows_pca, aes(x = PC1, y = PC2, color = Survivorship)) +
+  geom_point(size = 3, alpha = 0.7) +
+  labs(title = "PCA: Sparrow Morphometrics (PC1 vs PC2)",
+       x = "Principal Component 1",
+       y = "Principal Component 2") +
+  theme_minimal() +
+  scale_color_manual(values = c("S" = "blue", "D" = "red"))
+
+
+#-------------------------------------------------------------------------------
+##Principle componet test
+#-------------------------------------------------------------------------------
+
+# 2. Perform PCA on the whole dataset (standardized)
+pca_all <- prcomp(sparrows[, 2:6], scale. = TRUE)
+
+# 3. Create a dataframe with PC scores and Survivorship
+sparrows_pca <- cbind(sparrows, pca_all$x)
+
+# 4. Calculate Mean and SD for each group (S: Survived, D: Died)
+# Group by Survivorship, then calculate mean and sd for PC1 to PC5
+summary_table <- sparrows_pca %>%
+  group_by(Survivorship) %>%
+  summarise(across(.cols = PC1:PC5, list(mean = mean, sd = sd),
+                   .names = "{.col}_{.fn}")) %>%
+  pivot_longer(-Survivorship, names_to = c("PC", "Stat"),
+               names_sep = "_") %>%
+  pivot_wider(names_from = c(Survivorship, Stat), 
+              values_from = value)
+
+# 5. Display the summary table
+print(as.data.frame(summary_table))
+
+
+
+# 1. Load required libraries
+library(car)    # For Levene's test
+library(dplyr)
+
+# 2. Assume sparrows_pca is the data frame from the previous step
+# We perform the tests for each PC (PC1 to PC5)
+pcs <- paste0("PC", 1:5)
+
+# Function to perform tests for a single PC
+perform_tests <- function(pc_name) {
+  formula <- as.formula(paste(pc_name, "~ Survivorship"))
+  
+  # t-test (assuming equal variance = FALSE for Welch's t-test)
+  t_res <- t.test(formula, data = sparrows_pca, var.equal = FALSE)
+  
+  # F-test for equality of variances
+  f_res <- var.test(formula, data = sparrows_pca)
+  
+  # Levene's test (based on median)
+  lev_res <- leveneTest(formula, data = sparrows_pca, center = median)
+  
+  return(data.frame(
+    PC = pc_name,
+    t_pvalue = t_res$p.value,
+    f_pvalue = f_res$p.value,
+    levene_pvalue = lev_res$`Pr(>F)`[1]
+  ))
+}
+
+# 3. Apply the function to all PCs and combine results
+test_results <- do.call(rbind, lapply(pcs, perform_tests))
+
+# 4. Display the results
+print(test_results)
+
+
+
+##part2
+
+
+#-------------------------------------------------------------------------------
+#correlation
+#-------------------------------------------------------------------------------
+
+str(euro_employment)
+euro_employment_cor <- cor(euro_employment[,3:11])
+
+library(corrplot)
+# Generate the correlation plot
+# number.cex makes the correlation numbers larger and easier to read
+windows()
+corrplot(corr = euro_employment_cor, 
+         method = "ellipse", 
+         type = "lower", 
+         diag = FALSE,        
+         cl.pos = "n",        
+         tl.srt = 45,         
+         tl.col = "black",    
+         addCoef.col = "black", # Force correlation numbers to be black
+         number.cex = 0.8,    
+         tl.cex = 1.0,        
+         mar = c(0, 0, 1, 0))
+
+# Set the title to center
+# at = 4.0 centers it on a 0 to 8 range of the lower triangle matrix
+# adj = 0.5 ensures the text is centered relative to the 'at' position
+mtext("Correlation Matrix of Euro Employment Data", 
+      side = 3, 
+      line = 2, 
+      at = 5.0, 
+      adj = 0.5, 
+      cex = 1.5)
+
+# Create a character vector of full names for the legend
+industry_names <- c(
+  "AGR: Agriculture",
+  "MIN: Mining",
+  "MAN: Manufacturing",
+  "PS: Power Stations",
+  "CON: Construction",
+  "SER: Service",
+  "FIN: Finance",
+  "SPS: Social and Personal Services",
+  "TC: Transport and Communications"
+)
+
+# Place the legend at the middle-right with significantly larger text
+# cex = 1.2 makes the legend text 20% larger than the default
+legend(x = 8, y = 7, legend = industry_names, cex = 1, bty = "n", xjust = 0)
+
+
+
+#-------------------------------------------------------------------------------
+#PCA
+#-------------------------------------------------------------------------------
+# Perform Principal Component Analysis
+# scale. = TRUE scales the variables to have unit variance
+pca_result <- prcomp(euro_employment[,3:11], scale. = TRUE)
+
+# View the summary of the PCA results
+summary(pca_result)
+
+# Display the loadings (rotation) of the principal components
+pca_result$rotation
+
+# Basic scree plot to visualize the variance explained by each principal component
+plot(pca_result, type = "l", main = "Scree Plot")
+
+
+
+
+#-------------------------------------------------------------------------------
+#gpca_scores: raph - PC1, PC2
+#-------------------------------------------------------------------------------
+
+
+# Load necessary libraries
+library(ggplot2)
+library(ggrepel) 
+
+# Perform PCA
+pca_result <- prcomp(euro_employment[, 3:11], scale. = TRUE)
+euro_employment_pca <- cbind(euro_employment, pca_result$x)
+
+# Create the PCA plot
+ggplot(euro_employment_pca, aes(x = PC1, y = PC2, color = Group)) +
+  # Draw dashed lines at (0,0)
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  # Plot points
+  geom_point(size = 3, alpha = 0.7) +
+  # Use geom_text_repel for clearer and larger labels
+  geom_text_repel(aes(label = Country), size = 5, color = "black") + 
+  labs(title = "PCA: European Employment Data (PC1 vs PC2)",
+       x = "Principal Component 1",
+       y = "Principal Component 2",
+       caption = "Source: Euromonitor (1995), except for Germany and the United Kingdom, \nwhere more recent values were obtained from the United Nations Statistical Yearbook, 2000.") +
+  theme_minimal() +
+  # Manually define distinct colors for the 4 groups
+  scale_color_manual(values = c("EU" = "#E41A1C", 
+                                "EFTA" = "#377EB8", 
+                                "Eastern" = "#4DAF4A", 
+                                "Other" = "#FF7F00")) +
+  theme(plot.title = element_text(size = 18, face = "bold"),
+        axis.title = element_text(size = 14),
+        plot.caption = element_text(size = 10, hjust = 0)) 
+
+
+
+#-------------------------------------------------------------------------------
+##Principle componet test
+#-------------------------------------------------------------------------------
+
+
+# 1. Load required libraries
+library(dplyr)
+library(tidyr)
+library(car)    
+
+# 2. Perform PCA 
+pca_result <- prcomp(euro_employment[, 3:11], scale. = TRUE)
+
+# 3. Create a dataframe and CONVERT Group to factor IMMEDIATELY
+euro_employment_pca <- cbind(euro_employment, pca_result$x)
+euro_employment_pca$Group <- as.factor(euro_employment_pca$Group) # 미리 변환!
+
+# 4. Calculate Mean and SD
+summary_table <- euro_employment_pca %>%
+  group_by(Group) %>%
+  summarise(across(starts_with("PC"), list(mean = mean, sd = sd),
+                   .names = "{.col}_{.fn}")) %>%
+  pivot_longer(-Group, names_to = c("PC", "Stat"), names_sep = "_") %>%
+  pivot_wider(names_from = c(Group, Stat), values_from = value)
+
+print(as.data.frame(summary_table))
+
+# 5. Statistical Tests
+pcs <- paste0("PC", 1:9)
+
+# 함수 내부에서 전역 변수를 참조하지 않도록 data 인자를 명확히 전달
+perform_tests_group <- function(pc_name, data) {
+  formula <- as.formula(paste(pc_name, "~ Group"))
+  
+  aov_res <- aov(formula, data = data)
+  aov_pvalue <- summary(aov_res)[[1]][["Pr(>F)"]][1]
+  
+  lev_res <- leveneTest(formula, data = data, center = median)
+  lev_pvalue <- lev_res$`Pr(>F)`[1]
+  
+  return(data.frame(
+    PC = pc_name,
+    anova_pvalue = aov_pvalue,
+    levene_pvalue = lev_pvalue
+  ))
+}
+
+# 6. Apply function (data 인자를 명시적으로 전달)
+test_results <- do.call(rbind, lapply(pcs, function(x) perform_tests_group(x, euro_employment_pca)))
+
+# 7. Display the results
+print(test_results)
+
+
+#-------------------------------------------------------------------------------
+##psterior analysis
+#-------------------------------------------------------------------------------
+
+TukeyHSD(aov(PC1 ~ Group, data = euro_employment_pca)) %>% 
+  plot()
+
+
+
