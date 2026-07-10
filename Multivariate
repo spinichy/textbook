@@ -1172,3 +1172,405 @@ TukeyHSD(aov(PC1 ~ Group, data = euro_employment_pca)) %>%
 
 
 
+
+
+#-------------------------------------------------------------------------------
+
+## Chapter3. Fctor Analysis (FA) - #Principal Axis Factoring  
+
+#-------------------------------------------------------------------------------
+
+
+
+str(euro_employment)
+
+# Load required library
+library(psych)
+
+# Step 1: Compute Correlation Matrix
+# Extract numeric variables (columns 3 to 11)
+data_numeric <- euro_employment[, 3:11]
+R <- cor(data_numeric)
+
+# Step 2: Eigendecomposition
+# Extract eigenvalues and eigenvectors
+eigen_res <- eigen(R)
+eigenvalues <- eigen_res$values
+eigenvectors <- eigen_res$vectors
+
+m <- 2
+# Step 3: Factor Rotation (Varimax)
+# We choose 2 factors for this example
+# 'fa' function performs Eigendecomposition + Rotation
+fa_result <- fa(r = R, 
+                nfactors = m, 
+                rotate = "varimax", 
+                fm = "pa") #Principal Axis Factoring  
+
+# Extract the rotated loading matrix (Lambda*)
+lambda_star <- fa_result$loadings
+lambda_star
+# Step 4: Regression Weights Calculation
+# Calculate inverse of correlation matrix
+R_inv <- solve(R)
+# Weights = R^-1 * Lambda*
+W <- R_inv %*% lambda_star
+
+# Step 5: Factor Scores Calculation
+# Center and scale the data
+scaled_data <- scale(data_numeric)
+# Factor Scores = X * W
+factor_scores <- scaled_data %*% W
+
+# Display the results
+lambda_star
+
+
+# 1. Prepare Factor Scores for plotting
+fs_df <- as.data.frame(factor_scores)
+fs_df$Country <- euro_employment$Country
+
+# 2. Visualize Factor Scores (FA Plot)
+library(ggplot2)
+ggplot(fs_df, aes(x = PA1, y = PA2, label = Country)) +
+  geom_point(color = "red", size = 3) +
+  geom_text(vjust = 1.5, size = 3) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_minimal() +
+  labs(
+    title = "Factor Analysis Score Plot",
+    subtitle = "European Countries by Latent Economic Structure",
+    x = "PA1: Industrialization (Low AGR, High SER/SPS)",
+    y = "PA2: Finance/Infra (High FIN/SER, Low TC)",
+    caption = "Source: Euromonitor (1995), except for Germany and the United Kingdom, where more recent values were obtained from the United Nations Statistical Yearbook, 2000."
+  )
+
+
+#-------------------------------------------------------------------------------
+## Fctor Analysis (FA) - #Principal Axis Factoring   - manual
+#-------------------------------------------------------------------------------
+
+# 1. Compute Correlation Matrix
+R <- cor(euro_employment[, 3:11])
+
+# 2. Eigendecomposition
+eigen_res <- eigen(R)
+# Select top 2 factors (m=2)
+L <- eigen_res$vectors[, 1:2] %*% diag(sqrt(eigen_res$values[1:2]))
+# 3. Varimax Rotation (Manual implementation)
+# Varimax rotation seeks to maximize the variance of squared loadings
+rotated <- varimax(L)
+lambda_star.2 <- rotated$loadings # The rotated factor loading matrix
+lambda_star.2
+# 4. Regression Weights Calculation
+# Regression method: W = R^-1 * Lambda
+# 'solve(R)' is the inverse of the correlation matrix
+W <- solve(R) %*% lambda_star.2
+
+# 5. Factor Scores Calculation
+# Center and scale data
+scaled_data <- scale(euro_employment[, 3:11])
+# F = X * W
+factor_scores <- scaled_data %*% W
+
+# Display results
+head(factor_scores)
+
+# Visualize the factor space
+plot(factor_scores, pch=19, col="blue", 
+     main="Factor Score Plot (Basic R)",
+     xlab="Factor 1", ylab="Factor 2")
+text(factor_scores, labels=euro_employment$Country, pos=3, cex=0.7)
+abline(h=0, v=0, lty=2)
+
+
+
+#-------------------------------------------------------------------------------
+## Fctor Analysis (FA) - Minimum Residual
+#-------------------------------------------------------------------------------
+
+
+
+str(euro_employment)
+
+# Load required library
+library(psych)
+
+# Step 1: Compute Correlation Matrix
+# Extract numeric variables (columns 3 to 11)
+data_numeric <- euro_employment[, 3:11]
+R <- cor(data_numeric)
+
+# Step 2: Eigendecomposition
+# Extract eigenvalues and eigenvectors
+eigen_res <- eigen(R)
+eigenvalues <- eigen_res$values
+eigenvectors <- eigen_res$vectors
+
+m <- 2
+# Step 3: Factor Rotation (Varimax)
+# We choose 2 factors for this example
+# 'fa' function performs Eigendecomposition + Rotation
+fa_result <- fa(r = R, 
+                nfactors = m, 
+                rotate = "varimax", 
+                fm = "minres") #Principal Axis Factoring  
+
+# Extract the rotated loading matrix (Lambda*)
+lambda_star <- fa_result$loadings
+lambda_star
+# Step 4: Regression Weights Calculation
+# Calculate inverse of correlation matrix
+R_inv <- solve(R)
+# Weights = R^-1 * Lambda*
+W <- R_inv %*% lambda_star
+
+# Step 5: Factor Scores Calculation
+# Center and scale the data
+scaled_data <- scale(data_numeric)
+# Factor Scores = X * W
+factor_scores <- scaled_data %*% W
+
+# Display the results
+lambda_star
+
+
+# 1. Prepare Factor Scores for plotting
+fs_df <- as.data.frame(factor_scores)
+fs_df$Country <- euro_employment$Country
+
+# 2. Visualize Factor Scores (FA Plot)
+library(ggplot2)
+ggplot(fs_df, aes(x = MR1, y = MR2, label = Country)) +
+  geom_point(color = "red", size = 3) +
+  geom_text(vjust = 1.5, size = 3) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_minimal() +
+  labs(
+    title = "Factor Analysis Score Plot",
+    subtitle = "European Countries by Latent Economic Structure",
+    x = "MR1: Industrialization (Low AGR, High SER/SPS)",
+    y = "MR2: Finance/Infra (High FIN/SER, Low TC)",
+    caption = "Source: Euromonitor (1995), except for Germany and the United Kingdom, where more recent values were obtained from the United Nations Statistical Yearbook, 2000."
+  )
+
+
+#-------------------------------------------------------------------------------
+## Fctor Analysis (FA) - Minimum Residual - manual
+#-------------------------------------------------------------------------------
+
+
+# 1. Prepare Data
+data_numeric <- euro_employment[, 3:11]
+S_orig <- cor(data_numeric) 
+p <- ncol(S_orig)
+m <- 2 # Number of factors
+
+# 2. Pure Initialization (No Eigendecomposition)
+# Start with small random values to prove the algorithm converges on its own
+set.seed(123)
+Lambda <- matrix(runif(p * m, -0.1, 0.1), nrow = p, ncol = m)
+
+# Parameters for Gradient Descent
+learning_rate <- 0.05
+iterations <- 3000
+
+# 3. Iterative Estimation (Pure MinRes Gradient Descent)
+# Goal: Minimize L = 0.5 * || (S - LL')_off ||^2
+for (i in 1:iterations) {
+  # Reconstruct model (S_model = Lambda * Lambda^T)
+  Lambda_LambdaT <- Lambda %*% t(Lambda)
+  
+  # Calculate Residual Matrix (E = S - LL')
+  E <- S_orig - Lambda_LambdaT
+  
+  # MinRes core logic: Focus only on off-diagonal elements
+  diag(E) <- 0 
+  
+  # Calculate Gradient of Loss L = 0.5 * ||E||^2
+  # Gradient w.r.t Lambda is -2 * E * Lambda
+  gradient <- -2 * (E %*% Lambda)
+  
+  # Update Lambda using gradient descent
+  Lambda <- Lambda - learning_rate * gradient
+  
+  # Monitoring convergence
+  if (i %% 500 == 0) {
+    loss <- 0.5 * sum(E^2)
+    message(sprintf("Iteration %d: Loss = %f", i, loss))
+  }
+}
+
+# 4. Final Results
+colnames(Lambda) <- c("MR1", "MR2")
+print("Final Factor Loadings (Lambda):")
+print(Lambda)
+
+# 5. Regression Weights & Factor Scores
+# W = R^-1 * Lambda
+W <- solve(S_orig) %*% Lambda
+scaled_data <- scale(data_numeric)
+factor_scores <- scaled_data %*% W
+
+# 6. Visualization
+fs_df <- as.data.frame(factor_scores)
+fs_df$Country <- euro_employment$Country
+
+ggplot(fs_df, aes(x = MR1, y = MR2, label = Country)) +
+  geom_point(color = "blue", size = 3) +
+  geom_text(vjust = 1.5, size = 3) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_minimal() +
+  labs(
+    title = "Pure MinRes Factor Analysis Plot",
+    subtitle = "Optimized via Gradient Descent without Eigendecomposition",
+    x = "MR1 (Factor 1)",
+    y = "MR2 (Factor 2)"
+  )
+
+
+#-------------------------------------------------------------------------------
+## Fctor Analysis (FA) - MLE
+#-------------------------------------------------------------------------------
+
+
+
+str(euro_employment)
+
+# Load required library
+library(psych)
+
+# Step 1: Compute Correlation Matrix
+# Extract numeric variables (columns 3 to 11)
+data_numeric <- euro_employment[, 3:11]
+R <- cor(data_numeric)
+
+# Step 2: Eigendecomposition
+# Extract eigenvalues and eigenvectors
+eigen_res <- eigen(R)
+eigenvalues <- eigen_res$values
+eigenvectors <- eigen_res$vectors
+
+m <- 2
+# Step 3: Factor Rotation (Varimax)
+# We choose 2 factors for this example
+# 'fa' function performs Eigendecomposition + Rotation
+fa_result <- fa(r = R, 
+                nfactors = m, 
+                rotate = "varimax", 
+                fm = "mle") #Principal Axis Factoring  
+
+# Extract the rotated loading matrix (Lambda*)
+lambda_star <- fa_result$loadings
+lambda_star
+# Step 4: Regression Weights Calculation
+# Calculate inverse of correlation matrix
+R_inv <- solve(R)
+# Weights = R^-1 * Lambda*
+W <- R_inv %*% lambda_star
+
+# Step 5: Factor Scores Calculation
+# Center and scale the data
+scaled_data <- scale(data_numeric)
+# Factor Scores = X * W
+factor_scores <- scaled_data %*% W
+
+# Display the results
+lambda_star
+
+
+# 1. Prepare Factor Scores for plotting
+fs_df <- as.data.frame(factor_scores)
+fs_df$Country <- euro_employment$Country
+
+# 2. Visualize Factor Scores (FA Plot)
+library(ggplot2)
+ggplot(fs_df, aes(x = ML2, y = ML1, label = Country)) +
+  geom_point(color = "red", size = 3) +
+  geom_text(vjust = 1.5, size = 3) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_minimal() +
+  labs(
+    title = "Factor Analysis Score Plot",
+    subtitle = "European Countries by Latent Economic Structure",
+    x = "ML2: Industrialization (Low AGR, High SER/SPS)",
+    y = "ML1: Finance/Infra (High FIN/SER, Low TC)",
+    caption = "Source: Euromonitor (1995), except for Germany and the United Kingdom, where more recent values were obtained from the United Nations Statistical Yearbook, 2000."
+  )
+
+
+
+#-------------------------------------------------------------------------------
+## Fctor Analysis (FA) - MLE - manual
+#-------------------------------------------------------------------------------
+
+
+# 1. Prepare Data
+data_numeric <- euro_employment[, 3:11]
+S <- cor(data_numeric) 
+p <- ncol(S)
+m <- 2 
+
+# 2. Initialization
+set.seed(123)
+Lambda <- matrix(runif(p * m, -0.1, 0.1), nrow = p, ncol = m)
+Psi <- diag(rep(0.5, p)) # Uniqueness matrix
+
+# Parameters (Learning rate reduced for stability)
+learning_rate <- 0.001
+iterations <- 3000
+
+# 3. Iterative Estimation (Stable MLE Gradient Descent)
+for (i in 1:iterations) {
+  # Sigma reconstruction
+  Sigma <- (Lambda %*% t(Lambda)) + Psi
+  
+  # Numerical Stability: Add a tiny value to diagonal (Ridge regularization)
+  Sigma_reg <- Sigma + diag(1e-6, p)
+  Sigma_inv <- solve(Sigma_reg)
+  
+  # Gradient of f w.r.t Lambda
+  # Formula: 2 * Sigma^-1 * (Sigma - S) * Sigma^-1 * Lambda
+  gradient_lambda <- 2 * Sigma_inv %*% (Sigma - S) %*% Sigma_inv %*% Lambda
+  
+  # Update Lambda
+  Lambda <- Lambda - learning_rate * gradient_lambda
+  
+  # Update Psi with constraint (Psi must be > 0, set lower bound 0.01)
+  diag_vals <- diag(Sigma_inv %*% S %*% Sigma_inv)
+  Psi_new <- diag(pmax(1 / diag_vals, 0.01))
+  Psi <- Psi * 0.9 + Psi_new * 0.1 # Smoothing update
+  
+  if (i %% 500 == 0) {
+    obj <- log(det(Sigma)) + sum(diag(S %*% Sigma_inv))
+    message(sprintf("Iteration %d: Objective Value = %f", i, obj))
+  }
+}
+
+# 4. Final Results
+colnames(Lambda) <- c("ML1", "ML2")
+print("Final MLE Factor Loadings:")
+print(Lambda)
+
+# 5. Factor Scores (Bartlett's method)
+# Weights = Sigma^-1 * Lambda
+W <- solve((Lambda %*% t(Lambda)) + Psi) %*% Lambda
+scaled_data <- scale(data_numeric)
+factor_scores <- scaled_data %*% W
+
+# 6. Visualization
+fs_df <- as.data.frame(factor_scores)
+fs_df$Country <- euro_employment$Country
+
+ggplot(fs_df, aes(x = ML1, y = ML2, label = Country)) +
+  geom_point(color = "darkgreen", size = 3) +
+  geom_text(vjust = 1.5, size = 3) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_minimal() +
+  labs(title = "Stable MLE Factor Analysis Plot", x = "ML1", y = "ML2")
+
