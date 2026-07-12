@@ -519,3 +519,1310 @@ dev.off()
 Part 2 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
+
+
+#Load Packages
+library(statnet)
+library(igraph)
+library(intergraph)
+library(tidyverse)
+library(ggrepel)
+library(patchwork)
+library(networkdata)
+library(writexl)
+
+#-------------------------------------------------------------------------------
+##Data Preparation
+#-------------------------------------------------------------------------------
+
+# Install the remotes package if not already installed
+if (!require("remotes")) install.packages("remotes")
+# Install the networkdata package from GitHub
+# The repository is likely 'schochastics/networkdata'
+remotes::install_github("schochastics/networkdata")
+
+# Load the specific dataset
+data("eies_messages")
+eies_messages
+
+data("flo_marriage")
+flo_marriage
+
+southern_women
+
+
+#-------------------------------------------------------------------------------
+## EDA
+#-------------------------------------------------------------------------------
+
+eies <- intergraph::asNetwork(x = eies_messages)  #Directed, sending message
+flo  <- intergraph::asNetwork(x = flo_marriage)  #Undirected, marriage relationship
+davis <- intergraph::asNetwork(southern_women)
+
+eies
+flo
+davis
+
+
+#-------------------------------------------------------------------------------
+##  degree centrality - statnet
+#-------------------------------------------------------------------------------
+
+sna::degree(dat = eies, gmode = "digraph", cmode = 'freeman')
+sna::degree(dat = eies, gmode = "digraph", cmode = 'indegree')
+sna::degree(dat = eies, gmode = "digraph", cmode = 'outdegree')
+
+
+sna::degree(dat = flo, gmode = "graph", cmode = 'freeman')
+
+
+sna::degree(dat = eies, gmode = "digraph", cmode = 'freeman', rescale = TRUE) #ratio
+
+
+#-------------------------------------------------------------------------------
+##  degree centrality - igraph, data: eies_messages
+#-------------------------------------------------------------------------------
+
+igraph::degree(graph = eies_messages, loops = TRUE) #loops: 순환링크
+
+igraph::degree(graph = eies_messages, loops = FALSE)
+igraph::degree(graph = eies_messages,mode = "in", loops = FALSE)
+igraph::degree(graph = eies_messages,mode = "out", loops = FALSE)
+
+
+#weighted link
+igraph::strength(graph = eies_messages, loops = FALSE, mode = "all")
+igraph::strength(graph = eies_messages, loops = FALSE, mode = "in")
+igraph::strength(graph = eies_messages, loops = FALSE, mode = "out")
+
+
+
+igraph::degree(graph = flo_marriage)
+
+igraph::degree(graph = eies_messages, loops = FALSE)/sum(igraph::degree(graph = eies_messages, loops = FALSE)) #ratio
+
+igraph::degree(graph = eies_messages, loops = FALSE, normalized = TRUE) #normalized 
+
+
+
+eies %v% 'inDC_uwt' <- sna::degree(eies,gmode='digraph',cmode='indegree')
+eies %v% 'otDC_uwt' <- sna::degree(eies,gmode='digraph',cmode='outdegree')
+eies %v% 'ttDC_uwt' <- sna::degree(eies,gmode='digraph',cmode='freeman')
+eies %v% 'inDC_wgt' <- igraph::strength(eies_messages,loops=FALSE,mode="in")
+eies %v% 'otDC_wgt' <- igraph::strength(eies_messages,loops=FALSE,mode="out")
+eies %v% 'ttDC_wgt' <- igraph::strength(eies_messages,loops=FALSE,mode="all")
+
+df_eies <- as.data.frame(eies, unit='vertice') 
+df_eies
+
+
+lm(inDC_uwt/ttDC_uwt~factor(Discipline)+Citations,df_eies) %>% summary()
+lm(inDC_wgt/ttDC_wgt~factor(Discipline)+Citations,df_eies) %>% summary()
+
+
+df_eies %>% 
+  pivot_longer(cols=contains('DC')) %>% 
+  mutate(
+    mylabel1=ifelse(str_detect(name,'inDC'),'Indegree centrality',
+                    ifelse(str_detect(name,'otDC'),'Outdegree centrality',
+                           'Total degree centrality')),
+    mylabel2=ifelse(str_detect(name, "_wgt"),"with weight","w/o weight")
+  ) %>% 
+  ggplot(aes(x=value))+
+  geom_histogram(fill='grey60',bins=20)+
+  labs(x=' ',y='frequency')+
+  theme_bw()+
+  facet_grid(mylabel1~mylabel2,scales='free')
+
+
+#-------------------------------------------------------------------------------
+##  degree centrality - igraph, data: flo_marriage
+#-------------------------------------------------------------------------------
+
+
+flo %v% 'degree' <- sna::degree(dat = flo,gmode='graph',cmode='freeman') 
+df_flo <- as.data.frame(flo, unit='vertice')
+cor.test(~log(0.5+degree)+log(wealth), data = df_flo)
+
+
+windows()
+df_flo %>% ggplot(aes(x = log(wealth), y = log(0.5 + degree))) +
+  geom_point(size = 3, colour = 'pink') +
+  geom_text_repel(aes(label = vertex.names)) +
+  # Use annotate instead of geom_text for single-point labels
+  annotate("text", x = 1.5, y = 1.8, label = 'r = .59, p = .02', colour = 'blue') +
+  labs(x = 'Wealth', y = 'Degree centrality\n') +
+  theme_bw()
+
+
+
+#-------------------------------------------------------------------------------
+##  Closeness centrality -statnet
+#-------------------------------------------------------------------------------
+
+eies
+sna::closeness(eies,gmode='digraph',cmode='directed')
+sna::closeness(eies,gmode='digraph',cmode='undirected')
+
+
+# 1. Get the vertex names using the network package syntax
+# This avoids the igraph conversion error
+node_names <- eies %v% "vertex.names"
+
+# 2. Calculate closeness centrality
+closeness_val <- sna::closeness(eies, gmode = 'digraph', cmode = 'directed')
+
+# 3. Combine into a clean data frame
+df_closeness <- data.frame(
+  Name = node_names,
+  Closeness = closeness_val
+)
+
+# 4. Sort by Closeness in descending order
+df_closeness <- df_closeness[order(-df_closeness$Closeness), ]
+
+# 5. Display the final table
+print(df_closeness)
+
+
+
+sna::closeness(flo,gmode='graph',cmode='directed')
+sna::closeness(flo,gmode='graph',cmode='undirected')
+
+sna::isolates(flo) #고립노드 확인
+(flo %v% 'vertex.names')[sna::isolates(flo)]
+
+flo2 <- flo 
+network::delete.vertices(flo2, sna::isolates(flo2))
+sna::closeness(flo2,gmode='graph',cmode='undirected')
+
+
+node_names <- flo2 %v% "vertex.names"
+closeness_val <- sna::closeness(flo2, gmode = 'digraph', cmode = 'undirected')
+df_closeness <- data.frame(
+  Name = node_names,
+  Closeness = closeness_val
+)
+df_closeness <- df_closeness[order(-df_closeness$Closeness), ]
+print(df_closeness)
+
+
+#-------------------------------------------------------------------------------
+##  Closeness centrality -igraph, data: eies_messages
+#-------------------------------------------------------------------------------
+
+
+igraph::closeness(graph = eies_messages,mode="out")  
+igraph::closeness(graph = eies_messages,mode="total")
+
+Nnode <- length(igraph::V(eies_messages))
+Lnode <- length(igraph::E(eies_messages))
+
+adj_out_close <- (Nnode-1)*igraph::closeness(eies_messages,mode="out",weights=rep(1,Lnode))
+adj_out_close
+adj_ttl_close <- (Nnode-1)*igraph::closeness(eies_messages,mode="total",weights=rep(1,Lnode))
+adj_ttl_close
+
+
+igraph::closeness(eies_messages,mode="out")
+adj_in_close <- (Nnode-1)*igraph::closeness(eies_messages,mode="in",weights=rep(1,Lnode))
+adj_in_close
+
+
+
+#-------------------------------------------------------------------------------
+##  Closeness centrality -igraph, data: flo_marriage
+#-------------------------------------------------------------------------------
+
+Nnode <- length(igraph::V(flo_marriage))
+which(igraph::degree(graph = flo_marriage) == 0) #isolated node: 1개
+adj_ttl_close <- (Nnode-1-1)*igraph::closeness(flo_marriage,mode="total")
+adj_ttl_close
+
+
+
+#-------------------------------------------------------------------------------
+##  Compare Closeness centrality with Degree centrality
+#-------------------------------------------------------------------------------
+
+
+eies %v% 'otCC_uwt' <- sna::closeness(dat = eies,gmode='digraph',cmode='directed') 
+eies %v% 'ttCC_uwt' <- sna::closeness(dat = eies,gmode='digraph',cmode='undirected') 
+eies %v% 'otCC_wgt' <- igraph::closeness(graph = eies_messages,mode="out") 
+eies %v% 'ttCC_wgt' <- igraph::closeness(graph = eies_messages,mode="total")
+df_eies <- as.data.frame(eies, unit="vertice")
+df_eies
+cormat <- df_eies %>% select(inDC_uwt:ttCC_wgt) %>% 
+  as.matrix() %>% Hmisc::rcorr()
+cormat
+cormat$r
+
+
+df_eies$discname <- factor(df_eies$Discipline,
+                           labels=c("Sociology","Anthropology","Math/Stat","Etc."))
+fig1 <- df_eies %>% 
+  ggplot()+
+  geom_point(aes(x=otCC_uwt,y=otCC_wgt,colour=discname),size=5,alpha=0.7)+
+  geom_text(aes(x=otCC_uwt,y=otCC_wgt,label=vertex.names),size=3)+
+  labs(x="w/o weight attribute",y="with weight attribute",
+       size="Citations",colour="Discipline")+
+  theme_bw()+theme(plot.title=element_text(hjust=0.5),legend.position="bottom")+
+  guides(colour=guide_legend(nrow=2,byrow=TRUE))+
+  ggtitle("Outgoing closeness centrality")
+fig2 <- df_eies %>% 
+  ggplot()+
+  geom_point(aes(x=ttCC_uwt,y=ttCC_wgt,colour=discname),size=5,alpha=0.7)+
+  geom_text(aes(x=ttCC_uwt,y=ttCC_wgt,label=vertex.names),size=3)+
+  labs(x="w/o weight attribute",y="with weight attribute",
+       size="Citations",colour="Discipline")+
+  theme_bw()+theme(plot.title=element_text(hjust=0.5),legend.position="bottom")+
+  guides(colour=guide_legend(nrow=2,byrow=TRUE))+
+  ggtitle("Total closeness centrality")
+fig1+fig2
+
+
+
+#-------------------------------------------------------------------------------
+##  betweenness centrality - statnet
+#-------------------------------------------------------------------------------
+
+
+sna::betweenness(eies,gmode='digraph',cmode='directed') 
+sna::betweenness(eies,gmode='digraph',cmode='undirected')
+
+
+sna::betweenness(flo,gmode='graph',cmode='directed') 
+sna::betweenness(flo,gmode='graph',cmode='undirected')
+
+
+#-------------------------------------------------------------------------------
+##  betweenness centrality - igraph
+#-------------------------------------------------------------------------------
+
+
+igraph::betweenness(eies_messages,directed=TRUE) 
+
+Lnode <- length(igraph::E(eies_messages))
+adj_d_between <- igraph::betweenness(eies_messages,directed=TRUE,weights=rep(1,Lnode)) #weight 1로 통일
+adj_d_between
+
+edge_attr_names(eies_messages)
+E(eies_messages)$weight
+
+
+eies_messages  #
+eies_messages2 <- igraph::as.undirected(eies_messages)
+eies_messages2
+Lnode2 <- length(igraph::E(eies_messages2))
+igraph::betweenness(eies_messages,directed=FALSE,weights=rep(1,Lnode))
+igraph::betweenness(eies_messages2,directed=FALSE,weights=rep(1,Lnode2))
+
+
+igraph::betweenness(flo_marriage,directed=FALSE)
+
+
+
+#-------------------------------------------------------------------------------
+##  Compare Betweenness centrality with Degree centrality
+#-------------------------------------------------------------------------------
+
+
+flo %v% 'BC' <- sna::betweenness(dat = flo,gmode='graph',cmode='undirected')
+df_flo <- as.data.frame(flo, unit="vertice") %>% 
+  mutate(lgdegree=log(0.5+degree),
+         lgbetw=log(BC+0.5))
+df_flo
+cor.test(~lgdegree+lgbetw, df_flo)
+df_flo %>% 
+  ggplot(aes(x = lgdegree, y = lgbetw)) + 
+  geom_point(size = 3, colour = 'pink') + 
+  geom_text_repel(aes(label = vertex.names)) + 
+  # Use annotate instead of geom_text to avoid the warning
+  annotate("text", x = 1.7, y = -0.5, label = "r = .90, p < .001", colour = 'blue') + 
+  labs(x = 'Degree centrality (log-transformed)', 
+       y = 'Betweenness centrality\n(log-transformed)\n') + 
+  theme_bw()
+
+
+
+#-------------------------------------------------------------------------------
+##  Bonachch's power centrality
+#-------------------------------------------------------------------------------
+
+
+#=====================================================#
+
+mygraph <- data.frame(i=c("A","B","B"),j=c("B","C","D"))
+mygraph <- network(mygraph)
+mygraph
+windows()
+par(mfrow=c(1,2))
+set.seed(20221225)
+plot(mygraph, label="vertex.names",edge.label="하사금",  #라벨표시 
+     vertex.col=c("red","blue","green","green"),
+     vertex.cex=4,vertex.sides=50, #노드
+     arrowhead.cex=2) 
+set.seed(20221225)
+plot(mygraph, label="vertex.names",edge.label="상납금",  #라벨표시 
+     vertex.col=c("red","blue","green","green"),
+     vertex.cex=4,vertex.sides=50, #노드
+     arrowhead.cex=2) 
+dev.off()
+
+#=====================================================#
+
+class(mygraph)
+as.data.frame(mygraph)
+MYBETAS <- 0.1*(-10:10)  
+myresult <- data.frame()  
+for (mybeta in MYBETAS){
+  temp <- data.frame(t(as.matrix(sna::bonpow(dat = mygraph,exponent=mybeta))))
+  myresult <- bind_rows(myresult,temp)
+} 
+
+myresult <- myresult %>% 
+  mutate(beta=MYBETAS) 
+myresult %>% 
+  pivot_longer(cols=c("A","B","C","D")) %>% 
+  ggplot(aes(x=beta, y=value,shape=name))+
+  geom_point(size=2,alpha=0.7)+
+  geom_line()+
+  theme_bw()+
+  labs(x="parameter β",
+       y="Bonacich's power centrality\n",
+       shape="Node")
+
+
+
+#-------------------------------------------------------------------------------
+##  Bonachch's power centrality
+#-------------------------------------------------------------------------------
+
+sna::bonpow(dat = eies,gmode='digraph',exponent=1)
+igraph::bonpow(eies_messages,exponent=1)
+
+sna::bonpow(flo,gmode='graph',exponent=0)
+igraph::bonpow(flo_marriage,exponent=0)
+
+
+
+
+#-------------------------------------------------------------------------------
+##  Compare BBonachch's power centrality with others 
+#-------------------------------------------------------------------------------
+
+
+eies %v% 'BC_uwt' <- sna::betweenness(dat = eies,gmode='digraph',cmode="directed")
+eies %v% 'BC_wgt' <- igraph::betweenness(graph = eies_messages,directed=TRUE)
+eies %v% 'BP0' <- sna::bonpow(eies,gmode='digraph',exponent=0)
+eies %v% 'BP5' <- sna::bonpow(eies,gmode='digraph',exponent=0.5)
+eies %v% 'BP1' <- sna::bonpow(eies,gmode='digraph',exponent=1)
+
+df_eies <- as.data.frame(eies,unit="vertice")
+df_eies
+cormat <- df_eies %>% 
+  select(BP0,BP5,BP1,inDC_uwt:BC_wgt) %>% 
+  as.matrix() %>% 
+  Hmisc::rcorr()
+
+cormat$r
+round(cormat$r[,1:3],2) #correlation coefficient 
+round(cormat$P[,1:3],3) #p-value for correlation coefficient 
+
+windows()
+df_eies %>% 
+  mutate(
+    discname = factor(Discipline,
+                      labels=c("Sociology","Anthropology","Math/Stat","Etc.")
+    )) %>% 
+  ggplot()+
+  geom_point(aes(x=BP0,y=BP1,colour=discname),size=5,alpha=0.7)+
+  geom_text(aes(x=BP0,y=BP1,label=vertex.names),size=3)+
+  labs(x="Bonacich's power centrality\n(parameter β = 0)",
+       y="Bonacich's power centrality\n(parameter β = 1)",
+       colour="Discipline")+
+  theme_bw()
+
+
+
+
+#-------------------------------------------------------------------------------
+##  PageRank centrality 
+#-------------------------------------------------------------------------------
+
+
+eies_PRC <- igraph::page_rank(eies_messages,directed=TRUE);eies_PRC
+igraph::page_rank(flo_marriage,directed=FALSE)
+
+eies %v% 'PRC' <- eies_PRC$vector
+df_eies <- as.data.frame(eies,unit="vertice")
+cormat <- df_eies %>% select(PRC,inDC_uwt:BP1) %>% 
+  as.matrix() %>% Hmisc::rcorr()
+data.frame(cor_coef=round(cormat$r[,1],2),
+           p_value=round(cormat$P[,1],3))
+
+
+#-------------------------------------------------------------------------------
+## two mode node level without link weighted - statnet
+#-------------------------------------------------------------------------------
+
+davis %v% 'vertex.names'
+davis %v% 'type'
+
+set.network.attribute(x = davis,attrname =  "bipartite",value =  TRUE)
+davis
+
+sna::degree(davis,gmode='graph',cmode='freeman')
+sna::closeness(davis,gmode='graph',cmode='undirected')
+sna::betweenness(davis,gmode='graph',cmode='undirected')
+
+
+#-------------------------------------------------------------------------------
+## two mode node level without link weighted - igraph
+#-------------------------------------------------------------------------------
+
+igraph::degree(southern_women, mode="all")
+(igraph::vcount(southern_women)-1)*igraph::closeness(southern_women, mode="all")
+igraph::betweenness(southern_women,directed=FALSE)
+
+
+davis %v% 'ttDC' <- sna::degree(davis,gmode='graph',cmode='freeman')
+davis %v% 'CC' <- sna::closeness(davis,gmode='graph',cmode='undirected')
+davis %v% 'BC' <- sna::betweenness(davis,gmode='graph',cmode='undirected')
+
+df_davis <- as.data.frame(davis, unit='vertice')
+df_davis
+fun_temp <- function(x){
+  MN=format(round(mean(x),2),nsmall=2)
+  SD=format(round(sd(x),2),nsmall=2)
+  MI=format(round(min(x),2),nsmall=2)
+  MA=format(round(max(x),2),nsmall=2)
+  str_c(MN,"(",SD,") [",MI,", ",MA,"]")
+}
+
+df_davis %>% group_by(type) %>% 
+  summarise(across(.cols=ttDC:BC,fun_temp)) %>% 
+  pivot_longer(cols=ttDC:BC) %>% 
+  arrange(name)
+
+
+ptpnet <- igraph::bipartite_projection(southern_women)$proj1
+ptpnet
+etenet <- igraph::bipartite_projection(southern_women)$proj2
+etenet
+
+
+igraph::strength(ptpnet)
+igraph::strength(etenet)
+
+igraph::closeness(ptpnet)
+igraph::closeness(etenet)
+
+igraph::betweenness(ptpnet)
+igraph::betweenness(etenet)
+
+
+#-------------------------------------------------------------------------------
+## two mode node level without link weighted 
+#-------------------------------------------------------------------------------
+
+set.seed(1)
+edge_df <- data.frame(i=1:5,
+                      j=6:8,
+                      w=sample(c(0:3),size=5*3,replace=TRUE)) %>% 
+  filter(w>0) %>% arrange(i,j)
+edge_df
+
+################################################################################
+set.seed(20221225)
+w2mode <- network(edge_df,bipartite=TRUE,directed=FALSE)
+w2mode %v% "Nname" <- c(str_c("P",1:5),str_c("E",1:3))
+w2mode %v% "Nside" <- c(rep(4,5),rep(50,3))
+w2mode %e% 'w2' <- 10*(w2mode %e% 'w')
+plot(w2mode,label="Nname",
+     edge.col='w2',edge.label="w",
+     edge.lwd="w2",vertex.border=0,
+     vertex.sides="Nside",vertex.col="grey60",vertex.cex=5)
+dev.off()
+################################################################################
+
+
+
+igw2m <- igraph::graph_from_data_frame(edge_df,directed=FALSE)
+igw2m 
+V(igw2m)$type <- V(igw2m)$name %in% c("6", "7", "8")
+igw2m 
+
+igraph::strength(graph = igw2m, weight=igraph::E(igw2m)$w)
+igraph::closeness(graph = igw2m, weight=igraph::E(igw2m)$w)
+igraph::betweenness(graph = igw2m, weight=igraph::E(igw2m)$w)
+
+w1mode <- tnet::projecting_tm(edge_df)
+w1mode
+
+w1mode[w1mode$i==1&w1mode$j==2,]
+w1mode[w1mode$i==2&w1mode$j==1,]
+
+ptpnet <- igraph::bipartite_projection(igw2m)$proj1
+ptpnet
+
+
+igw1m <- igraph::graph_from_data_frame(w1mode)
+igw1m
+
+igraph::strength(igw1m, mode="all",weight=igraph::E(igw1m)$w)
+igraph::strength(igw1m, mode="in",weight=igraph::E(igw1m)$w)
+igraph::strength(igw1m, mode="out",weight=igraph::E(igw1m)$w)
+
+igraph::closeness(igw1m, mode="all",weight=igraph::E(igw1m)$w)
+igraph::closeness(igw1m, mode="in",weight=igraph::E(igw1m)$w)
+igraph::closeness(igw1m, mode="out",weight=igraph::E(igw1m)$w)
+
+igraph::betweenness(igw1m, directed = TRUE, weight=igraph::E(igw1m)$w)
+
+
+#-------------------------------------------------------------------------------
+## Ohters:eigenvector centrality
+#-------------------------------------------------------------------------------
+
+class(eies)
+
+ev_statnet <- sna::evcent(eies)
+ev_statnet
+ev_igraph <- igraph::evcent(simplify(eies_messages),
+                            scale=F,   
+                            weights=rep(1,igraph::ecount(eies_messages))) 
+
+
+tibble(ev_statnet, ev_igraph$vector) %>% cor() 
+
+sna::evcent(flo) %>% round(5)
+igraph::evcent(flo_marriage,scale=FALSE)$vector %>% round(5)
+
+
+
+
+igraph::hub_score(eies_messages,scale=F,
+                  weights=rep(1,igraph::ecount(eies_messages)))$vector %>%   
+  round(5)
+igraph::authority_score(eies_messages,scale=F,
+                        weights=rep(1,igraph::ecount(eies_messages)))$vector %>% 
+  round(5)
+
+
+
+
+igraph::ego_size(flo_marriage,2)/(igraph::vcount(flo_marriage)-1)
+
+
+#-------------------------------------------------------------------------------
+## edge level: betweenness centrality
+#-------------------------------------------------------------------------------
+
+
+
+igraph::edge_betweenness(eies_messages, directed=TRUE)
+igraph::edge_betweenness(eies_messages, directed=FALSE)
+
+E(eies_messages)$nowgt <- 1
+igraph::edge_betweenness(eies_messages, directed=TRUE,
+                         weight=E(eies_messages)$nowgt)
+
+E(eies_messages)$eb_uwt <- igraph::edge_betweenness(eies_messages, 
+                                                    directed=TRUE,
+                                            weight=E(eies_messages)$nowgt)
+edge_attr(eies_messages)$weight
+E(eies_messages)$eb_wgt <- igraph::edge_betweenness(graph = eies_messages, 
+                                                   directed=TRUE)
+eies_messages 
+
+igraph::as_data_frame(eies_messages, what="edges") %>% 
+  pivot_longer(cols=starts_with("eb_")) %>% 
+  group_by(name) %>% 
+  filter(value==max(value))
+
+
+igraph::edge_betweenness(flo_marriage, directed=FALSE)
+E(flo_marriage)$eb_uwt <- igraph::edge_betweenness(flo_marriage, directed=FALSE)
+E(flo_marriage)[E(flo_marriage)$eb_uwt==max(E(flo_marriage)$eb_uwt)]
+
+
+
+cluster_eb <- igraph::cluster_edge_betweenness(flo_marriage,directed=FALSE)
+membership(communities = cluster_eb)
+table(membership(cluster_eb))
+
+
+################################################################################
+set.seed(20220201)
+plot(cluster_eb, flo_marriage)
+################################################################################     
+
+
+igraph::cluster_edge_betweenness(eies_messages,directed=TRUE)
+
+mat_eies <- as.matrix(as_adjacency_matrix(eies_messages,attr="weight"))
+mat_eies
+diag(mat_eies) <- 0 
+summary(as.vector(mat_eies[mat_eies>0])) #3rd Q.의 값이 33
+mat_eies2 <- ifelse(mat_eies>=33,1,0)
+
+eies2
+eies2 <- graph_from_adjacency_matrix(mat_eies2)
+cluster_eb <- cluster_edge_betweenness(eies2,directed=TRUE)
+membership(cluster_eb)
+table(membership(cluster_eb))
+
+
+
+
+################################################################################
+V(eies2)$nsize <- ifelse(membership(cluster_eb)==2|membership(cluster_eb)==11,
+                         15,1) 
+V(eies2)$lblsize <- ifelse(membership(cluster_eb)==2|membership(cluster_eb)==11,
+                           1,0.5) 
+set.seed(20220201)
+plot(cluster_eb,eies2,
+     vertex.size=V(eies2)$nsize,
+     vertex.label.cex=(V(eies2)$lblsize),
+     edge.arrow.size=0.1,
+     edge.color=adjustcolor("SkyBlue2", alpha.f = .5) )
+dev.off()
+################################################################################
+
+
+mat_eies <- as.matrix(as_adjacency_matrix(eies_messages,attr="weight"))
+mat_eies
+
+
+samedisc <- array(0,dim(mat_eies))
+nodedisc <- V(eies_messages)$Discipline
+
+for (i in 1:nrow(mat_eies)){
+  samedisc[i,-i] <- ifelse(nodedisc[i] == nodedisc[-i], 1, 0)
+}
+diag(samedisc) <- NA
+table(samedisc)/2
+
+
+morecite <- array(0,dim(mat_eies))
+nodecite <- V(eies_messages)$Citations
+for (i in 1:nrow(mat_eies)){
+  morecite[i,-i] <- (nodecite[i] - nodecite[-i])
+}
+
+diag(morecite) <- NA
+summary(as.vector(morecite))
+
+diag(mat_eies) <- NA 
+
+
+mydata <- tibble(msg_quant=as.vector(mat_eies),
+                 samedisc=as.vector(samedisc),
+                 morecite=as.vector(morecite)) %>% 
+  drop_na() %>% 
+  mutate(
+    msg_yn=ifelse(msg_quant==0,0,1) 
+  )
+mydata
+
+
+glm(msg_yn~samedisc+morecite, mydata, family=binomial()) %>% 
+  summary()
+
+library(pscl)
+pscl::hurdle(msg_quant~samedisc+morecite,
+             dist="negbin",zero.dist="binomial",link="logit",
+             mydata) %>% 
+  summary() 
+
+
+
+mat_flo <- as.matrix(as_adjacency_matrix(flo_marriage))
+mat_flo
+polgap <- array(0,dim(mat_flo))
+vertex_attr_names(flo_marriage)
+nodeprior <- V(flo_marriage)$priors
+for (i in 1:nrow(mat_flo)){
+  polgap[i,-i] <- abs(nodeprior[i] - nodeprior[-i])
+}
+
+ecogap <- array(0,dim(mat_flo))
+nodewlth <- V(flo_marriage)$wealth
+for (i in 1:nrow(mat_flo)){
+  ecogap[i,-i] <- abs(nodewlth[i] - nodewlth[-i])
+}
+
+mat_flo <- mat_flo[lower.tri(mat_flo)]
+polgap <- polgap[lower.tri(polgap)]
+ecogap <- ecogap[lower.tri(ecogap)]
+
+
+mydata <- tibble(link_yn=mat_flo,
+                 ecogap=ecogap,
+                 polgap=polgap)
+mydata %>% 
+  group_by(link_yn) %>% 
+  summarise(across(
+    .cols=ecogap:polgap,
+    .fns=function(x){str_c(round(mean(x),2),"(",round(sd(x),2),")")}
+  ))
+
+glm(link_yn~log10(1+ecogap)+log10(1+polgap), 
+    mydata, 
+    family=binomial()) %>% 
+  summary()
+
+
+
+
+#-------------------------------------------------------------------------------
+## graph level - network size
+#-------------------------------------------------------------------------------
+
+
+#statnet
+network::network.size(x = eies)
+network::network.size(x = flo)
+network::network.edgecount(x = eies)
+network::network.edgecount(x = flo)
+
+
+#igraph
+igraph::vcount(eies_messages)
+igraph::vcount(flo_marriage)
+igraph::ecount(eies_messages)
+igraph::ecount(flo_marriage)
+
+
+#-------------------------------------------------------------------------------
+## graph level - Connectivity Ratio, graph density
+#-------------------------------------------------------------------------------
+
+
+##statnet
+
+#Connectivity Ratio
+sna::isolates(eies)  
+sna::isolates(flo)  
+1-(length(sna::isolates(flo))/network::network.size(flo))
+
+#graph density
+sna::gden(eies,mode="digraph") 
+sna::gden(flo,mode="graph")
+
+poss_link <- choose(n = network::network.size(flo), k = 2)
+read_link <- network::network.edgecount(flo)
+read_link/poss_link
+
+
+##igraph
+
+#Connectivity Ratio
+table(igraph::degree(eies_messages,loops=F)==0)  
+table(igraph::degree(flo_marriage,loops=F)==0) 
+myIsolates <- which(igraph::degree(flo_marriage,loops=F)==0);myIsolates
+1-(length(myIsolates)/igraph::vcount(flo_marriage))
+
+
+#graph density
+igraph::edge_density(eies_messages)
+igraph::edge_density(flo_marriage)
+
+igraph::edge_density(igraph::simplify(eies_messages))  
+
+
+
+#-------------------------------------------------------------------------------
+## graph centralization
+#-------------------------------------------------------------------------------
+
+
+################################################################################
+
+mymat <- matrix(data = 0,nrow = 5,ncol = 5)
+rownames(mymat) <- colnames(mymat) <- LETTERS[1:5]
+g1 <- g2 <- g3 <- g4 <- mymat
+g1[2:5,1] <- 1
+g2[2:4,1] <- g2[5,4] <- 1
+g3[2:3,1] <- g3[4,2] <- g3[5,3] <- 1
+g4[2:3,1] <- g4[4,2] <- g4[5,3] <- g4[5,4] <- 1
+netdraw <- function(myg,mytitle){
+  mynet <- set.network.attribute(x = network(myg),
+                                 attrname = "directed",
+                                 value = FALSE)
+  set.seed(1234)
+  plot(mynet,label="vertex.names",
+                      vertex.cex=4,
+                      vertex.col=scales::alpha("blue",0.3),
+                      main=mytitle)
+}
+windows()
+par(mfrow=c(2,2))
+netdraw(g1,"Case 1")
+netdraw(g2,"Case 2")
+netdraw(g3,"Case 3")
+netdraw(g4,"Case 4")
+
+dev.off()
+
+################################################################################
+
+
+# Function to calculate network centralization scores
+centralization_score <- function(mymat, mytitle) {
+  
+  # Convert the adjacency matrix to an igraph object
+  # Use mode = "max" to handle non-symmetric matrices safely
+  g <- graph_from_adjacency_matrix(mymat, mode = "max", diag = FALSE)
+  
+  # Calculate centralization scores
+  # centr_degree returns a list, so we extract the $centralization component
+  cds <- centr_degree(g, mode = "all")$centralization
+  
+  # Calculate closeness centralization
+  # Ensure the mode is set correctly for closeness
+  ccs <- centr_clo(g, mode = "all")$centralization
+  
+  # Calculate betweenness centralization
+  bcs <- centr_betw(g, directed = FALSE)$centralization
+  
+  # Return the results as a tibble
+  tibble(
+    case = mytitle,
+    degree_centralization = cds,
+    close_centralization = ccs,
+    between_centralization = bcs
+  )
+}
+
+# Apply the function to the list of matrices and format the output
+bind_rows(
+  centralization_score(g1, "Case 1"),
+  centralization_score(g2, "Case 2"),
+  centralization_score(g3, "Case 3"),
+  centralization_score(g4, "Case 4")
+) %>% 
+  mutate(across(
+    .cols = 2:4,
+    .fns = function(x) { format(round(as.numeric(x), 3), nsmall = 3) }
+  )) %>% 
+  print()
+
+
+
+
+library(igraph)
+library(dplyr)
+library(tibble)
+
+# 교재의 표와 동일한 결과를 내기 위한 수동 계산 함수
+manual_centralization_v2 <- function(g) {
+  n <- igraph::vcount(g)
+  
+  # 1. Degree Centralization
+  deg <- igraph::degree(g)
+  # 교재의 프리먼 공식: sum(max_deg - deg) / [(n-1)(n-2)]
+  max_deg <- max(deg)
+  cds <- sum(max_deg - deg) / ((n - 1) * (n - 2))
+  
+  
+  # 2. Closeness Centralization
+  clo <- closeness(g)
+  # 스타 그래프의 이론적 최대값을 분모로 사용해야 1.0이 나옴
+  # 노드 5개 스타 그래프의 근접 중심성 합의 차이는 3.0
+  star_n <- n
+  star_g <- igraph::make_star(star_n, mode = "undirected")
+  star_clo <-igraph:: closeness(star_g)
+  denom_clo <- sum(max(star_clo) - star_clo)
+  ccs <- sum(max(clo) - clo) / denom_clo
+  
+  
+  # 3. Betweenness Centralization
+  bet <- igraph::betweenness(g, directed = FALSE)
+  # 스타 그래프의 이론적 최대값 분모 사용
+  star_bet <- igraph::betweenness(star_g, directed = FALSE)
+  denom_bet <- sum(max(star_bet) - star_bet)
+  bcs <- sum(max(bet) - bet) / denom_bet
+  
+  return(c(cds, ccs, bcs))
+}
+
+# 계산 함수
+centralization_score_fixed <- function(mymat, mytitle) {
+  g <- graph_from_adjacency_matrix(mymat, mode = "max", diag = FALSE)
+  res <- manual_centralization_v2(g)
+  
+  tibble(case = mytitle, 
+         degree_centralization = res[1], 
+         close_centralization = res[2], 
+         between_centralization = res[3])
+}
+
+# 결과 확인
+bind_rows(
+  centralization_score_fixed(g1, "Case 1"),
+  centralization_score_fixed(g2, "Case 2"),
+  centralization_score_fixed(g3, "Case 3"),
+  centralization_score_fixed(g4, "Case 4")
+) %>% 
+  mutate(across(2:4, ~format(round(., 3), nsmall = 3))) %>% 
+  print()
+
+
+
+##statnet
+
+
+sna::centralization(dat = eies, FUN=sna::degree, cmode='freeman')
+sna::centralization(dat = eies, FUN=sna::degree, cmode='indegree')
+sna::centralization(dat = eies, FUN=sna::degree, cmode='outdegree')
+
+sna::centralization(flo, FUN=sna::degree, cmode='freeman')
+
+
+sna::centralization(eies, FUN=closeness, cmode='undirected') #외향 
+sna::centralization(eies, FUN=sna::closeness, cmode='directed')
+
+sna::centralization(flo, FUN=sna::closeness, cmode='undirected')
+
+flo2 <- flo
+sna::centralization(network::delete.vertices(flo2,sna::isolates(flo2)), 
+                    FUN=sna::closeness, cmode='undirected')
+
+
+sna::centralization(eies, FUN=sna::betweenness, cmode='directed')
+sna::centralization(eies, FUN=sna::betweenness, cmode='undirected')
+
+sna::centralization(flo, FUN=sna::betweenness, cmode='undirected')
+
+
+
+##igraph
+
+
+igraph::centr_degree(graph = eies_messages, mode = "total")
+igraph::centr_degree(graph = eies_messages, loops = FALSE)
+igraph::centr_degree(graph = eies_messages, mode = "in", loops = FALSE)
+igraph::centr_degree(graph = eies_messages, mode = "out", loops = FALSE)
+
+igraph::centr_degree(graph = flo_marriage, mode = "total", loops = FALSE)
+
+
+igraph::centr_clo(graph = eies_messages, mode = "total")
+igraph::centr_clo(graph = eies_messages, mode = "out")
+igraph::centr_clo(graph = eies_messages, mode = "in")
+
+
+
+igraph::centr_clo(graph = flo_marriage, mode = "total")
+myIsolates <- which(igraph::degree(flo_marriage,loops=F)==0);myIsolates
+igraph::centr_clo(graph = igraph::delete.vertices(flo_marriage, myIsolates),
+                                                  mode = "total")
+
+
+igraph::centr_betw(graph = eies_messages, directed = TRUE)
+igraph::centr_betw(graph = eies_messages, directed = FALSE)
+
+igraph::centr_betw(graph = igraph::as.undirected(eies_messages), 
+                   directed = FALSE)
+
+igraph::centr_betw(graph = flo_marriage, directed = FALSE)
+
+
+
+#-------------------------------------------------------------------------------
+## graph transivity
+#-------------------------------------------------------------------------------
+
+
+################################################################################
+
+myedges <- data.frame(i=c("A","A","B","B"),
+                      j=c("B","C","C","D"))
+mynet <- network(myedges)
+set.seed(20220201); plot(mynet,label="vertex.names",vertex.cex=5)
+dev.off()
+
+################################################################################
+
+
+myig <- intergraph::asIgraph(mynet)
+igraph::transitivity(myig) 
+sna::gtrans(set.network.attribute(mynet,"directed",FALSE))
+
+
+
+sna::gtrans(flo,mode="graph")
+igraph::transitivity(flo_marriage)
+
+
+sna::gtrans(eies,mode="digraph")
+igraph::transitivity(eies_messages)
+
+eies_undirected <- eies 
+sna::gtrans(network::set.network.attribute(eies_undirected,"directed",FALSE))
+
+
+
+#-------------------------------------------------------------------------------
+## graph diameter
+#-------------------------------------------------------------------------------
+
+
+igraph::diameter(flo_marriage)
+igraph::get_diameter(flo_marriage) 
+
+
+################################################################################
+
+nodes_diameter <- V(flo_marriage)$name %in% attr(get_diameter(flo_marriage),"names")
+V(flo_marriage)$diameter <- ifelse(nodes_diameter,"lightblue","pink")
+set.seed(20220201)
+plot(flo_marriage,
+     vertex.color=V(flo_marriage)$diameter,
+     vertex.node.color="black",
+     edge.color=adjustcolor("blue", alpha.f = .5) 
+)
+
+################################################################################
+
+
+igraph::diameter(eies_messages,directed=FALSE,weights=E(eies_messages)$weight)  
+igraph::diameter(eies_messages,directed=FALSE,weights=rep(1,ecount(eies_messages))) 
+
+
+igraph::diameter(eies_messages,directed=TRUE,weights=E(eies_messages)$weight)  
+igraph::diameter(eies_messages,directed=TRUE,weights=rep(1,ecount(eies_messages)))  
+
+
+
+
+#-------------------------------------------------------------------------------
+## graph assortaitivity
+#-------------------------------------------------------------------------------
+
+
+################################################################################
+
+myedges1 <- data.frame(i=c("A","A","B","C","D","D","E"),
+                       j=c("B","C","D","B","E","F","F"))
+myedges2 <- data.frame(i=c("A","A","B","B","B","C","C"),
+                       j=c("D","E","D","E","F","D","F"))
+myig1 <- graph_from_data_frame(myedges1,directed=FALSE)
+myig2 <- graph_from_data_frame(myedges2,directed=FALSE)
+V(myig1)$shape <- ifelse(V(myig1)$name %in% LETTERS[1:3],"csquare","circle")
+V(myig2)$shape <- ifelse(V(myig2)$name %in% LETTERS[1:3],"csquare","circle")
+V(myig1)$col <- ifelse(V(myig1)$name %in% LETTERS[1:3],"lightblue","pink")
+V(myig2)$col <- ifelse(V(myig2)$name %in% LETTERS[1:3],"lightblue","pink")
+V(myig1)$sex <- ifelse(V(myig1)$name %in% LETTERS[1:3],1,2)
+V(myig2)$sex <- ifelse(V(myig2)$name %in% LETTERS[1:3],1,2)
+par(mfrow=c(1,2))
+set.seed(20220201); plot(myig1,vertex.size=30,
+                         vertex.shape=V(myig1)$shape,
+                         vertex.color=V(myig1)$col,
+                         main="Strong Homophily")
+set.seed(20220201); plot(myig2,vertex.size=30,
+                         vertex.shape=V(myig2)$shape,
+                         vertex.color=V(myig2)$col,
+                         main="No Homophily")
+
+################################################################################
+
+
+assortativity_nominal(myig1,types=V(myig2)$sex)
+assortativity_nominal(myig2,types=V(myig1)$sex)
+
+assortativity_degree(myig1)
+assortativity_degree(myig2)
+
+
+
+igraph::assortativity(graph = flo_marriage,
+                      values=V(flo_marriage)$wealth)
+igraph::assortativity(flo_marriage,
+                      values=V(flo_marriage)$priors)
+igraph::assortativity_degree(flo_marriage)
+
+
+
+
+assortativity_nominal(simplify(eies_messages),
+                      types=V(eies_messages)$Discipline,
+                      directed=TRUE)
+assortativity(simplify(eies_messages),
+              types1=V(eies_messages)$Citations,
+              directed=TRUE)
+assortativity(simplify(eies_messages),
+              types1=V(eies_messages)$Citations,
+              types2=degree(eies_messages,loops=F,mode="in"),
+              directed=TRUE)
+assortativity(simplify(eies_messages),
+              types1=degree(eies_messages,loops=F,mode="out"),
+              types2=V(eies_messages)$Citations,
+              directed=TRUE)
+assortativity_degree(simplify(eies_messages),
+                     directed=TRUE)
+
+
+
+#-------------------------------------------------------------------------------
+## other graph level
+#-------------------------------------------------------------------------------
+
+
+
+# 비교가능한 네트워크 비교
+eies1 <- intergraph::asNetwork(eies_messages)
+eies2 <- intergraph::asNetwork(eies_relations)
+flo1 <- intergraph::asNetwork(flo_marriage)
+flo2 <- intergraph::asNetwork(flo_business)
+
+# 앞에서 소개했던 지수들을 일괄적으로 계산하는 이용자 함수 설정 
+# statnet 위주로 하되 igraph에서는 diameter, transitivity, assortativity 추가 
+graph_level_statistics <- function(graph_name, mynet, mygraph){
+  mynet <- intergraph::asNetwork(mynet)   #statnet 기준 
+  n_node <- network.size(mynet)
+  n_link <- network.edgecount(mynet)
+  complete_node <- (n_node-length(isolates(mynet)))/n_node
+  graph_dense <- gden(mynet)
+  graph_dia_uwt <- igraph::diameter(intergraph::asIgraph(mynet),
+                                    weights=rep(1,n_link))
+  mynet2 <- mynet
+  mynet2 <- delete.vertices(mynet2,isolates(mynet2))
+  if (mygraph=="graph") {
+    graphD_in_ctrlztn <- graphD_ot_ctrlztn <- NA
+    graphD_tt_ctrlztn <- centralization(mynet, degree, cmode='freeman')
+    graphC_in_ctrlztn <- graphC_ot_ctrlztn <- NA 
+    graphC_tt_ctrlztn <- centralization(mynet2, closeness)
+    graphB_yd_ctrlztn <- NA
+    graphB_nd_ctrlztn <- centralization(mynet, betweenness)
+  } else {
+    graphD_in_ctrlztn <- centralization(mynet, degree, cmode='indegree')
+    graphD_ot_ctrlztn <- centralization(mynet, degree, cmode='outdegree')
+    graphD_tt_ctrlztn <- centralization(mynet, degree, cmode='freeman')
+    graphC_ot_ctrlztn <- centralization(mynet2, closeness, cmode='directed')
+    graphC_tt_ctrlztn <- centralization(mynet2, closeness, cmode='undirected')
+    graphC_in_ctrlztn <- igraph::centr_clo(intergraph::asIgraph(mynet2),mode="in")$centralization
+    graphC_in_ctrlztn <- ifelse(graphC_in_ctrlztn=="NaN",0,graphC_in_ctrlztn)
+    graphB_yd_ctrlztn <- centralization(mynet, betweenness, cmode='directed')
+    graphB_nd_ctrlztn <- centralization(mynet, betweenness, cmode='undirected')
+  }
+  graph_cc <- igraph::transitivity(intergraph::asIgraph(mynet))
+  graph_as <- igraph::assortativity_degree(intergraph::asIgraph(mynet))
+  tibble(network_name=graph_name,
+         allnode=n_node,   # 점의 수
+         compnode=complete_node,  #연결된 점들의 비율 
+         alllink=n_link,   # 선의 수 
+         density=graph_dense,   #그래프밀도 
+         dia_uwt=graph_dia_uwt,   #직경 
+         clustering=graph_cc,  #군집계수(전이성)
+         assortative=graph_as,  #군집계수(전이성)
+         inD_GC=graphD_in_ctrlztn,
+         otD_GC=graphD_ot_ctrlztn,
+         ttD_GC=graphD_tt_ctrlztn,
+         inC_GC=graphC_in_ctrlztn,
+         otC_GC=graphC_ot_ctrlztn,
+         ttC_GC=graphC_tt_ctrlztn,
+         drB_GC=graphB_yd_ctrlztn,
+         udB_GC=graphB_nd_ctrlztn) %>% 
+    mutate(across(
+      .cols=allnode:udB_GC,
+      .fns=function(x){format(round(x,4),nsmall=4)}
+    )) %>% 
+    mutate(across(
+      .cols=ends_with("C_GC"),
+      .fns=function(x){
+        ifelse(compnode=="1.0000",x,str_c(x,"*"))
+      }
+    )) %>% 
+    mutate(across(
+      .cols=allnode:udB_GC,
+      .fns=function(x){str_remove(x,".0000")}
+    ))
+}
+# 패키지 전환 
+detach(package:igraph)
+library(statnet)
+# 유방향 네트워트
+drg1 <- graph_level_statistics("Political Blogs",
+                               polblogs,
+                               "digraph")
+drg2 <- graph_level_statistics("UC forum (messages sent)",
+                               igraph::delete_edge_attr(ucsocial,"weight"),
+                               "digraph")
+DR <- bind_rows(drg1,drg2) %>% 
+  pivot_longer(cols=allnode:udB_GC) %>% 
+  pivot_wider(names_from="network_name",values_from="value")
+
+# 무방향 
+udg1 <- graph_level_statistics("Netscience Coauthorship",
+                               igraph::delete_edge_attr(netsci,"weight"),
+                               "graph") 
+udg2 <- graph_level_statistics("Social Networks Coauthors",
+                               igraph::delete_edge_attr(sn_auth,"weight"),
+                               "graph") 
+UD <- bind_rows(udg1,udg2) %>% 
+  pivot_longer(cols=allnode:udB_GC) %>% 
+  filter(!str_detect(value,"NA")) %>% 
+  pivot_wider(names_from="network_name",values_from="value")
+
+full_join(DR,UD,by="name") %>% 
+  writexl::write_xlsx("Ch08_Table4.xlsx")
+#   
+# 
+# # 점별 자아 네크워크(ego-network)를 뽑아 그래프 단위 통계치 계산
+# summ_egonet_graph_stat <- list()
+# for (i in 1:network.size(eies)){
+#   mynet_ego <- network(ego.extract(eies,ego=i,neighborhood="combined")[[1]])
+#   mytemp <- tibble(n_vertex=network.size(mynet_ego),
+#                    graph_density=gden(mynet_ego))
+#   summ_egonet_graph_stat <- bind_rows(summ_egonet_graph_stat,mytemp)
+# }
+# # 그래프 규모에 따라 그래프 밀도가 달라짐 
+# summ_egonet_graph_stat %>% 
+#   ggplot(aes(x=n_vertex, y=graph_density))+
+#   geom_jitter(width=0.1,size=3,colour="steelblue",alpha=0.5)+
+#   scale_x_continuous(breaks=8:32)+
+#   scale_y_continuous(breaks=0.1*(4:9))+
+#   labs(x="Network size (number of nodes)",
+#        y="Network density")+
+#   theme_classic()
+# ggsave("P1_Ch08_Fig01.png",width=14,height=11,units="cm")
+# 
+# # flo의 경우도 유사함
+# summ_egonet_graph_stat <- list()
+# for (i in 1:network.size(flo)){
+#   mynet_ego <- network(ego.extract(flo,ego=i,neighborhood="combined")[[1]])
+#   mytemp <- tibble(n_vertex=network.size(mynet_ego),
+#                    graph_density=gden(mynet_ego))
+#   summ_egonet_graph_stat <- bind_rows(summ_egonet_graph_stat,mytemp)
+# }
+# summ_egonet_graph_stat %>% 
+#   ggplot(aes(x=n_vertex, y=graph_density))+
+#   geom_jitter(width=0.1,size=3,colour="steelblue",alpha=0.5)+
+#   scale_x_continuous(breaks=2:7)+
+#   scale_y_continuous(breaks=0.1*(3:10))+
+#   labs(x="Network size (number of nodes)",
+#        y="Network density")+
+#   theme_classic()
+# ggsave("P1_Ch08_Fig02.png",width=14,height=11,units="cm")
+# 
+# detach(package:statnet)
+# library(igraph)                
+# # assortativity measure measuring homophily 
+# assortativity_degree(eies_messages, directed=TRUE)
+# assortativity_degree(flo_marriage, directed=FALSE)
+# 
+# # transitivity measures (clustering coefficient) : 특정노드 주변의 노드가 서로 연결되어 있을 가능성
+# transitivity(eies_messages, type="global")  #전체그래프
+# transitivity(eies_messages, type="local")  #노드별  ==> 4장내용으로 
+# transitivity(eies_messages, type="weighted")  #링크가중치 반영 
+# 
+# transitivity(flo_marriage, type="global")
+
+
+
+
+Chapter 3 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
