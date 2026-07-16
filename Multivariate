@@ -1574,3 +1574,56 @@ ggplot(fs_df, aes(x = ML1, y = ML2, label = Country)) +
   theme_minimal() +
   labs(title = "Stable MLE Factor Analysis Plot", x = "ML1", y = "ML2")
 
+
+
+#-------------------------------------------------------------------------------
+
+## Chapter4. Independent Component Analysis, "ICA"
+
+#-------------------------------------------------------------------------------
+
+
+
+
+library(fastICA)
+
+# 1. Generate two independent source signals
+# Time vector
+t <- seq(0, 1, length.out = 1000)
+
+# Source 1: Sine wave
+s1 <- sin(2 * pi * 10 * t)
+# Source 2: Sawtooth wave
+s2 <- sign(sin(2 * pi * 20 * t))
+
+# Combine sources into a matrix (S)
+S <- cbind(s1, s2)
+
+# 2. Mix the signals
+# Random mixing matrix (A)
+A <- matrix(c(0.5, 0.7, 0.2, 0.9), nrow = 2, byrow = TRUE)
+X <- S %*% t(A)  # X = S * A^T (Observed mixed signals)
+
+# 3. Perform ICA
+# Use fastICA to separate the signals
+ica_result <- fastICA(X, 
+                      n.comp = 2, 
+                      alg.typ = "parallel", 
+                      fun = "logcosh",
+                      alpha = 1)
+
+# Reset margins to a smaller size
+par(mar = c(3, 3, 2, 1)) 
+par(mfrow = c(3, 2))
+
+# Plot Original Sources
+plot(s1, type = "l", main = "Original Source 1 (Sine)")
+plot(s2, type = "l", main = "Original Source 2 (Sawtooth)")
+
+# Plot Mixed Signals
+plot(X[, 1], type = "l", main = "Mixed Signal 1")
+plot(X[, 2], type = "l", main = "Mixed Signal 2")
+
+# Plot Separated Signals
+plot(ica_result$S[, 1], type = "l", main = "ICA Separated 1")
+plot(ica_result$S[, 2], type = "l", main = "ICA Separated 2")
