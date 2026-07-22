@@ -1627,3 +1627,210 @@ plot(X[, 2], type = "l", main = "Mixed Signal 2")
 # Plot Separated Signals
 plot(ica_result$S[, 1], type = "l", main = "ICA Separated 1")
 plot(ica_result$S[, 2], type = "l", main = "ICA Separated 2")
+
+
+
+
+#-------------------------------------------------------------------------------
+
+## Chapter4 - Canovical Correlation Analysis, "CCA"
+
+#-------------------------------------------------------------------------------
+
+
+
+
+##------------------------------------------------------------------------------
+
+#Canovical Correlation Analysis, "CCA"
+
+##------------------------------------------------------------------------------
+  
+
+#data preparation
+datasets::LifeCycleSavings
+str(LifeCycleSavings)
+rownames(LifeCycleSavings)
+
+#split data
+pop <- LifeCycleSavings[,2:3]
+eco <- LifeCycleSavings[,-c(2:3)]
+
+
+#corrleation matrix
+library(CCA)
+corr <- matcor(X = pop, Y = eco)
+windows()
+img.matcor(correl = corr)
+
+library(corrplot)
+windows()
+corrplot(corr = corr$XYcor, method = 'ellipse')
+
+
+#Canonical Correlation Analysis
+cc1 <- cc(X = pop, Y = eco)
+cc1$cor
+cc1$xcoef #weight
+cc1$ycoef #weight
+
+head(cc1$scores$xscores)
+head(cc1$scores$yscores)
+
+cc1$scores$corr.X.xscores
+cc1$scores$corr.X.yscores
+cc1$scores$corr.Y.xscores
+cc1$scores$corr.Y.yscores
+
+#standardization coef
+diag(sqrt(diag(cov(pop)))) %*% cc1$xcoef
+diag(sqrt(diag(cov(eco)))) %*% cc1$ycoef
+
+#Visualization
+plt.cc(cc1)
+
+
+library(ggplot2)
+library(ggrepel) # Load ggrepel for non-overlapping text labels
+
+# 1. Combine X and Y variable correlations (Canonical Loadings)
+df_x <- data.frame(
+  Dim1 = cc1$scores$corr.X.xscores[, 1],
+  Dim2 = cc1$scores$corr.X.xscores[, 2],
+  Variable = rownames(cc1$scores$corr.X.xscores),
+  Group = "X (Pop)"
+)
+
+df_y <- data.frame(
+  Dim1 = cc1$scores$corr.Y.yscores[, 1],
+  Dim2 = cc1$scores$corr.Y.yscores[, 2],
+  Variable = rownames(cc1$scores$corr.Y.yscores),
+  Group = "Y (Eco)"
+)
+
+# Merge both datasets
+df_all <- rbind(df_x, df_y)
+
+# 2. Draw unit circle and plot all variables with ggrepel text labels
+ggplot(df_all, aes(x = Dim1, y = Dim2, label = Variable, color = Group)) +
+  # Draw a unit circle for reference (radius = 1)
+  geom_path(data = data.frame(
+    x = cos(seq(0, 2*pi, length.out = 100)),
+    y = sin(seq(0, 2*pi, length.out = 100)),
+    Group = "Circle"
+  ), aes(x = x, y = y), color = "gray70", linetype = "dashed", inherit.aes = FALSE) +
+  # Add points for variables
+  geom_point(size = 3) +
+  # Use geom_text_repel to automatically adjust text positions and avoid overlapping
+  geom_text_repel(fontface = "bold", size = 4, show.legend = FALSE, box.padding = 0.5) +
+  # Reference axes lines
+  geom_hline(yintercept = 0, linetype = "dotted", color = "gray50") +
+  geom_vline(xintercept = 0, linetype = "dotted", color = "gray50") +
+  # Colors for X and Y groups
+  scale_color_manual(values = c("X (Pop)" = "blue", "Y (Eco)" = "red")) +
+  # Limits and layout
+  xlim(-1.2, 1.2) +
+  ylim(-1.2, 1.2) +
+  coord_fixed() +
+  labs(
+    title = "Canonical Loadings with Non-Overlapping Labels",
+    x = "Dimension 1",
+    y = "Dimension 2",
+    color = "Variable Set"
+  ) +
+  theme_minimal()
+
+
+
+
+
+library(ggplot2)
+library(ggrepel) # Load ggrepel to prevent overlapping country labels
+
+# 1. Extract X canonical scores and country names
+df_scores <- data.frame(
+  Dim1 = cc1$scores$xscores[, 1],
+  Dim2 = cc1$scores$xscores[, 2],
+  Country = rownames(LifeCycleSavings)
+)
+
+# 2. Create a ggplot scatter plot for observations (right-side graph style)
+windows()
+ggplot(df_scores, aes(x = Dim1, y = Dim2, label = Country)) +
+  # Add scatter points for each country
+  geom_point(color = "steelblue", size = 2) +
+  # Use geom_text_repel to automatically spread out overlapping country names
+  geom_text_repel(size = 3, fontface = "bold", color = "gray20", box.padding = 0.3) +
+  # Reference axes lines at origin (0, 0) matching the original plot style
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray60") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray60") +
+  # Labels and theme
+  labs(
+    title = "Canonical Scores (Observations / Countries)",
+    x = "Dimension 1",
+    y = "Dimension 2"
+  ) +
+  theme_minimal()
+
+
+
+##------------------------------------------------------------------------------
+
+#Canovical Correlation Analysis, "CCA" - Manual
+
+##------------------------------------------------------------------------------
+
+
+# Load required libraries
+library(CCA)
+
+# Data preparation
+pop <- LifeCycleSavings[, 2:3]
+eco <- LifeCycleSavings[, -c(2:3)]
+
+# Step 1: Compute covariance matrices
+# ------------------------------------------------------------
+S_XX <- cov(pop)
+S_YY <- cov(eco)
+S_XY <- cov(pop, eco)
+S_YX <- cov(eco, pop)
+
+# Step 2: Solve the generalized eigenvalue problem used by cc()
+# ------------------------------------------------------------
+# Matrix M = S_XX^(-1) * S_XY * S_YY^(-1) * S_YX
+M <- solve(S_XX) %*% S_XY %*% solve(S_YY) %*% S_YX
+eigen_result <- eigen(M)
+
+# First eigenvector and canonical correlation
+a_raw <- eigen_result$vectors[, 1]
+rho <- sqrt(eigen_result$values[1])
+
+# Step 3: Apply the exact normalization constraint used in CCA::cc()
+# ------------------------------------------------------------
+# cc() normalizes a so that t(a) * S_XX * a = 1
+scaling_factor <- sqrt(t(a_raw) %*% S_XX %*% a_raw)
+a_normalized <- a_raw / as.numeric(scaling_factor)
+
+# Compute corresponding Y weights (b)
+b_raw <- (1 / rho) * solve(S_YY) %*% S_YX %*% a_normalized
+
+# Step 4: Output results
+# ------------------------------------------------------------
+print("Manual Exact-Matching X Weights:")
+print(a_normalized)
+
+print("Manual Exact-Matching Y Weights:")
+print(b_raw)
+
+print(paste("Canonical Correlation:", rho))
+
+
+# Step 5: Verify with the official cc() function
+# ------------------------------------------------------------
+cc_result <- cc(X = pop, Y = eco)
+
+print("Official cc() X Weights:")
+print(cc_result$xcoef[, 1])
+
+print("Official cc() Y Weights:")
+print(cc_result$ycoef[, 1])
