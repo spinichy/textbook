@@ -1834,3 +1834,39 @@ print(cc_result$xcoef[, 1])
 
 print("Official cc() Y Weights:")
 print(cc_result$ycoef[, 1])
+
+
+
+
+##------------------------------------------------------------------------------
+
+#Regularized Canovical Correlation Analysis, "RCCA"
+
+##------------------------------------------------------------------------------
+
+
+library(CCA)
+data("nutrimouse")
+str(nutrimouse)
+X <- as.matrix(nutrimouse$gene)
+Y <- as.matrix(nutrimouse$lipid)
+
+matcor(X,Y)
+cc(X,Y) # the leading minor of order 41 is not positive
+res.regul <- estim.regul(X = X, Y = Y, 
+                         plt = TRUE, 
+                         grid1 = seq(0.001, 1, length.out = 51), 
+                         grid2 = seq(0.001, 1, length.out = 51))
+res.regul
+
+
+res.rcc <- rcc(X = X, Y = Y, 
+               lambda1 = res.regul$lambda1, 
+               lambda2 = res.regul$lambda2)
+
+plt.cc(res = res.rcc, 
+       var.label = TRUE, 
+       ind.names = paste(nutrimouse$genotype,nutrimouse$diet, sep="-"))
+
+
+
