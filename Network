@@ -1826,3 +1826,490 @@ full_join(DR,UD,by="name") %>%
 
 Chapter 3 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+
+
+
+
+library(tidyverse)            
+library(statnet)              
+library(networkdata)           
+
+eies <- intergraph::asNetwork(eies_messages)
+davis <- intergraph::asNetwork(southern_women)
+
+
+###stanet package
+
+
+################################################################################
+set.seed(20230104)
+png("P1_Ch07_Fig01.png",
+    width=25,height=25,
+    units="cm",res=300)
+plot(eies)
+################################################################################
+
+
+set.seed(20230104)  
+lo_cicular <- network.layout.circle(nw = eies,
+                                    layout.par=NULL) #cicular layout 
+head(lo_cicular)   
+lo_KK <- network.layout.kamadakawai(nw = eies,
+                                    layout.par=NULL)  #Kamada-Kawai layout 
+head(lo_KK) 
+
+
+################################################################################
+png("P1_Ch07_Fig02.png",
+    width=25,height=15,
+    units="cm",res=300)
+par(mfrow=c(1,2))
+plot(eies,coord=lo_cicular,main="Circular layout")
+plot(eies,coord=lo_KK, main="Kamada-Kawai layout")
+################################################################################
+
+
+eies %v% 'ttDC' <- log(degree(eies, gmode="digraph", cmode="freeman"))
+temp_disc <- factor((eies %v% 'Discipline'),
+                    labels=c("red","blue","black","purple"))
+eies %v% 'dp_color' <- as.character(temp_disc)
+
+
+################################################################################
+set.seed(20230104)  
+png("P1_Ch07_Fig03.png",width=30,height=30,units="cm",res=300)
+plot(eies,
+     label="vertex.names",  #1)노드라벨 표시 
+     vertex.cex="ttDC",  #2)연결중심성 크기에 따라 노드크기 변화 
+     vertex.col="dp_color", #3)소속분과에 따라 노느색 변화 
+     edge.lwd="weight",  #링크가중치에 따라 링크두께 변화 
+     edge.col="orange", #링크의 색을 연청색으로 
+     main="Network visualization")
+################################################################################
+
+
+ttDC4 <- cut_interval(degree(eies, gmode="digraph", cmode="freeman"), n=4)
+table(ttDC4)
+eies %v% 'ttDC4' <- as.integer(ttDC4)
+
+eies %e% 'lgwgt' <- log(eies %e% 'weight')
+
+
+
+################################################################################
+set.seed(20230104) 
+png("P1_Ch07_Fig04.png",
+    width=30,height=30,
+    units="cm",res=300)
+plot(eies, 
+     edge.lwd="lgwgt",  
+     edge.col=scales::alpha("orange",0.4),
+     label="vertex.names",  
+     vertex.cex="ttDC4", 
+     vertex.col=scales::alpha((eies %v% "dp_color"),0.6),
+     main="Network visualization")
+legend("topright",
+       legend=c("Sociology","Anthropology","Math/Stat","Etc."),
+       fill=c("red","blue","black","purple"),
+       cex=0.8,box.lty=0)  
+################################################################################
+
+
+################################################################################
+set.seed(20230104)  
+png("P1_Ch07_Fig05.png",
+    width=30,height=30,
+    units="cm",res=300)
+plot(davis,
+     main="Two-mode network visualization")
+################################################################################
+
+
+davis %v% 'typeside' <- ifelse(davis %v% 'type',
+                               3,  #event 
+                               50) #person 
+davis %v% 'typecolor' <- ifelse(davis %v% 'type',
+                                "blue",  #event 
+                                "red") #person 
+davis %v% 'ttDC' <- degree(davis,gmode='graph',cmode="freeman")
+
+
+
+################################################################################
+set.seed(20230104)
+png("P1_Ch07_Fig06.png",width=30,height=30,units="cm",res=300)
+plot(davis, 
+     label="vertex.names",
+     vertex.sides="typeside",
+     vertex.cex="ttDC",
+     vertex.col=scales::alpha((davis %v% 'typecolor'),0.5),
+     usearrow=FALSE,
+     main="Two-mode network visualization")
+################################################################################
+
+
+
+
+davis %v% 'ttDC' <- ifelse(davis %v% 'type',
+                           1, #event
+                           davis %v% 'ttDC') #person
+davis %v% 'Vnode' <- ifelse(davis %v% 'type',
+                            "",  #event 
+                            str_to_title(davis %v% 'vertex.names')) #person
+
+quantile((davis %v% 'ttDC')[!(davis %v% 'type')]) #person
+davis %v% 'Vnode2' <- ifelse((davis %v% 'ttDC')>4,
+                             davis %v% 'Vnode',
+                             "") 
+
+
+
+################################################################################
+set.seed(20230104)  
+png("P1_Ch07_Fig07.png",width=30,height=30,units="cm",res=300)
+plot(davis, 
+     label="Vnode2",label.cex=1.4,
+     vertex.sides="typeside",
+     vertex.cex="ttDC",
+     vertex.col=scales::alpha((davis %v% 'typecolor'),0.5),
+     usearrow=FALSE,
+     edge.col=scales::alpha("blue",0.5),
+     main="Two-mode network visualization")
+################################################################################
+
+
+
+###igraph package
+library(igraph)
+
+
+
+################################################################################
+set.seed(20230104)  
+png("P1_Ch07_Fig08.png",
+    width=25,height=25,
+    units="cm",res=300)
+plot(eies_messages)
+################################################################################
+
+
+################################################################################
+set.seed(20230104)  
+lo_circle <- layout_in_circle(eies_messages)
+head(lo_circle)
+lo_KK <- layout_with_kk(eies_messages)
+head(lo_KK)
+png("P1_Ch07_Fig09.png",
+    width=25,height=15,
+    units="cm",res=300)
+par(mfrow=c(1,2))
+plot(eies_messages,layout=lo_circle,main="Circular layout")
+plot(eies_messages,layout=lo_KK, main="Kamada-Kawai layout")
+################################################################################
+
+
+V(eies_messages)$ttDC <- log(degree(eies_messages,mode="total",loops=FALSE))
+V(eies_messages)$ttDC4 <- as.numeric(
+  cut_interval(degree(eies_messages, mode="total", loops=FALSE), n=4))
+V(eies_messages)$dp_color <- as.character(factor(V(eies_messages)$Discipline,
+                                                 labels=c("red","blue","black","purple")))
+E(eies_messages)$lgwgt <- log(E(eies_messages)$weight)
+
+
+summary(V(eies_messages)$ttDC4)
+summary(E(eies_messages)$lgwgt)
+
+################################################################################
+set.seed(20230104)  
+png("P1_Ch07_Fig10.png",width=30,height=30,units="cm",res=300)
+par(mar=c(1, 1, 1, 1))
+windows()
+plot(simplify(eies_messages), 
+     vertex.label=1:vcount(eies_messages),  
+     vertex.size=5*V(eies_messages)$ttDC4,  
+     vertex.color=adjustcolor(V(eies_messages)$dp_color,alpha.f=.6), 
+     edge.width=E(eies_messages)$lgwgt,  
+     edge.color=adjustcolor("orange",alpha.f=.2),
+     edge.arrow.size=0.2,  
+     main="Network visualization")
+legend("topright",
+       legend=c("Sociology","Anthropology","Math/Stat","Etc."),
+       fill=c("red","blue","black","purple"),
+       cex=0.8,box.lty=0) 
+################################################################################
+
+
+
+################################################################################
+set.seed(20230104)  
+png("P1_Ch07_Fig11.png",
+    width=30,height=30,
+    units="cm",res=300)
+plot(southern_women,main="Two-mode network visualization")
+################################################################################
+
+
+V(southern_women)$Nshape <- ifelse(V(southern_women)$type,
+                                   "csquare","circle")
+V(southern_women)$Ncolor <- ifelse(V(southern_women)$type,
+                                   "blue","red")
+V(southern_women)$ttDC <- degree(southern_women)
+
+
+################################################################################
+set.seed(20230104) 
+png("P1_Ch07_Fig12.png",width=30,height=30,units="cm",res=300)
+plot(southern_women, 
+     vertex.label=V(southern_women)$name,
+     vertex.shape=V(southern_women)$Nshape,
+     vertex.size=2*V(southern_women)$ttDC,
+     vertex.color=adjustcolor(V(southern_women)$Ncolor,alpha.f=.6),
+     main="Two-mode network visualization")
+dev.off()
+################################################################################
+
+
+V(southern_women)$ttDC <- ifelse(V(southern_women)$type,1,
+                                 4*(V(southern_women)$ttDC))
+V(southern_women)$Nname <- str_to_title(V(southern_women)$name)
+V(southern_women)$Nname2 <- ifelse((V(southern_women)$ttDC)>4*4,
+                                   V(southern_women)$Nname,
+                                   " ")
+
+
+################################################################################
+set.seed(20230104)  
+png("P1_Ch07_Fig13.png",width=30,height=30,units="cm",res=300)
+plot(southern_women, 
+     vertex.label=V(southern_women)$Nname2,
+     vertex.label.cex=2,  #라벨크기를 키웠음
+     vertex.shape=V(southern_women)$Nshape,
+     vertex.size=V(southern_women)$ttDC,
+     vertex.color=adjustcolor(V(southern_women)$Ncolor,alpha.f=.6),
+     edge.color=adjustcolor("blue",alpha.f=0.5),
+     main="Two-mode network visualization")
+dev.off()
+################################################################################
+
+
+
+
+###tidyverse
+library(tidyverse)            
+library(ggraph)
+library(patchwork)
+
+
+################################################################################
+set.seed(20230104)
+fig0 <- eies %>% ggraph()+
+  geom_edge_link()+        
+  geom_node_point()        
+
+fig1 <- eies %>% ggraph()+
+  geom_edge_link()+         
+  geom_node_point()+       
+  theme_void()+          
+  ggtitle("Netowrk visualization (ggraph package)\n")+
+  theme(plot.title=element_text(hjust=0.5))
+fig0+fig1
+################################################################################
+
+
+
+################################################################################
+set.seed(20230104)
+eies %>% ggraph(layout="fr")+
+  geom_edge_link(
+    arrow=arrow(length=unit(3,"mm")), 
+    end_cap=circle(5,"mm"), 
+    colour="blue",alpha=0.2 
+  )+
+  geom_node_point(
+    size=7,colour="red",alpha=0.7
+  )+   
+  theme_void()+
+  ggtitle("Netowrk visualization (ggraph package)\n")+
+  theme(plot.title=element_text(hjust=0.5))
+################################################################################
+
+
+
+
+################################################################################
+eies %v% "depart" <- factor(eies %v% "Discipline",
+                            labels=c("1. Sociology","2. Anthropology",
+                                     "3. Math/Stat","4. Etc.")) %>% as.character()
+set.seed(20230104)
+windows()
+eies %>% ggraph(layout="fr")+
+  geom_edge_link(
+    aes(
+      edge_width=(eies %e% "weight")),
+    arrow=arrow(length=unit(3,"mm")),
+    end_cap=circle(5,"mm"),
+    colour="lightblue",alpha=0.4
+  )+scale_edge_width(range=c(1,15))+ 
+  geom_node_point(
+    aes(
+      colour=factor(eies %v% "depart"),
+      size=sna::degree(eies,cmode="freeman")
+    ),
+    alpha=0.7,  
+  )+scale_size(range=c(2,30))+
+  geom_node_text(
+    aes(
+      label=(eies %v% "vertex.names"), 
+    ),color="grey99"   
+  )+
+  labs(color="Discpline")+
+  guides(edge_width="none",size="none",
+         color=guide_legend(override.aes=list(size=5)))+ 
+  theme_void()+
+  ggtitle("Netowrk visualization (ggraph package)\n")+
+  theme(plot.title=element_text(hjust=0.5))
+################################################################################
+
+
+
+
+
+################################################################################
+set.seed(20230104)  
+windows()
+southern_women %>% 
+  ggraph(layout='fr')+
+  geom_edge_link()+
+  geom_node_point(
+    aes(
+      color=type,shape=type
+    ),size=5
+  )+
+  theme_void()+
+  ggtitle("Netowrk visualization (ggraph package)")+
+  theme(plot.title=element_text(hjust=0.5),
+        legend.position = c(0.95, 0.5))
+################################################################################
+
+
+
+################################################################################
+V(southern_women)$Ntype <- ifelse(V(southern_women)$type,"Event","Agency")
+ttDC0 <- degree(southern_women,mode="total") 
+ttDC1 <- ifelse(V(southern_women)$type,1,ttDC0)  
+V(southern_women)$ttDC1 <- ttDC1 
+set.seed(20230104)  
+windows()
+southern_women %>% 
+  ggraph(layout='fr')+
+  geom_edge_link(
+    colour="blue",alpha=0.6
+  )+
+  geom_node_point(
+    aes(
+      colour=Ntype,shape=Ntype,
+      size=ttDC
+    ),
+    alpha=0.7,
+  )+scale_size(range=c(2,30))+
+  geom_node_text(
+    aes(
+      label=Nname
+    ),colour="black"
+  )+
+  labs(color="Node")+
+  guides(shape="none",size="none",
+         color=guide_legend(override.aes=list(size=5)))+ 
+  theme_void()+
+  ggtitle("Netowrk visualization (ggraph package)")+
+  theme(plot.title=element_text(hjust=0.5),
+        legend.position = c(0.95, 0.5))
+        
+################################################################################
+
+
+
+
+################################################################################
+ptpnet <- bipartite_projection(southern_women)$proj1
+etenet <- bipartite_projection(southern_women)$proj2
+V(ptpnet)$ttDC <- strength(ptpnet,mode="total")  #링크가중 반영 
+V(etenet)$ttDC <- strength(etenet,mode="total")  #링크가중 반영 
+set.seed(20230105)
+figp2p <- ptpnet %>% 
+  ggraph(layout="fr")+
+  geom_edge_link(
+    aes(
+      edge_width=weight 
+    ),
+    colour="lightblue",alpha=0.3
+  )+scale_edge_width(range=c(1,10))+
+  geom_node_point(
+    aes(
+      size=ttDC
+    ),
+    color="red",alpha=0.7,                   
+  )+scale_size(range=c(2,20))+
+  geom_node_text(
+    aes(
+      label=Nname,  
+    ),color="black",size=3
+  )+
+  guides(edge_width="none",size="none")+ 
+  theme_void()+
+  ggtitle("Person-to-Person network visualization\n")+
+  theme(plot.title=element_text(hjust=0.5))
+fige2e <- etenet %>% 
+  ggraph(layout="fr")+
+  geom_edge_link(
+    aes(
+      edge_width=weight 
+    ),
+    colour="pink",alpha=0.3
+  )+scale_edge_width(range=c(1,10))+
+  geom_node_point(
+    aes(
+      size=ttDC
+    ),
+    shape="square",color="blue",alpha=0.7,   
+  )+scale_size(range=c(2,20))+
+  geom_node_text(
+    aes(
+      label=Nname,
+    ),color="black",size=4
+  )+
+  guides(edge_width="none",size="none")+ 
+  theme_void()+
+  ggtitle("Event-to-Event network visualization\n")+
+  theme(plot.title=element_text(hjust=0.5))
+figp2p+fige2e
+################################################################################
+
+
+
+
+################################################################################
+library(rgl)
+set.seed(20230109)  
+gplot3d(eies)
+################################################################################
+
+
+
+################################################################################
+set.seed(20230109)  
+gplot3d(eies,
+        label=(eies %v% "vertex.names"), 
+        label.col = "black",   
+        vertex.col = (eies %v% "dp_color"),  
+        vertex.radius = (eies %v% "ttDC4"),  
+        vertex.alpha = 0.5,   
+        edge.col = "orange",  
+        edge.lwd = 0.1,   
+        edge.alpha = 0.2) 
+################################################################################
+
+
+
+
+Chapter 4 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
