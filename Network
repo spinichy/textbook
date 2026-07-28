@@ -2313,3 +2313,1007 @@ gplot3d(eies,
 
 
 Chapter 4 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+library(tidyverse)             
+library(statnet)
+library(networkdata)           
+library(ggraph)
+library(patchwork)
+
+set.seed(20230228)
+mynet <- rgraph(n = 10,
+                tpro=0.5,
+                mode="graph") %>% 
+  network() 
+
+mynet <- as.data.frame(mynet,unit="edges") %>% 
+  mutate(
+    sex_tail=ifelse(.tail>5.5, 1, -1), 
+    sex_head=ifelse(.head>5.5, 1, -1),
+    homosex=ifelse(sex_head*sex_tail==1,"black","purple")
+  ) %>% select(-sex_tail,-sex_head) %>% network()
+mynet%v%"sex" <- ifelse(mynet%v%"vertex.names">5.5,"red","blue")
+mysubnet1 <- get.inducedSubgraph(mynet,v=which(mynet%v%"sex"=="blue"))
+mysubnet2 <- get.inducedSubgraph(mynet,eid=which(mynet%e%"homosex"=="black"))
+
+
+##statnet
+
+
+#1
+################################################################################
+par(mfrow=c(1,3))
+set.seed(20230228)
+plot(mysubnet1,label="vertex.names",
+     vertex.cex=4,edge.lwd=15,
+     vertex.col=scales::alpha(mysubnet1%v%"sex",0.3),
+     edge.col=scales::alpha(mysubnet1%e%"homosex",0.5),
+     main="Subnetwork\n(Men only)")
+plot(mynet,label="vertex.names",
+     vertex.cex=4,edge.lwd=15,
+     vertex.col=scales::alpha(mynet%v%"sex",0.3),
+     edge.col=scales::alpha(mynet%e%"homosex",0.5),
+     main="Whole network\n")
+plot(mysubnet2,label="vertex.names",
+     vertex.cex=4,edge.lwd=15,
+     vertex.col=scales::alpha(mysubnet2%v%"sex",0.3),
+     edge.col=scales::alpha(mysubnet2%e%"homosex",0.5),
+     main="Subnetwork\n(Homophily interactions Only)")
+################################################################################
+
+
+
+###statnet
+
+
+eies <- intergraph::asNetwork(eies_messages)
+flo <- intergraph::asNetwork(flo_marriage)
+
+eies %v% 'dp_color' <- as.character(factor((eies %v% 'Discipline'),
+                                           labels=c("red","blue","black","purple")))
+
+eies12 <- get.inducedSubgraph(eies, 
+                              v=which(eies %v% 'Discipline'==2|eies %v% 'Discipline'==1))
+
+
+#2
+################################################################################
+par(mfrow=c(1,2))
+set.seed(20230228)
+plot(eies12,label="vertex.names",vertex.cex=2,
+     vertex.col=scales::alpha(eies12 %v% 'dp_color',0.5),
+     edge.col=scales::alpha("orange",0.4),
+     main="Sub-network\n(Sociology & Anthropology)")
+legend("bottomright",
+       legend=c("Sociology","Anthropology","Math/Stat","Etc."),
+       fill=c("red","blue","black","purple"),
+       cex=0.8,box.lty=0) 
+plot(eies,label="vertex.names",vertex.cex=2,
+     vertex.col=scales::alpha(eies %v% 'dp_color',0.5),
+     edge.col=scales::alpha("orange",0.4),
+     main="Whole network\n")
+legend("bottomright",
+       legend=c("Sociology","Anthropology","Math/Stat","Etc."),
+       fill=c("red","blue","black","purple"),
+       cex=0.8,box.lty=0) 
+################################################################################
+
+
+
+get.inducedSubgraph(eies,v=which(eies%v%"Discipline"==1)) %>% gden()
+get.inducedSubgraph(eies,v=which(eies%v%"Discipline"==2)) %>% gden()
+get.inducedSubgraph(eies,v=which(eies%v%"Discipline"==3)) %>% gden()
+get.inducedSubgraph(eies,v=which(eies%v%"Discipline"==4)) %>% gden()
+
+
+
+
+
+ego1 <- ego.extract(eies,ego=1,neighborhood="in")
+gden(ego1)
+
+mysummary <- list()
+for (i in 1:32){
+  myegonet <- ego.extract(eies,ego=i,neighborhood="in")
+  myegonet <- network(myegonet[[1]])
+  mysummary <-  bind_rows(mysummary,
+                          tibble(id=i,nsize=network.size(myegonet),
+                                 density=gden(myegonet)))
+}
+mysummary
+
+
+#3
+################################################################################
+par(mfrow=c(1,2))
+set.seed(20230228)
+plot(network(ego.extract(eies,ego=3,neighborhood="in")[[1]]),
+     label="vertex.names",vertex.cex=2,
+     vertex.col=scales::alpha("red",0.5),
+     edge.col=scales::alpha("orange",0.4),
+     main="Ego-network (node 3)")
+plot(network(ego.extract(eies,ego=9,neighborhood="in")[[1]]),
+     label="vertex.names",vertex.cex=2,
+     vertex.col=scales::alpha("red",0.5),
+     edge.col=scales::alpha("orange",0.4),
+     main="Ego-network (node 9)")
+################################################################################
+
+
+mysub_w15 <- get.inducedSubgraph(eies,eid=which(eies%e%"weight">=15))
+network.edgecount(mysub_w15)
+table(eies%e%"weight">=15)
+
+
+
+df_link <- as.data.frame(eies,unit="edges") 
+df_node <- as.data.frame(eies,unit="vertices") %>% 
+  select(vertex.names,Discipline) 
+df_link <- df_node %>% 
+  rename(.tail=vertex.names,
+         tail_disc=Discipline) %>% 
+  full_join(df_link) %>% 
+  full_join(
+    df_node %>% 
+      rename(.head=vertex.names,
+             head_disc=Discipline) 
+  ) %>%  
+  mutate(
+    same=ifelse(head_disc==tail_disc,1,0)
+  ) %>% 
+  select(.tail, .head, weight, same) 
+
+eies2 <- network(df_link,
+                 loops=T,
+                 vertices=as.data.frame(eies,unit="vertices"))
+
+mysub_samedisc <- get.inducedSubgraph(eies2,eid=which(eies2%e%"same"==1))
+
+
+
+#4
+################################################################################
+par(mfrow=c(1,2))
+set.seed(20230228)
+plot(eies2,label="vertex.names",vertex.cex=2,
+     vertex.col=scales::alpha(eies2 %v% 'dp_color',0.5),
+     edge.col=scales::alpha(ifelse(eies2%e%"same"==1,"red","lightblue"),0.4),
+     main="Whole network")
+legend("bottomright",
+       legend=c("Same","Different"),
+       col=c("red","lightblue"),
+       lwd=2,box.lty=0) 
+set.seed(20230228)
+plot(mysub_samedisc,label="vertex.names",vertex.cex=2,
+     vertex.col=scales::alpha(mysub_samedisc %v% 'dp_color',0.5),
+     edge.col=scales::alpha(ifelse(mysub_samedisc%e%"same"==1,"red","lightblue"),0.4),
+     main="Sub-network")
+legend("bottomleft",
+       legend=c("Same","Different"),
+       col=c("red","lightblue"),
+       lwd=2,box.lty=0)
+################################################################################
+
+
+##igraph
+library(igraph)
+
+eies12 <- induced_subgraph(eies_messages,
+                           vids=c(V(eies_messages)$Discipline==1|
+                                    V(eies_messages)$Discipline==2))
+
+table(V(eies12)$Discipline)
+
+
+for (i in 1:4){
+  induced_subgraph(eies_messages,vids=V(eies_messages)$Discipline==i) %>% 
+    simplify() %>% #loop false
+    edge_density() %>% print()
+}
+
+
+ego1 <- ego(eies_messages,nodes=1,mode="in")
+ego1
+induced_subgraph(eies_messages,
+                 vids=ego1[[1]]) %>% 
+  simplify() %>% 
+  edge_density()
+
+mysummary <- list()
+for (i in 1:32){
+  myegonet <- ego(eies_messages,nodes=i,mode="in")
+  myegonet <- induced_subgraph(eies_messages,vids=myegonet[[1]])
+  mysummary <-  bind_rows(mysummary,
+                          tibble(id=i,nsize=vcount(myegonet),
+                                 density=edge_density(simplify(myegonet))))
+}
+
+mysummary
+
+
+mysub_w15 <- subgraph.edges(eies_messages,
+                            eids=c(E(eies_messages)[E(eies_messages)$weight>=15]))
+
+ecount(mysub_w15)
+table(E(eies_messages)$weight >= 15)
+
+
+df <- as_data_frame(eies_messages,
+                    what="both")  
+
+df_from <- df$vertices %>% 
+  mutate(from=row_number(),from_disc=Discipline) %>% 
+  select(starts_with("from"))
+
+df_to <- df$vertices %>% 
+  mutate(to=row_number(),to_disc=Discipline) %>% 
+  select(starts_with("to"))
+
+df_link <- full_join(df$edges,df_from,by="from") %>% 
+  full_join(df_to,by="to") %>% 
+  mutate(
+    same=ifelse(from_disc==to_disc,1,0) 
+  ) %>% 
+  select(from, to, weight, same)
+
+df_node <- df$vertices %>% 
+  mutate(name=row_number()) %>% 
+  select(name, Citations, Discipline)
+
+eies_messages1 <- graph_from_data_frame(df_link,
+                                        vertices=df_node)
+
+V(eies_messages1)$Ncolor <- as.character(factor(V(eies_messages1)$Discipline,
+                                                labels=c("red","blue","black","purple")))
+
+E(eies_messages1)$Lcolor <- ifelse(E(eies_messages1)$same==1,"red","lightblue")
+
+mysub_samedisc <- subgraph.edges(eies_messages1,
+                                 eids=c(E(eies_messages1))[E(eies_messages1)$same==1])
+
+
+#5
+################################################################################
+par(mfrow=c(1,2))
+set.seed(20230228)
+plot(eies_messages1,
+     vertex.size=10,vertex.label.color="grey80",
+     vertex.color=adjustcolor(V(eies_messages1)$Ncolor,alpha.f=.4),
+     edge.color=adjustcolor(E(eies_messages1)$Lcolor,alpha.f=.4),
+     edge.arrow.size=0.2, 
+     main="Whole network")
+legend("bottomright",
+       legend=c("Same","Different"),
+       col=c("red","lightblue"),
+       lwd=2,box.lty=0) 
+set.seed(20230228)
+plot(mysub_samedisc,
+     vertex.size=10,vertex.label.color="grey80",
+     vertex.color=adjustcolor(V(mysub_samedisc)$Ncolor,alpha.f=.4),
+     edge.color=adjustcolor(E(mysub_samedisc)$Lcolor,alpha.f=.4),
+     edge.arrow.size=0.2, 
+     main="Sub-network")
+legend("bottomright",
+       legend=c("Same","Different"),
+       col=c("red","lightblue"),
+       lwd=2,box.lty=0) 
+################################################################################
+
+
+
+
+#6
+################################################################################
+mynet <- data.frame(
+  .tail=c('A','B','A','C','A','D','B','C','D','C','D','D','E','F','E','G','F','G'),
+  .head=c('B','A','C','A','D','A','C','B','B','D','C','E','F','E','G','E','G','F')
+) %>% network()
+set.seed(20230317)
+plot(mynet,label="vertex.names",
+     vertex.cex=4,edge.lwd=10,arrowhead.cex=3,
+     edge.col=scales::alpha("blue",0.5),
+     vertex.col=scales::alpha("red",0.3) )
+################################################################################
+
+
+clique.census(mynet,mode="digraph")
+kcores(mynet,mode="digraph",cmode="freeman")
+component.dist(mynet,connected="weak")
+component.dist(mynet,connected="strong")
+
+
+#statnet
+
+
+clique.census(eies,mode="digraph")
+clique.census(eies,mode="digraph")$cliques[[3]]
+
+
+#7
+################################################################################
+par(mfrow=c(1,2))
+for (i in 1:2){
+  set.seed(202303015)
+  get.inducedSubgraph(eies,v=clique.census(eies,mode="digraph")$cliques[[3]][[i]]) %>% 
+    plot(label="vertex.names",vertex.col=scales::alpha("pink",0.5),
+         vertex.cex=10,main="Clique with 3 nodes")
+}
+################################################################################
+
+
+
+
+clique.census(eies,mode="digraph",clique.comembership="sum")$clique.comemb
+comembership <- clique.census(eies,mode="digraph",
+                              clique.comembership="bysize")$clique.comemb
+dim(comembership)
+class(comembership)
+
+
+
+
+#8
+################################################################################
+mycoordinates <- cmdscale(1/(1+comembership[5,,]))  #MDS 
+mycoordinates2 <- mycoordinates
+set.seed(202303015)
+mycoordinates2[,1] <- mycoordinates[,1]+rnorm(32,0,0.05)
+mycoordinates2[,2] <- mycoordinates[,2]+rnorm(32,0,0.05)
+par(mfrow=c(1,2))
+plot(eies,coord=mycoordinates,
+     label="vertex.names",
+     vertex.col=scales::alpha("red",0.3),vertex.cex=3,
+     label.col=scales::alpha("black",0.4),
+     edge.col=scales::alpha("lightblue",0.3),
+     main="MDS without jittering")
+plot(eies,coord=mycoordinates2,
+     label="vertex.names",
+     vertex.col=scales::alpha("red",0.3),vertex.cex=3,
+     label.col=scales::alpha("black",0.4),
+     edge.col=scales::alpha("lightblue",0.3),
+     main="MDS with jittering")
+################################################################################
+
+
+
+
+un_eies <- eies 
+set.network.attribute(un_eies,"directed",FALSE)  
+clique.census(un_eies,mode="graph")$clique.count
+
+clique.census(flo,mode="graph")$clique.count
+
+for (i in 1:3){
+  (flo %v% "vertex.names")[clique.census(flo,mode="graph")$cliques[[3]][[i]]] %>% 
+    print()
+}
+
+#9
+################################################################################
+par(mfrow=c(1,3))
+for (i in 1:3){
+  cliquename <- clique.census(flo,mode="graph")$cliques[[3]][[i]]
+  nid <- 1:network.size(flo)
+  famname <- (flo %v% "vertex.names")
+  myclique <- ifelse((nid %in% cliquename),famname,"")
+  mycliqueclr <- ifelse(myclique=="","grey90","grey10")
+  set.seed(202303015)
+  plot(flo,
+       label=ifelse((1:network.size(flo) %in% cliquename),famname,""),
+       vertex.col=mycliqueclr,vertex.cex=3,
+       edge.col=scales::alpha("lightblue",0.6),
+       main=str_c("Clique - #",i))
+}
+################################################################################
+
+
+##igraph
+
+
+library(igraph)
+
+clique_num(eies_messages)
+
+max_cliques(eies_messages,min=12,max=13)
+largest_cliques(eies_messages)
+
+
+clique_num(flo_marriage)
+max_cliques(flo_marriage,min=3,max=3) 
+
+
+
+
+#k-core
+
+
+
+##statnet
+
+
+library(statnet)
+
+# K-core 
+kcores(flo,mode="graph",cmode="freeman")
+kcores(flo,mode="graph",cmode="freeman") %>% table()
+
+
+#10
+################################################################################
+kcore_color <- factor(kcores(flo,mode="graph",cmode="freeman"),
+                      labels=c("black","red","blue")) %>% as.character()
+set.seed(202303018)
+plot(flo,label="vertex.names",
+     vertex.col=kcore_color,vertex.cex=3)
+################################################################################
+
+kcores(eies,mode="digraph",cmode="freeman") %>% table()
+kcores(eies,mode="digraph",cmode="indegree") %>% table()
+kcores(eies,mode="digraph",cmode="outdegree") %>% table()
+
+
+
+mydegree <- c("freeman","indegree","outdegree")
+mydegreelabel <- c("total degree centrality","in-degree centrality","out-degree centrality")
+
+#11
+################################################################################
+par(mfrow=c(1,3))
+for (i in 1:3){
+  myresult <- kcores(eies,mode="digraph",cmode=mydegree[i])
+  mylargestK <- ifelse(myresult==max(myresult),"red","blue")
+  set.seed(202303018)
+  plot(eies,label="vertex.names",vertex.cex=3,
+       vertex.col=scales::alpha(mylargestK,0.3),
+       edge.col="grey80",
+       main=str_c("k-core subgroup, based on\n",mydegreelabel[i],"\n(k=",
+                  max(myresult),")"))
+}
+################################################################################
+
+
+
+eies %v% "kcore_L" <- ifelse(kcores(eies,mode="digraph",cmode="freeman")==
+                               max(kcores(eies,mode="digraph",cmode="freeman")),
+                             1,0)
+table(eies %v% "kcore_L",eies%v%"Discipline") %>% 
+  prop.table(2) 
+
+
+
+##igraph
+
+
+coreness(flo_marriage,mode="all")
+coreness(flo_marriage,mode="all") %>% table()
+
+
+coreness(eies_messages, mode="all")
+coreness(eies_messages, mode="all") %>% table()
+
+coreness(simplify(eies_messages), mode="all") %>% table()
+coreness(simplify(eies_messages), mode="in") %>% table()
+coreness(simplify(eies_messages), mode="out") %>% table()
+
+
+
+
+#component
+
+
+
+#statnet
+
+
+component.dist(flo,connected="weak")
+component.dist(flo,connected="strong")
+
+
+flo2 <- flo 
+set.network.attribute(flo2,"directed",TRUE)
+
+
+component.dist(flo2,connected="weak")
+component.dist(flo2,connected="strong")
+
+
+link_medici <- as.data.frame(flo2) %>% 
+  mutate(rid=row_number()) %>% 
+  filter(.tail=="Medici"|.head=="Medici")
+link_medici
+
+
+
+flo3 <- flo2 
+flo3Nid <- 1:network.size(flo3)
+flo3Nname <- flo3 %v% "vertex.names"
+network::add.edges(flo3, tail=flo3Nid[flo3Nname=="Medici"],
+          head=flo3Nid[flo3Nname=="Acciaiuoli"])
+network::add.edges(flo3, tail=flo3Nid[flo3Nname=="Medici"],
+          head=flo3Nid[flo3Nname=="Albizzi"])
+network::add.edges(flo3, tail=flo3Nid[flo3Nname=="Medici"],
+          head=flo3Nid[flo3Nname=="Barbadori"])
+network::add.edges(flo3, tail=flo3Nid[flo3Nname=="Ridolfi"],
+          head=flo3Nid[flo3Nname=="Medici"])
+network::add.edges(flo3, tail=flo3Nid[flo3Nname=="Salviati"],
+          head=flo3Nid[flo3Nname=="Medici"])
+network::add.edges(flo3, tail=flo3Nid[flo3Nname=="Medici"],
+          head=flo3Nid[flo3Nname=="Tornabuoni"])
+
+
+component.dist(flo3,connected="weak")
+component.dist(flo3,connected="strong")
+table(flo3Nname[component.dist(flo3,connected="strong")$membership==1])
+
+
+membership1 <- as.character(component.dist(flo,connected="strong")$membership)
+membership2 <- as.character(component.dist(flo2,connected="strong")$membership)
+membership3 <- as.character(component.dist(flo3,connected="strong")$membership)           
+
+
+#12
+################################################################################
+windows()
+temp_fun <- function(mymembership){
+  set.seed(20230228)
+  flo %>% ggraph(layout='fr')+
+    geom_node_point(
+      aes(colour=mymembership),size=10,alpha=0.5
+    )+
+    geom_node_text(
+      aes(label=flo %v% 'vertex.names')
+    )+
+    geom_edge_link(
+      alpha=0.3,colour="grey50"
+    )+theme_void()+theme(legend.position="bottom")
+}
+(temp_fun(membership1)+ggtitle("flo (Undirected network)\n"))+
+  (temp_fun(membership2)+ggtitle("flo2 (Converting to directed network)\n"))+
+  (temp_fun(membership3)+ggtitle("flo3 (Reciprocal links with Medici)\n"))
+################################################################################
+
+
+component.dist(eies,connected="weak")
+component.dist(eies,connected="strong")
+
+
+
+link_50 <- ifelse(eies %e% "weight" >quantile(eies %e% "weight",prob=0.5),FALSE,TRUE)
+mylinks <- (1:network.edgecount(eies))[link_50]
+eies50 <- eies
+eies50 <- network::delete.edges(eies50, mylinks)
+component.dist(eies50,connected="weak")
+component.dist(eies50,connected="strong")
+
+
+
+#13
+################################################################################
+eies3 <- eies2 <- eies1 <- eies
+mythreshold=c(0.5,0.7,0.9)
+temp_function <- function(mynet,i){
+  link_threshold <- ifelse(eies%e%"weight">quantile(eies%e%"weight",prob=mythreshold[i]),
+                           FALSE,TRUE)
+  mydeletelinks <- (1:network.edgecount(eies))[link_threshold]
+  network::delete.edges(mynet,eid=mydeletelinks)
+  mymembership <- component.dist(mynet,connected="strong")$membership
+  mymembership <- ifelse(mymembership==1,"1","2")
+  set.seed(20230318)
+  eies %>% ggraph(layout='fr')+
+    geom_edge_link(
+      aes(edge_width=log(eies %e% "weight")),alpha=0.2,colour="grey80"
+    )+
+    geom_node_point(
+      aes(color=mymembership),size=5,alpha=0.7
+    )+
+    guides(edge_width="none",color="none")+theme_void()+
+    theme(plot.margin=margin(1,1,0.3,1,"cm"))
+}
+(temp_function(eies1, 1)+ggtitle("Top 50% weighted links selected"))+
+  (temp_function(eies2, 2)+ggtitle("Top 30% weighted links selected"))+
+  (temp_function(eies3, 3)+ggtitle("Top 10% weighted links selected"))
+################################################################################
+
+
+
+component.largest(eies50,connected="strong")
+largest_comp_eies <- component.largest(eies50,connected="strong")
+get.inducedSubgraph(eies50,v=(1:network.size(eies50))[largest_comp_eies])
+
+
+
+#igraph
+
+
+components(flo_marriage,mode="weak")
+components(flo_marriage,mode="strong")
+
+
+
+flo_marriage2 <- as.directed(flo_marriage,mode="acyclic")
+components(flo_marriage2,mode="weak")
+components(flo_marriage2,mode="strong")
+
+
+
+
+flo_marriage3 <- add_edges(flo_marriage2,c(V(flo_marriage2)[V(flo_marriage2)$name=="Medici"],
+                                           V(flo_marriage2)[V(flo_marriage2)$name=="Acciaiuoli"]))
+flo_marriage3 <- add_edges(flo_marriage3,c(V(flo_marriage3)[V(flo_marriage3)$name=="Medici"],
+                                           V(flo_marriage3)[V(flo_marriage3)$name=="Albizzi"]))
+flo_marriage3 <- add_edges(flo_marriage3,c(V(flo_marriage3)[V(flo_marriage3)$name=="Medici"],
+                                           V(flo_marriage3)[V(flo_marriage3)$name=="Barbadori"]))
+flo_marriage3 <- add_edges(flo_marriage3,c(V(flo_marriage3)[V(flo_marriage3)$name=="Ridolfi"],
+                                           V(flo_marriage3)[V(flo_marriage3)$name=="Medici"]))
+flo_marriage3 <- add_edges(flo_marriage3,c(V(flo_marriage3)[V(flo_marriage3)$name=="Salviati"],
+                                           V(flo_marriage3)[V(flo_marriage3)$name=="Medici"]))
+flo_marriage3 <- add_edges(flo_marriage3,c(V(flo_marriage3)[V(flo_marriage3)$name=="Medici"],
+                                           V(flo_marriage3)[V(flo_marriage3)$name=="Tornabuoni"]))
+
+components(flo_marriage3,mode="strong")
+
+
+
+link_50 <- ifelse(E(eies_messages)$weight>quantile(E(eies_messages)$weight,prob=0.50),F,T)
+mylinks <- E(eies_messages)[link_50]
+eies_messages50 <- delete.edges(eies_messages,edges=mylinks)
+components(eies_messages50,mode="strong")
+
+
+
+mymembership <- components(eies_messages50,mode="strong")$membership
+table(mymembership)
+
+mycompsize <- components(eies_messages50,mode="strong")$csize
+largest_component <- which(mycompsize==max(mycompsize))
+
+(1:vcount(eies_messages50))[mymembership==largest_component]
+(1:vcount(eies_messages50))[mymembership==largest_component] %>% 
+  length()
+
+
+
+#CONCOR
+
+flo2 <- flo
+flomat <- network::delete.vertices(flo2,isolates(flo2)) %>% 
+  as.matrix(matrix.type="adjacency")
+
+myresult <- list() 
+mysavefunction <- function(myinputmat, myi){
+  myiter <- myi
+  mymat <- cor(myinputmat)
+  mytibble <- tibble(myiter,mymat=list(mymat))
+  mytibble
+}
+
+myresult <- mysavefunction(flomat,1)
+
+for (i in 2:10){
+  myinputmat <- myresult[i-1,2][[1]][[1]]
+  myresult <- bind_rows(myresult,mysavefunction(myinputmat,i))
+}
+example_concor <- tibble() 
+
+for (i in 1:10){
+  myiter <- i
+  cor <- (myresult[i,2][[1]][[1]])[2:15,1]
+  nodename <- names((myresult[i,2][[1]][[1]])[2:15,1])
+  example_concor <- bind_rows(
+    example_concor,tibble(i=myiter,cor=cor,nid=nodename))
+}
+
+#14
+################################################################################
+example_concor %>% 
+  ggplot(aes(x=i,y=cor))+geom_point(size=2)+geom_line()+
+  geom_hline(yintercept=c(-1,0,1),lty=2,colour="red")+
+  scale_x_continuous(breaks=1:10)+
+  labs(x="Iterations",y="Correlation coefficients")+
+  theme_bw()+facet_wrap(~nid)
+################################################################################
+
+
+
+devtools::install_github("aslez/concoR")
+library(concoR)
+
+# 2개 차원으로 구획
+grp_concor <- concor_hca(list(flomat), p=2) 
+grp_concor
+
+set.seed(202303020)
+color_concor <- factor(grp_concor$block,
+                       labels=c("red","blue","green","orange"))%>% 
+  as.character()
+
+#15
+################################################################################
+plot(flo2, label="vertex.names", vertex.cex=3,
+     vertex.col=scales::alpha(color_concor,0.4),
+     edge.col="grey80",
+     main="Position analysis\n(CONCOR algorithm)")
+################################################################################
+
+
+
+#16
+################################################################################
+myec <- equiv.clust(flo2,method="euclidean")
+plot(myec,label=flo2%v%"vertex.names")
+################################################################################
+
+
+
+myHC <- blockmodel(flo,myec,h=3.3)
+myHC
+
+myHC$block.model
+
+
+#17
+################################################################################
+myHC2 <- myHC
+myHC2$plabels <- str_sub(myHC2$plabels,1,4)
+plot(myHC2,title="Image matrix")
+################################################################################
+
+
+myHC$plabels
+myHC$block.membership
+HCmember <- tibble(node=myHC$plabels,
+                   HC=myHC$block.membership) %>% 
+  arrange(node) 
+set.seed(202303020)
+color_HC <- factor(HCmember$HC,
+                   labels=c("red","blue","green","orange"))%>% 
+  as.character()
+HCmember
+
+#18
+################################################################################
+windows()
+plot(flo2, label="vertex.names", vertex.cex=3,
+     vertex.col=scales::alpha(color_HC,0.4),
+     edge.col="grey80",
+     main="Position analysis\n(Hierarchical clustering)")
+################################################################################
+
+
+
+flo2 %v% "HC" <- as.character(factor(HCmember$HC,
+                                     labels=str_c("Blk(HC)-",1:4)))
+as.data.frame(flo2,unit="vertices") %>% 
+  group_by(HC) %>% 
+  summarise(
+    N=length(HC),
+    eco=mean(wealth),
+    pol=mean(priors)
+  )
+
+aggregate(cbind(flo2%v%"wealth",flo2%v%"priors") ~ 
+            (flo2 %v% "HC"), FUN=mean)
+
+remove.packages('blockmodeling')
+install.packages('blockmodeling')
+##blockmodeling package
+library("blockmodeling")
+myBM_CC4 <- critFunC(M=flomat,clu=grp_concor$block, #CONCOR 
+                     approaches="hom",homFun="ss",blocks="com")
+myBM_HC4 <- critFunC(M=flomat,clu=HCmember$HC,  #Hierarchical clustering
+                     approaches="hom",homFun="ss",blocks="com")
+myBM4 <- optRandomParC(M=flomat,k=4,rep=100,seed=20230320,
+                       approach="hom",homFun="ss",blocks="com")
+
+
+#19
+################################################################################
+tibble(
+  Err=c("Err_CONCOR",
+        "Err_HC",
+        "Err_BM_random"),
+  error=c(myBM_CC4$err,
+          myBM_HC4$err,
+          min(myBM4$err)) )
+plot(myBM4,main="Four Block Partition") 
+################################################################################
+
+
+
+
+#20
+################################################################################
+myBM4$best$best1$clu
+set.seed(202303020)
+color_BM <- factor(myBM4$best$best1$clu,
+                   labels=c("red","blue","green","orange"))%>% 
+  as.character()
+plot(flo2, label="vertex.names", vertex.cex=3,
+     vertex.col=scales::alpha(color_BM,0.4),
+     edge.col="grey80",
+     main="Position analysis\n(Blockmodeling)")
+################################################################################
+
+
+
+
+#21
+################################################################################
+eiesmat <- as.matrix(eies, matrix.type="adjacency", attr="weight")
+
+mysummary <- tibble() 
+for (i in 2:10){
+  temp <- optRandomParC(M=eiesmat,
+                        k=i,
+                        rep=100,
+                        seed=20230320,
+                        approach="hom",
+                        homFun="ss",
+                        blocks="com")
+  mysummary <- bind_rows(mysummary,
+                         tibble(i=i,err=min(temp$err)))
+}
+mysummary %>% ggplot(aes(x=i,y=err))+geom_point(size=3)+
+  geom_line()+geom_vline(xintercept=c(2,4,8),color="red",lty=2)+
+  labs(x="# of blocks",y="Error")+
+  scale_x_continuous(breaks=2:10)+
+  theme_bw()
+################################################################################
+
+
+
+library(concoR)
+grp_concor <- concor_hca(list(eiesmat), p=2) #2^2
+myec <- equiv.clust(eiesmat)
+plot(myec)
+myHC <- blockmodel(eiesmat,myec,h=2500) 
+HCmember <- tibble(node=myHC$plabels,HC=myHC$block.membership) %>% 
+  arrange(node)
+HCmember
+
+library("blockmodeling")
+myBM <- optRandomParC(M=eiesmat,k=4,rep=100,seed=20230320,
+                      approach="hom",homFun="ss",blocks="com")
+
+concor4 <- as.character(grp_concor$block)
+HC4 <- as.character(HCmember$HC)
+BM4 <- as.character(myBM$best$best1$clu)
+
+
+#22
+################################################################################
+temp_function <- function(mycluster){
+  set.seed(20230320)
+  eies %>% ggraph(layout='fr')+
+    geom_edge_link(
+      aes(edge_width=log(eies %e% "weight")),alpha=0.1,colour="grey80"
+    )+
+    geom_node_point(
+      aes(color=mycluster),size=8,alpha=0.5
+    )+
+    geom_node_text(
+      aes(label=eies %v% "vertex.names")
+    )+
+    guides(edge_width="none",color="none",label="none")+
+    theme_void()+
+    theme(plot.margin=margin(1,1,0.3,1,"cm"))
+}
+(temp_function(concor4)+ggtitle("CONCOR algorithm\n"))+
+  (temp_function(HC4)+ggtitle("Hierarchical Clustering\n"))+
+  (temp_function(BM4)+ggtitle("Block-modeling\n"))
+################################################################################
+
+# 블록모델링 결과 대비 오차비 
+myBM_CC4 <- critFunC(M=eiesmat,clu=grp_concor$block,  #CONCOR
+                     approaches="hom",homFun="ss",blocks="com")
+myBM_CC4$err/min(myBM$err)
+myBM_HC4 <- critFunC(M=eiesmat,clu=HCmember$HC,  #Hierarchical clustering
+                     approaches="hom",homFun="ss",blocks="com")
+myBM_HC4$err/min(myBM$err)
+
+
+
+
+##Newman-Girvan
+library(igraph)
+flo_marriage2 <- induced_subgraph(flo_marriage,
+                                  vids=(V(flo_marriage)$name != "Pucci"))
+cluster_eb_flo <- cluster_edge_betweenness(flo_marriage2)
+cluster_eb_flo$membership
+
+
+eies_messages2 <- subgraph.edges(eies_messages,
+                                 eids=c(E(eies_messages)[E(eies_messages)$weight>33])) %>% 
+  delete_edge_attr("weight") %>% 
+  as.undirected(mode="collapse")
+V(eies_messages2)$name <- str_c("n",1:vcount(eies_messages2))
+
+cluster_eb_eies <- cluster_edge_betweenness(eies_messages2)
+cluster_eb_eies$membership
+
+
+##Spin-glass
+set.seed(20230320)
+cluster_sg_flo <- cluster_spinglass(flo_marriage2)
+cluster_sg_flo$membership
+
+
+
+##Louvain
+set.seed(20230320)
+cluster_lv_flo <- cluster_louvain(flo_marriage2)
+cluster_lv_flo$membership
+
+cluster_lv_eies <- cluster_louvain(eies_messages2)
+cluster_lv_eies$membership
+
+
+
+#23
+################################################################################
+par(mfrow=c(1,3))
+set.seed(20230318);plot(cluster_eb_flo,
+                        flo_marriage2,main="Newman-Girvan")
+set.seed(20230318);plot(cluster_sg_flo,
+                        flo_marriage2,main="Spin-glass")
+set.seed(20230318);plot(cluster_lv_flo,
+                        flo_marriage2,main="Louvain")
+################################################################################
+
+
+
+result_CD <- tibble(node=cluster_sg_flo$names,
+                    sg=cluster_sg_flo$membership) %>% 
+  full_join(tibble(node=cluster_eb_flo$names,
+                   eb=cluster_eb_flo$membership)) %>% 
+  full_join(tibble(node=cluster_lv_flo$names,
+                   lv=cluster_lv_flo$membership))
+
+result_CD <- result_CD %>% 
+  mutate(
+    sg2=NA,
+    sg2=ifelse(sg==2,4,sg2),
+    sg2=ifelse(sg==3,2,sg2),
+    sg2=ifelse(sg==1,3,sg2),
+    sg2=ifelse(sg==4,1,sg2)
+  )  
+result_CD
+#Neman-Givan VS. Spin-galss 
+xtabs(~eb+sg2,result_CD)
+#Neman-Givan VS. Lovain
+xtabs(~eb+lv,result_CD)  
+#Spin-galss  VS. Lovain
+xtabs(~sg2+lv,result_CD)  
+
+
+
+table(result_CD$eb)
+table(result_CD$sg2)
+table(result_CD$lv)
+
+
+
+
+par(mfrow=c(1,3))
+set.seed(20230318)
+plot(cluster_eb_eies,eies_messages2,
+     edge.color=adjustcolor("grey80",alpha.f=.4),
+     main="Newman-Girvan")
+set.seed(20230318)
+plot(cluster_sg_eies,eies_messages2,
+     edge.color=adjustcolor("grey80",alpha.f=.4),
+     main="Spin-glass")
+set.seed(20230318)
+plot(cluster_lv_eies,eies_messages2,
+     edge.color=adjustcolor("grey80",alpha.f=.4),
+     main="Louvain")
+
+
+
+
+
+Chapter 5 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
