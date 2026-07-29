@@ -1870,3 +1870,382 @@ plt.cc(res = res.rcc,
 
 
 
+
+
+#-------------------------------------------------------------------------------
+
+## Chapter6 - Discriminant Analysis("DA")
+
+#-------------------------------------------------------------------------------
+
+
+
+##LDA
+
+
+
+library(MASS)
+
+# 1. Fit the LDA model
+iris_lda <- lda(formula = Species ~ ., 
+                data = iris, 
+                prior = c(1, 1, 1)/3)
+
+iris_lda 
+
+# 2. Draw the default plot
+windows(width = 10, height = 7)
+par(mar = c(5, 4, 4, 2) + 0.1)
+plot(iris_lda)
+plot(iris_lda, 
+     col = as.integer(iris$Species) + 1, # Add distinct colors for each class
+     main = "LDA Projection with Decision Boundaries")
+
+# 3. Calculate decision boundaries
+# Extract projected coordinates (LD1 scores)
+lda_values <- predict(iris_lda)$x
+classes <- iris$Species
+
+# Calculate mean of LD1 for each class and sort them
+class_means <- tapply(lda_values[, 1], classes, mean)
+class_means <- sort(class_means) # setosa < versicolor < virginica
+
+# Calculate midpoints between adjacent class means as decision boundaries
+boundary_12 <- mean(class_means[1:2]) # Boundary between setosa and versicolor
+boundary_23 <- mean(class_means[2:3]) # Boundary between versicolor and virginica
+
+# 4. Add vertical decision boundary lines to the plot
+abline(v = boundary_12, col = "red", lty = 2, lwd = 2)
+abline(v = boundary_23, col = "red", lty = 2, lwd = 2)
+
+# Add a legend
+legend("topright", 
+       legend = c("Decision Boundary"), 
+       col = "red", lty = 2, lwd = 2)
+
+
+library(ggplot2)
+
+lda_df <- data.frame(
+  LD1 = predict(iris_lda)$x[, 1],
+  Species = iris$Species
+)
+
+windows()
+ggplot(lda_df, aes(x = LD1, fill = Species, color = Species)) +
+  # Density histogram or density curves
+  geom_density(alpha = 0.4, linewidth = 0.8) +
+  # Add vertical decision boundary lines
+  geom_vline(xintercept = c(boundary_12, boundary_23), 
+             linetype = "dashed", color = "black", linewidth = 1) +
+  # Add text labels for boundaries
+  annotate("text", x = boundary_12, y = Inf, label = "Boundary 1", vjust = 2, hjust = 1.1, color = "black", fontface = "bold") +
+  annotate("text", x = boundary_23, y = Inf, label = "Boundary 2", vjust = 2, hjust = -0.1, color = "black", fontface = "bold") +
+  # Clean theme and labels
+  labs(
+    title = "LDA 1-Dimensional Projection with Decision Boundaries",
+    subtitle = "Projected onto LD1 axis",
+    x = "LD1 (Linear Discriminant 1)",
+    y = "Density"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    legend.position = "bottom"
+  )
+
+
+##LDA - Manual (1)
+
+
+# Load the iris dataset
+data(iris)
+
+K <- length(unique(iris$Species))
+p <- ncol(iris) - 1
+N <- nrow(iris)
+
+prior <- rep(1 / K, K)
+class_names <- levels(iris$Species)
+
+# Overall mean vector (mu)
+mu_overall <- colMeans(iris[, 1:p])
+
+# Group means (mu_k) and Within-class scatter matrix (S_W)
+mu_k <- matrix(0, nrow = K, ncol = p)
+rownames(mu_k) <- class_names
+colnames(mu_k) <- colnames(iris)[1:p]
+
+S_W <- matrix(0, nrow = p, ncol = p)
+
+for (i in 1:K) {
+  X_k <- as.matrix(iris[iris$Species == class_names[i], 1:p])
+  mu_k[i, ] <- colMeans(X_k)
+  diff_k <- sweep(x = X_k, MARGIN = 2, STATS = mu_k[i, ],FUN =  "-")
+  S_W <- S_W + t(diff_k) %*% diff_k
+}
+S_W <- S_W / (N - K)
+
+# Between-class scatter matrix (S_B)
+S_B <- matrix(0, nrow = p, ncol = p)
+for (i in 1:K) {
+  n_k <- nrow(iris[iris$Species == class_names[i], ])
+  mean_diff <- matrix(mu_k[i, ] - mu_overall, ncol = 1)
+  S_B <- S_B + n_k * (mean_diff %*% t(mean_diff))
+}
+S_B <- S_B / (K - 1)
+
+# Solve Generalized Eigenvalue Problem using Cholesky decomposition of S_W
+L <- chol(S_W)
+inv_L <- solve(t(L))
+inv_L_S_B <- inv_L %*% S_B %*% solve(L)
+
+
+# Transform eigenvectors back to original space
+scaling <- solve(L) %*% eig$vectors
+
+# Calculate proportion of trace
+eigenvalues <- pmax(eig$values, 0)
+prop_trace <- eigenvalues / sum(eigenvalues)
+
+# Print results
+print("Linear Discriminant Coefficients (w):")
+print(scaling[, 1:(K - 1)])
+
+print("Proportion of trace:")
+print(prop_trace[1:(K - 1)])
+
+
+
+##LDA - Manual (2)
+
+
+# Load the iris dataset
+data(iris)
+
+K <- length(unique(iris$Species))
+p <- ncol(iris) - 1
+N <- nrow(iris)
+class_names <- levels(iris$Species)
+
+# 1. Priors (pi_k): 가정치로 예: 1/3씩 동일하게 설정
+prior <- rep(1 / K, K)
+
+# 2. Group means (mu_k) and Pooled Covariance Matrix (Sigma)
+mu_k <- matrix(0, nrow = K, ncol = p)
+rownames(mu_k) <- class_names
+colnames(mu_k) <- colnames(iris)[1:p]
+
+# Within-class scatter matrix to compute pooled covariance (Sigma)
+S_W <- matrix(0, nrow = p, ncol = p)
+
+for (i in 1:K) {
+  X_k <- as.matrix(iris[iris$Species == class_names[i], 1:p])
+  mu_k[i, ] <- colMeans(X_k)
+  diff_k <- sweep(X_k, 2, mu_k[i, ], "-")
+  S_W <- S_W + t(diff_k) %*% diff_k
+}
+
+# Pooled covariance matrix (Sigma)
+# MASS::lda uses divisor N - K
+Sigma <- S_W / (N - K)
+inv_Sigma <- solve(Sigma)
+
+# 3. Calculate Linear Discriminant Function coefficients based on the image derivation:
+# delta_k(x) = x^T * inv_Sigma * mu_k - 0.5 * mu_k^T * inv_Sigma * mu_k + log(pi_k)
+# This can be written as: delta_k(x) = w_k^T * x + w_0k
+# where w_k = inv_Sigma * mu_k  (Linear coefficients)
+# and w_0k = -0.5 * mu_k^T * inv_Sigma * mu_k + log(pi_k) (Constant)
+
+linear_coeffs <- matrix(0, nrow = p, ncol = K)
+colnames(linear_coeffs) <- class_names
+rownames(linear_coeffs) <- colnames(iris)[1:p]
+
+constants <- numeric(K)
+names(constants) <- class_names
+
+for (i in 1:K) {
+  mu_i <- matrix(mu_k[i, ], ncol = 1)
+  
+  # Linear coefficients for class i (w_k)
+  linear_coeffs[, i] <- inv_Sigma %*% mu_i
+  
+  # Constant (intercept) for class i (w_0k)
+  constants[i] <- -0.5 * t(mu_i) %*% inv_Sigma %*% mu_i + log(prior[i])
+}
+
+# Print results derived from Bayesian/Generative LDA formulation
+print("Linear Discriminant Coefficients (w_k = Sigma^(-1) * mu_k):")
+print(linear_coeffs)
+
+print("Constants (w_0k):")
+print(constants)
+
+
+
+
+#QDA
+
+
+library(MASS)
+library(ggplot2)
+
+# 1. Fit the QDA model
+iris_qda <- qda(formula = Species ~ ., 
+                data = iris, 
+                prior = c(1, 1, 1)/3)
+
+iris_qda
+
+qda_pred <- predict(iris_qda)
+qda_pred$posterior
+
+K <- length(unique(iris$Species))
+p <- ncol(iris) - 1
+N <- nrow(iris)
+class_names <- levels(iris$Species)
+prior <- c(1, 1, 1)/3
+
+X_all <- as.matrix(iris[, 1:p])
+qda_scores <- matrix(0, nrow = N, ncol = K)
+colnames(qda_scores) <- class_names
+
+for (i in 1:K) {
+  X_k <- as.matrix(iris[iris$Species == class_names[i], 1:p])
+  mu_i <- colMeans(X_k)
+  Sigma_i <- cov(X_k)
+  inv_Sigma_i <- solve(Sigma_i)
+  det_Sigma_i <- det(Sigma_i)
+  
+  for (j in 1:N) {
+    x_j <- X_all[j, ]
+    diff <- x_j - mu_i
+    # QDA discriminant function delta_k(x)
+    qda_scores[j, i] <- -0.5 * log(det_Sigma_i) - 0.5 * t(diff) %*% inv_Sigma_i %*% diff + log(prior[i])
+  }
+}
+
+
+# Predict class based on max QDA score
+qda_pred_class <- class_names[max.col(qda_scores)]
+print(table(True = iris$Species, QDA_Predicted = qda_pred_class))
+
+# 3. Visualization using ggplot2 based on posterior probabilities or LD1-like transformation
+# For QDA visualization, plotting posterior probability of the first class or score difference is common.
+qda_df <- data.frame(
+  Score_Diff = qda_scores[, "versicolor"] - qda_scores[, "setosa"],
+  Species = iris$Species
+)
+
+windows(width = 10, height = 7)
+ggplot(qda_df, aes(x = Score_Diff, fill = Species, color = Species)) +
+  geom_density(alpha = 0.4, linewidth = 0.8) +
+  labs(
+    title = "QDA Discriminant Score Difference (Versicolor vs Setosa)",
+    subtitle = "Quadratic Decision Boundary Analysis",
+    x = "Score Difference (Delta_versicolor - Delta_setosa)",
+    y = "Density"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    legend.position = "bottom"
+  )
+
+
+
+
+
+library(MASS)
+library(ggplot2)
+
+# 1. Fit the QDA model using only 2 variables for 2D visualization
+iris_qda <- qda(Species ~ Sepal.Length + Sepal.Width, data = iris)
+
+# 2. Create a dense grid of points across the feature space to draw decision boundaries
+x_min <- min(iris$Sepal.Length) - 0.5; x_max <- max(iris$Sepal.Length) + 0.5
+y_min <- min(iris$Sepal.Width) - 0.5; y_max <- max(iris$Sepal.Width) + 0.5
+
+grid_resolution <- 200
+grid_x <- seq(x_min, x_max, length.out = grid_resolution)
+grid_y <- seq(y_min, y_max, length.out = grid_resolution)
+grid_data <- expand.grid(Sepal.Length = grid_x, Sepal.Width = grid_y)
+
+# 3. Predict the class for each point in the grid using the QDA model
+grid_preds <- predict(iris_qda, newdata = grid_data)$class
+grid_data$Species <- grid_preds
+grid_data
+# 4. Visualization using ggplot2
+windows(width = 8, height = 6)
+ggplot() +
+  # Background colors showing the QDA decision regions (quadratic boundaries)
+  geom_tile(data = grid_data, 
+            aes(x = Sepal.Length, y = Sepal.Width, fill = Species), alpha = 0.2) +
+  # Actual iris data points
+  geom_point(data = iris, 
+             aes(x = Sepal.Length, y = Sepal.Width, color = Species), size = 2.5, alpha = 0.8) +
+  # Styling and labels
+  labs(
+    title = "QDA Non-linear (Quadratic) Decision Boundaries",
+    subtitle = "Background: Predicted Regions | Points: Actual Observations",
+    x = "Sepal Length",
+    y = "Sepal Width"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    legend.position = "right"
+  )
+
+
+
+#Regularized DA
+
+
+
+library(klaR)
+library(ggplot2)
+
+# 1. Fit the RDA (Regularized Discriminant Analysis) model
+# RDA acts as a bridge/compromise between LDA and QDA using regularization parameters.
+set.seed(123)
+iris_rda <- rda(Species ~ Sepal.Length + Sepal.Width, data = iris)
+
+iris_rda
+
+# 2. Create a dense grid of points across the feature space to visualize decision boundaries
+x_min <- min(iris$Sepal.Length) - 0.5; x_max <- max(iris$Sepal.Length) + 0.5
+y_min <- min(iris$Sepal.Width) - 0.5; y_max <- max(iris$Sepal.Width) + 0.5
+
+grid_resolution <- 200
+grid_x <- seq(x_min, x_max, length.out = grid_resolution)
+grid_y <- seq(y_min, y_max, length.out = grid_resolution)
+grid_data <- expand.grid(Sepal.Length = grid_x, Sepal.Width = grid_y)
+
+# 3. Predict the class for each point in the grid using the RDA model
+grid_preds <- predict(iris_rda, newdata = grid_data)$class
+grid_data$Species <- grid_preds
+
+# 4. Visualization using ggplot2
+windows(width = 8, height = 6)
+ggplot() +
+  # Background colors showing the RDA compromise (between linear and quadratic) decision regions
+  geom_tile(data = grid_data, aes(x = Sepal.Length, y = Sepal.Width, fill = Species), alpha = 0.2) +
+  # Actual iris data points
+  geom_point(data = iris, aes(x = Sepal.Length, y = Sepal.Width, color = Species), size = 2.5, alpha = 0.8) +
+  # Styling and labels
+  labs(
+    title = "Regularized Discriminant Analysis (RDA)",
+    subtitle = "Background: RDA Compromise Regions | Points: Actual Observations",
+    x = "Sepal Length",
+    y = "Sepal Width"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    legend.position = "right"
+  )
