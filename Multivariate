@@ -2383,3 +2383,587 @@ rownames(coords) <- colnames(voting)
 
 # View result
 print(coords)
+
+
+
+
+#-------------------------------------------------------------------------------
+
+## Chapter8.1 - clustering(hierarchical, K-mean, PAM)
+
+#-------------------------------------------------------------------------------
+
+
+
+
+
+################################################################################
+
+### hierarchical clustering
+
+################################################################################
+
+
+data("USArrests")
+str(USArrests)
+
+USArrests_dist <- dist(x = USArrests, method = "euclidean")
+USArrests_dist_ward.D2 <- hclust(d = USArrests_dist, method = "ward.D2")
+
+
+data("USArrests")
+
+# Calculate Euclidean distance
+USArrests_dist <- dist(x = USArrests, method = "euclidean")
+
+# Define clustering methods
+# ward.D: Ward's minimum variance method (minimizes total within-cluster variance)
+# ward.D2: Ward's method with squared dissimilarities (corrects an inconsistency in ward.D)
+# single: Single linkage (nearest neighbor, uses the minimum distance between points in two clusters)
+# complete: Complete linkage (furthest neighbor, uses the maximum distance between points in two clusters)
+# average: Average linkage (UPGMA, uses the average distance between all pairs of points in two clusters)
+# mcquitty: McQuitty linkage (WPGMA, weighted average linkage for unequal cluster sizes)
+# median: Median linkage (WPGMC, weighted center of mass method, distance can decrease)
+# centroid: Centroid linkage (UPGMC, unweighted center of mass method, uses Euclidean distance between cluster centroids)
+methods <- c("ward.D", "ward.D2", "single", "complete", "average", "mcquitty", "median", "centroid")
+
+# Set layout for a 3x3 grid
+windows()
+par(mfrow = c(3, 3))
+
+# Loop through each clustering method and plot the dendrogram
+for (m in methods) {
+  hc <- hclust(d = USArrests_dist, method = m)
+  plot(x = hc, hang = -1, main = paste("Method:", m), xlab = "", sub = "")
+}
+
+# Reset layout to default (1x1)
+par(mfrow = c(1, 1))
+
+
+
+cutree(tree = USArrests_dist_ward.D2, k = 6)
+
+# Open a wide graphics window and adjust margins
+windows(width = 10, height = 7)
+par(mar = c(8, 4, 4, 2)) # Increase bottom margin
+
+# Draw the dendrogram
+plot(x = USArrests_dist_ward.D2, hang = -1, 
+     main = "Euclidean ward.D2 Clustering",
+     xlab = "") # Remove x-axis label
+
+# Draw red borders based on 6 clusters
+rect.hclust(tree = USArrests_dist_ward.D2, k = 6, 
+            border = "red")
+
+# Draw green and blue borders for the 2nd and 7th clusters at height h = 50
+rect.hclust(tree = USArrests_dist_ward.D2, h = 50, 
+            which = c(2, 7), border = c("green", "blue"))
+
+# Adjust subtitle position downwards using the line option to prevent overlapping
+title(sub = "Red: 6 clusters / Green & Blue: 2nd and 7th clusters at height h = 50",
+      line = 6)
+
+
+
+
+library(ggplot2)
+library(ggdendro)
+# Extract dendrogram data for ggplot
+dendro_data <- dendro_data(USArrests_dist_ward.D2, type = "rectangle")
+dendro_data
+# Cut tree into 6 clusters for coloring
+cluster_k6 <- cutree(USArrests_dist_ward.D2, k = 6)
+cluster_df <- data.frame(label = names(cluster_k6), cluster = factor(cluster_k6))
+leaf_labels <- merge(dendro_data$labels, cluster_df, by = "label", all.x = TRUE)
+
+# Plot using ggplot2
+ggplot() +
+  geom_segment(data = segment(dendro_data), 
+               aes(x = x, y = y, xend = xend, yend = yend), 
+               color = "gray40") +
+  geom_text(data = leaf_labels, 
+            aes(x = x, y = y, label = label, color = cluster), 
+            hjust = 0, angle = 90, size = 3) +
+  geom_hline(yintercept = 50, linetype = "dashed", color = "blue", alpha = 0.7) +
+  scale_y_continuous(expand = expansion(mult = c(0.1, 0.5))) +
+  labs(title = "Euclidean ward.D2 Clustering",
+       subtitle = "Red: 6 clusters / Blue dashed line: height h = 50",
+       x = "", y = "Height") +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 14))
+
+
+
+
+
+library(ape)
+
+# 1. Convert manual hclust object to phylo object
+USArrests_phylo <- as.phylo(USArrests_dist_ward.D2)
+
+# 2. Draw the phylogenetic tree (split screen into 1 row and 2 columns with adjusted margins)
+par(mfrow = c(1, 2), mar = c(3, 3, 3, 3))
+
+# First plot: Fan (circular) style
+plot(USArrests_phylo, type = "fan", 
+     main = "Fan Tree",
+     show.tip.label = TRUE, cex = 0.7)
+
+# Second plot: Cladogram expanded horizontally to the right
+# Increasing x.lim widens the right margin to expand the tree horizontally.
+plot(USArrests_phylo, type = "cladogram", 
+     main = "Cladogram (Expanded)",
+     show.tip.label = TRUE, direction = "rightwards", 
+     cex = 0.8, x.lim = max(node.depth.edgelength(USArrests_phylo)) * 1.3)
+
+# Restore original graphical parameters
+par(mfrow = c(1, 1))
+
+
+
+
+
+### hierarchical clustering - Manual
+
+
+
+data("USArrests")
+n <- nrow(USArrests)
+X <- as.matrix(USArrests)
+
+# 1. Manually calculate squared Euclidean distance matrix
+sq_dist_matrix <- matrix(0, nrow = n, ncol = n)
+rownames(sq_dist_matrix) <- rownames(USArrests)
+colnames(sq_dist_matrix) <- rownames(USArrests)
+
+for (i in 1:n) {
+  for (j in 1:n) {
+    sq_dist_matrix[i, j] <- sum((X[i, ] - X[j, ])^2)
+  }
+}
+
+# 2. Ward's Minimum Variance Method from scratch using Lance-Williams formula
+max_nodes <- 2 * n - 1
+D <- matrix(0, nrow = max_nodes, ncol = max_nodes)
+D[1:n, 1:n] <- sq_dist_matrix
+
+cluster_sizes <- rep(1, max_nodes)
+active <- rep(FALSE, max_nodes)
+active[1:n] <- TRUE
+
+merges <- matrix(0, nrow = n - 1, ncol = 2)
+heights <- numeric(n - 1)
+
+node_names <- -(1:n)
+next_node_id <- 1
+
+for (step in 1:(n - 1)) {
+  min_val <- Inf
+  u_idx <- 0
+  v_idx <- 0
+  
+  active_indices <- which(active)
+  k <- length(active_indices)
+  
+  for (i in 1:(k - 1)) {
+    for (j in (i + 1):k) {
+      r <- active_indices[i]
+      c <- active_indices[j]
+      if (D[r, c] < min_val) {
+        min_val <- D[r, c]
+        u_idx <- r
+        v_idx <- c
+      }
+    }
+  }
+  node_names[u_idx]
+  merges[step, 1] <- node_names[u_idx]
+  merges[step, 2] <- node_names[v_idx]
+  heights[step] <- sqrt(min_val)
+  
+  new_cluster <- n + step
+  node_names[new_cluster] <- next_node_id
+  next_node_id <- next_node_id + 1
+  
+  n_u <- cluster_sizes[u_idx]
+  n_v <- cluster_sizes[v_idx]
+  
+  new_row <- numeric(max_nodes)
+  for (k_idx in active_indices) {
+    if (k_idx != u_idx && k_idx != v_idx) {
+      n_k <- cluster_sizes[k_idx]
+      d_ku <- D[k_idx, u_idx]
+      d_kv <- D[k_idx, v_idx]
+      d_uv <- D[u_idx, v_idx]
+      
+      val <- ((n_k + n_u) * d_ku + (n_k + n_v) * d_kv - n_k * d_uv) / (n_k + n_u + n_v)
+      new_row[k_idx] <- val
+    }
+  }
+  
+  D[new_cluster, ] <- new_row
+  D[, new_cluster] <- new_row
+  
+  cluster_sizes[new_cluster] <- n_u + n_v
+  
+  active[u_idx] <- FALSE
+  active[v_idx] <- FALSE
+  active[new_cluster] <- TRUE
+}
+
+# 3. Purely manual tree traversal function to compute the leaf order (no hclust order used)
+get_order <- function(merge_matrix) {
+  # Recursive function to get left-to-right leaf sequence from the merge matrix
+  node_cache <- list()
+  
+  build_seq <- function(node_idx) {
+    if (node_idx < 0) {
+      return(abs(node_idx))
+    }
+    if (!is.null(node_cache[[as.character(node_idx)]])) {
+      return(node_cache[[as.character(node_idx)]])
+    }
+    left_child <- merge_matrix[node_idx, 1]
+    right_child <- merge_matrix[node_idx, 2]
+    
+    res <- c(build_seq(left_child), build_seq(right_child))
+    node_cache[[as.character(node_idx)]] <- res
+    return(res)
+  }
+  
+  root_node <- nrow(merge_matrix)
+  build_seq(root_node)
+}
+
+manual_order <- get_order(merges)
+
+# Construct hclust object entirely from scratch without calling hclust()
+manual_hclust <- list(
+  merge = merges,
+  height = heights,
+  order = manual_order,
+  labels = rownames(USArrests),
+  method = "ward.D2",
+  dist.method = "euclidean"
+)
+class(manual_hclust) <- "hclust"
+
+# 4. Plotting
+windows(width = 10, height = 7)
+par(mar = c(8, 4, 4, 2))
+
+plot(x = manual_hclust, hang = -1, 
+     main = "Euclidean ward.D2 Clustering (100% From Scratch)",
+     xlab = "")
+
+rect.hclust(tree = manual_hclust, k = 6, border = "red")
+rect.hclust(tree = manual_hclust, h = 50, which = c(2, 7), border = c("green", "blue"))
+
+title(sub = "Red: 6 clusters / Green & Blue: 2nd and 7th clusters at height h = 50", line = 6)
+
+
+
+
+##Top-Down, DIANA
+
+# Load the USArrests dataset
+data("USArrests")
+str(USArrests)
+
+# Perform divisive hierarchical clustering using diana() from the cluster package
+library(cluster)
+
+# DIANA (Divisive Analysis) performs top-down divisive hierarchical clustering
+USArrests_diana <- diana(x = USArrests, metric = "euclidean")
+
+# Display the summary of the divisive clustering result
+summary(USArrests_diana)
+
+# Plot the dendrogram for the divisive clustering
+windows()
+par(mfrow = c(1,2))
+plot(USArrests_diana, main = "Divisive Hierarchical Clustering (DIANA) of USArrests")
+
+
+
+
+################################################################################
+
+### K-means clustering
+
+################################################################################
+
+
+library(rattle)
+str(wine)
+
+df <- scale(wine[,-1])
+
+library(NbClust)
+set.seed(1234)
+nc <- NbClust(data = df, min.nc = 2, ,max.nc = 15, method = "kmeans")
+nc$Best.nc[1,]
+table(nc$Best.nc[1,])
+
+nc$Best.partition
+
+
+km_fit <- kmeans(x = df, centers = 3, nstart = 25)
+plot(df, col = km_fit$cluster)
+
+
+cluster_colors <- c("#E41A1C", "#377EB8", "#4DAF4A")
+cluster_pch <- c(16, 17, 18)
+
+plot(df[, 1], df[, 2], 
+     col = cluster_colors[km_fit$cluster], 
+     pch = cluster_pch[km_fit$cluster],
+     cex = 1.2,
+     xlab = paste0("Standardized Variable 1: ", colnames(df)[1]),
+     ylab = paste0("Standardized Variable 2: ", colnames(df)[2]),
+     main = "K-Means Clustering Results (Wine Dataset), k=3",
+     sub = "Comparison of Variables 1 and 2")
+
+
+
+table(wine$Type,km_fit$cluster)
+
+
+##Best.nc - Manual
+
+
+wss_manual <- numeric(15)
+
+for (i in 2:15) {
+  # Perform k-means clustering using base R
+  km <- kmeans(df, centers = i, nstart = 25)
+  clusters <- km$cluster
+  centers <- km$centers
+  
+  total_wss <- 0
+  for (j in 1:i) {
+    cluster_points <- df[clusters == j, , drop = FALSE]
+    center <- centers[j, ]
+    
+    total_wss <- total_wss + sum(rowSums((cluster_points - matrix(center, nrow = nrow(cluster_points), ncol = ncol(df), byrow = TRUE))^2))
+  }
+  
+  wss_manual[i] <- total_wss
+}
+
+plot(2:15, wss_manual[2:15], type = "b", pch = 19,
+     xlab = "Number of clusters K",
+     ylab = "Total Within-Cluster Sum of Squares",
+     main = "Elbow Method using Base R (K-means assignment)")
+
+
+# Calculate Total Within-Group Sum of Squares (WSS) across various K values
+# to find the optimal number of clusters using the Elbow method
+
+wss_values <- numeric(15)
+max_iter <- 100
+n_obs <- nrow(df)
+
+for (i in 2:15) {
+  # 1. Randomly initialize k centers for the current number of clusters (i)
+  set.seed(1234)
+  initial_indices <- sample(1:n_obs, i)
+  centers <- df[initial_indices, , drop = FALSE]
+  
+  cluster_assignments <- numeric(n_obs)
+  
+  # 2. Run K-means optimization loop
+  for (iter in 1:max_iter) {
+    distances <- matrix(NA, nrow = n_obs, ncol = i)
+    
+    for (j in 1:i) {
+      center <- centers[j, ]
+      distances[, j] <- rowSums((df - matrix(center, nrow = n_obs, ncol = ncol(df), byrow = TRUE))^2)
+    }
+    
+    new_assignments <- max.col(-distances)
+    
+    if (identical(cluster_assignments, new_assignments)) {
+      break
+    }
+    cluster_assignments <- new_assignments
+    
+    for (j in 1:i) {
+      cluster_points <- df[cluster_assignments == j, , drop = FALSE]
+      if (nrow(cluster_points) > 0) {
+        centers[j, ] <- colMeans(cluster_points)
+      }
+    }
+  }
+  
+  # 3. Calculate total WSS for the converged clusters
+  total_wss <- 0
+  for (j in 1:i) {
+    cluster_points <- df[cluster_assignments == j, , drop = FALSE]
+    if (nrow(cluster_points) > 0) {
+      center <- centers[j, ]
+      total_wss <- total_wss + sum(rowSums((cluster_points - matrix(center, 
+                                                                    nrow = nrow(cluster_points), 
+                                                                    ncol = ncol(df), 
+                                                                    byrow = TRUE))^2))
+    }
+  }
+  
+  wss_values[i] <- total_wss
+}
+wss_values
+# 4. Plot the Elbow curve to determine the optimal K
+plot(2:15, wss_values[2:15], type = "b", pch = 19,
+     xlab = "Number of clusters K",
+     ylab = "Total Within-Cluster Sum of Squares (WSS)",
+     main = "Optimal K using Elbow Method (Scratch Implementation)")
+
+
+
+
+wss_manual <- numeric(15)
+
+for (i in 2:15) {
+  # Randomly initialize cluster assignments for each data point from 1 to i
+  set.seed(1234)
+  clusters <- sample(1:i, nrow(df), replace = TRUE)
+  
+  total_wss <- 0
+  for (j in 1:i) {
+    cluster_points <- df[clusters == j, , drop = FALSE]
+    
+    if (nrow(cluster_points) > 0) {
+      center <- colMeans(cluster_points)
+      total_wss <- total_wss + sum(rowSums((cluster_points - matrix(center, nrow = nrow(cluster_points), ncol = ncol(df), byrow = TRUE))^2))
+    }
+  }
+  
+  wss_manual[i] <- total_wss
+}
+
+plot(2:15, wss_manual[2:15], type = "b", pch = 19,
+     xlab = "Number of clusters K",
+     ylab = "Total Within-Cluster Sum of Squares",
+     main = "WSS using Random Assignment")
+
+
+
+
+##K-means - Manual
+
+
+
+# Parameters
+k <- 3          # Number of clusters
+max_iter <- 100 # Maximum number of iterations
+n_obs <- nrow(df)
+
+# 1. Randomly initialize cluster centers by picking k distinct data points
+set.seed(1234)
+initial_indices <- sample(1:n_obs, k)
+centers <- df[initial_indices, , drop = FALSE]
+
+
+# 2. Iterative optimization loop for K-means
+for (iter in 1:max_iter) {
+  # Step A: Assign each data point to the nearest cluster center using Euclidean distance
+  distances <- matrix(NA, nrow = n_obs, ncol = k)
+  
+  for (j in 1:k) {
+    center <- centers[j, ]
+    # Calculate squared Euclidean distance from all points to center j
+    distances[, j] <- rowSums((df - matrix(center, nrow = n_obs, ncol = ncol(df), byrow = TRUE))^2)
+  }
+  
+  # Find the column index with the minimum distance for each row
+  new_assignments <- max.col(-distances) # Negative distance to use max.col as min.col
+  
+  # Step B: Check for convergence (if assignments stop changing, break the loop)
+  if (identical(cluster_assignments, new_assignments)) {
+    break
+  }
+  cluster_assignments <- new_assignments
+  
+  # Step C: Recompute cluster centers as the mean of points in each cluster
+  for (j in 1:k) {
+    cluster_points <- df[cluster_assignments == j, , drop = FALSE]
+    if (nrow(cluster_points) > 0) {
+      centers[j, ] <- colMeans(cluster_points)
+    }
+  }
+}
+
+cluster_assignments
+# 3. Check final results
+table(cluster_assignments)
+
+
+
+################################################################################
+
+### K-medoids clustering
+
+################################################################################
+
+
+library(rattle)
+str(wine)
+df <- scale(wine[,-1])
+
+library(cluster)
+pam.fit <- pam(x = df, k = 3, metric = "euclidean")
+
+
+table(km_fit$cluster,pam.fit$clustering,
+      dnn = c("k-means", "k-medoids(PAM)"))
+
+
+
+clusplot(pam.fit, 
+         main = "K-Medoids (PAM) Cluster Plot",
+         color = TRUE, shade = TRUE, 
+         labels = 2, lines = 0)
+
+clusplot(df, km_fit$cluster, 
+         main = "K-Means Cluster Plot",
+         color = TRUE, shade = TRUE, 
+         labels = 2, lines = 0)
+
+
+
+library(factoextra)
+library(rstatix)
+library(ggpubr)
+
+p1 <- fviz_cluster(pam.fit, 
+                   data = df,
+                   palette = "jco", 
+                   ellipse.type = "convex", 
+                   repel = TRUE, 
+                   ggtheme = theme_minimal(),
+                   main = "K-Medoids (PAM) Clustering")
+
+p2 <- fviz_cluster(list(data = df, cluster = km_fit$cluster), 
+                   data = df,
+                   palette = "jco", 
+                   ellipse.type = "convex", 
+                   repel = TRUE, 
+                   ggtheme = theme_minimal(),
+                   main = "K-Means Clustering")    
+
+ggarrange(p1, p2, ncol = 2, nrow = 1, common.legend = TRUE, legend = "bottom")
+
+
+
+
+
+#-------------------------------------------------------------------------------
+
+## Chapter8.2 - clustering( Mixture(EM algorithm), density-based )
+
+#-------------------------------------------------------------------------------
