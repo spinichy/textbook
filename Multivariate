@@ -2967,3 +2967,543 @@ ggarrange(p1, p2, ncol = 2, nrow = 1, common.legend = TRUE, legend = "bottom")
 ## Chapter8.2 - clustering( Mixture(EM algorithm), density-based )
 
 #-------------------------------------------------------------------------------
+
+
+
+
+################################################################################
+
+### Mixture distribution (EM Algorithm)
+
+################################################################################
+
+
+
+library(mixtools)
+str(faithful)
+
+hist(faithful$waiting)
+
+EM_normal <- normalmixEM(x = faithful$waiting, 
+                         lambda = 0.5, 
+                         mu = c(55,80), sigma = 5)
+summary(EM_normal)
+
+plot(EM_normal, which = 2)
+
+
+
+library(ggplot2)
+library(mixtools)
+
+# Step 1: Fit the normal mixture model
+EM_normal <- normalmixEM(
+  x = faithful$waiting,             
+  lambda = 0.5,                         
+  mu = c(55, 80), 
+  sigma = 5
+)
+
+# Step 2: Extract data and estimated parameters
+x_data <- EM_normal$x
+lam <- EM_normal$lambda
+mu <- EM_normal$mu
+sig <- EM_normal$sigma
+
+# Step 3: Visualize the results with ggplot2
+ggplot(data.frame(x = x_data), aes(x = x)) +
+  # Histogram of the actual data
+  geom_histogram(aes(y = after_stat(density)), bins = 30, 
+                 fill = "lightblue", color = "white", alpha = 0.7) +
+  
+  # Normal density curve for component 1
+  stat_function(
+    fun = function(x) lam[1] * dnorm(x, mean = mu[1], sd = sig[1]), 
+    color = "red", 
+    linetype = "dashed", 
+    linewidth = 1
+  ) +
+  
+  # Normal density curve for component 2
+  stat_function(
+    fun = function(x) lam[2] * dnorm(x, mean = mu[2], sd = sig[2]), 
+    color = "blue", 
+    linetype = "dashed", 
+    linewidth = 1
+  ) +
+  
+  # Overall mixture density curve
+  stat_function(
+    fun = function(x) {
+      lam[1] * dnorm(x, mean = mu[1], sd = sig[1]) + 
+        lam[2] * dnorm(x, mean = mu[2], sd = sig[2])
+    }, 
+    color = "darkgreen", 
+    linewidth = 1.2, 
+    alpha = 0.3
+  ) +
+  
+  # Add labels and theme
+  labs(
+    title = "Normal Mixture Model Fit",
+    subtitle = "Red/Blue: Components, Green: Overall Mixture",
+    x = "Waiting Time",
+    y = "Density"
+  ) +
+  theme_minimal()
+
+
+
+#Mixture distribution (EM Algorithm) - Manual
+
+
+# ##############################################################################
+# Manual Implementation of the EM Algorithm for a Univariate Normal Mixture Model
+# ##############################################################################
+
+# Step 1: Initialize data and parameters
+x <- faithful$waiting
+n <- length(x)
+
+# Initial parameters
+lambda <- c(0.5, 0.5)
+mu <- c(55, 80)
+sigma <- c(5, 5)
+
+# Number of EM iterations
+max_iter <- 100
+tolerance <- 1e-6
+prev_loglik <- -Inf
+
+for (iter in 1:max_iter) {
+  # ############################################################################
+  # E-step: Calculate the posterior probabilities (responsibilities)
+  # ############################################################################
+  
+  # Compute density for each component
+  d1 <- lambda[1] * dnorm(x, mean = mu[1], sd = sigma[1])
+  d2 <- lambda[2] * dnorm(x, mean = mu[2], sd = sigma[2])
+  
+  # Total density (marginal likelihood for each data point)
+  total_density <- d1 + d2
+  
+  # Responsibilities (gamma)
+  gamma1 <- d1 / total_density
+  gamma2 <- d2 / total_density
+  
+  # ############################################################################
+  # M-step: Update parameters based on responsibilities
+  # ############################################################################
+  
+  # Effective number of points assigned to each component
+  n1 <- sum(gamma1)
+  n2 <- sum(gamma2)
+  
+  # Update mixing weights
+  lambda[1] <- n1 / n
+  lambda[2] <- n2 / n
+  
+  # Update means
+  mu[1] <- sum(gamma1 * x) / n1
+  mu[2] <- sum(gamma2 * x) / n2
+  
+  # Update standard deviations
+  sigma[1] <- sqrt(sum(gamma1 * (x - mu[1])^2) / n1)
+  sigma[2] <- sqrt(sum(gamma2 * (x - mu[2])^2) / n2)
+  
+  # ############################################################################
+  # Check for convergence (Log-likelihood)
+  # ############################################################################
+  loglik <- sum(log(total_density))
+  
+  if (abs(loglik - prev_loglik) < tolerance) {
+    cat(sprintf("Converged at iteration %d\n", iter))
+    break
+  }
+  
+  prev_loglik <- loglik
+}
+
+# Print the final estimated parameters
+cat("\n--- Estimated Parameters ---\n")
+cat("Lambda:", lambda, "\n")
+cat("Mu:", mu, "\n")
+cat("Sigma:", sigma, "\n")
+
+
+
+#data - crabs
+
+library(tidyverse)
+library(HDclassif)
+  str(crabs)
+
+crabs[,4:8] %>% 
+  sapply(., shapiro.test) 
+
+
+
+
+# Step 1: Prepare the 5-variable multivariate data (columns 4 to 8: FL, RW, CL, CW, BD)
+crab_data <- as.matrix(crabs[, 4:8])
+
+# Step 2: Fit the multivariate normal mixture model with 4 components
+# k = 4 specifies the 4 groups (classes/species variants in the crabs dataset)
+set.seed(123) # Set seed for reproducibility of initial random values
+mv_em_result <- mvnormalmixEM(
+  x = crab_data, 
+  k = 4
+)
+
+# Step 3: Check the summary and estimated parameters of the model
+summary(mv_em_result)
+
+# Step 4: Extract key outputs
+# Estimated mixing proportions (lambda for 4 components)
+mixing_proportions <- mv_em_result$lambda
+
+# Estimated mean vectors for each of the 4 components (5 variables each)
+estimated_means <- mv_em_result$mu
+
+# Posterior probabilities (responsibility matrix: n x 4)
+# Indicates the probability of each observation belonging to each of the 4 components
+posterior_probs <- mv_em_result$posterior
+
+# Hard classification based on maximum posterior probability
+assigned_clusters <- apply(posterior_probs, 1, which.max)
+
+# Compare the EM-assigned clusters with the actual species/sex groups in crabs data
+# (crabs$sp and crabs$sex form 4 distinct combinations: B/O and M/F)
+actual_groups <- interaction(crabs$sp, crabs$sex)
+table(Assigned = assigned_clusters, Actual = actual_groups)
+
+
+library(reshape2) # Required for melting the table
+
+# Step 1: Create the contingency table
+conf_table <- table(Assigned = assigned_clusters, Actual = actual_groups)
+
+# Step 2: Convert the table into a data frame for ggplot2
+conf_df <- as.data.frame(conf_table)
+
+# Step 3: Create a heatmap visualization
+ggplot(conf_df, aes(x = Actual, y = Assigned, fill = Freq)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = Freq), color = "white", size = 6, fontface = "bold") +
+  scale_fill_gradient(low = "lightblue", high = "darkblue") +
+  theme_minimal() +
+  labs(
+    title = "Confusion Matrix: EM Assigned Clusters vs Actual Groups",
+    subtitle = "Heatmap showing the matching performance of the multivariate mixture model",
+    x = "Actual Species & Sex Groups",
+    y = "EM Assigned Clusters",
+    fill = "Frequency"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 12, face = "bold")
+  )
+
+
+
+# ##############################################################################
+# Manual Implementation of Multivariate EM Algorithm for Normal Mixture Model
+# Target: crabs dataset (5 morphological variables: FL, RW, CL, CW, BD, k = 4)
+# ##############################################################################
+
+library(mvtnorm) # Required for multivariate normal density function (dmvnorm)
+
+# Step 1: Prepare data
+x <- as.matrix(crabs[, 4:8])
+n <- nrow(x)
+p <- ncol(x)
+k <- 4
+
+# Step 2: Initialize parameters using K-means (matching mixtools approach)
+set.seed(123)
+km <- kmeans(x, centers = k, nstart = 20)
+
+# Initialize mixing proportions (lambda)
+lambda <- as.vector(table(km$cluster) / n)
+
+# Initialize mean vectors (mu) as a list of length k
+mu <- vector("list", k)
+for (j in 1:k) {
+  mu[[j]] <- km$centers[j, ]
+}
+
+
+# Initialize covariance matrices (sigma) as a list of length k
+sigma <- vector("list", k)
+for (j in 1:k) {
+  subset_data <- x[km$cluster == j, , drop = FALSE]
+  if (nrow(subset_data) > 1) {
+    sigma[[j]] <- cov(subset_data)
+  } else {
+    sigma[[j]] <- diag(p) # Fallback identity matrix if cluster is too small
+  }
+}
+
+# EM Loop Configuration
+max_iter <- 200
+tolerance <- 1e-6
+prev_loglik <- -Inf
+
+for (iter in 1:max_iter) {
+  # ############################################################################
+  # E-step: Calculate posterior probabilities (responsibilities)
+  # ############################################################################
+  
+  # Compute weighted density matrix (n x k)
+  weighted_densities <- matrix(0, nrow = n, ncol = k)
+  
+  for (j in 1:k) {
+    # dmvnorm calculates the multivariate normal density
+    weighted_densities[, j] <- lambda[j] * 
+      dmvnorm(x, mean = mu[[j]], sigma = sigma[[j]])
+  }
+  
+  # Marginal likelihood for each data point
+  total_density <- rowSums(weighted_densities)
+  
+  # Handle potential underflow or zero densities safely
+  total_density[total_density == 0] <- .Machine$double.xmin
+  
+  # Responsibility matrix (gamma: n x k)
+  gamma_mat <- weighted_densities / total_density
+  
+  # ############################################################################
+  # M-step: Update parameters based on responsibilities
+  # ############################################################################
+  
+  # Effective number of points assigned to each component
+  n_k <- colSums(gamma_mat)
+  
+  # Update mixing proportions
+  lambda <- n_k / n
+  
+  for (j in 1:k) {
+    # Update mean vector (weighted mean)
+    mu[[j]] <- colSums(gamma_mat[, j] * x) / n_k[j]
+    
+    # Update covariance matrix (weighted covariance)
+    diff <- sweep(x = x, MARGIN = 2, mu[[j]], FUN = "-") # x - mu_j
+    # Outer product weighted by gamma
+    weighted_cov <- t(diff * gamma_mat[, j]) %*% diff / n_k[j]
+    
+    # Add a small regularization term to diagonal to prevent singularity
+    sigma[[j]] <- weighted_cov + diag(1e-6, p)
+  }
+  
+  # ############################################################################
+  # Convergence Check (Log-Likelihood)
+  # ############################################################################
+  loglik <- sum(log(total_density))
+  
+  if (abs(loglik - prev_loglik) < tolerance) {
+    cat(sprintf("Converged successfully at iteration %d\n", iter))
+    break
+  }
+  
+  prev_loglik <- loglik
+}
+
+# Step 3: Classification and Comparison
+# Hard assignment based on maximum responsibility
+assigned_clusters <- apply(gamma_mat, 1, which.max)
+
+# Compare with actual species/sex groups
+actual_groups <- interaction(crabs$sp, crabs$sex)
+table(Assigned = assigned_clusters, Actual = actual_groups)
+
+
+
+
+# ##############################################################################
+# Visualization of Multivariate EM Clustering Results (crabs dataset)
+# ##############################################################################
+
+library(ggplot2)
+
+# Create a data frame for visualization
+# Combine crab data with the EM-assigned clusters and actual groups
+vis_data <- as.data.frame(crab_data)
+vis_data$EM_Cluster <- as.factor(assigned_clusters)
+vis_data$Actual_Group <- interaction(crabs$sp, crabs$sex)
+
+
+ggplot(vis_data, aes(x = FL, y = CL, color = EM_Cluster, shape = Actual_Group)) +
+  geom_point(size = 3, alpha = 0.8) +
+  theme_minimal() +
+  labs(
+    title = "Multivariate EM Clustering vs Actual Groups",
+    subtitle = "Visualized using FL (Frontal Lobe) and CL (Carapace Length)",
+    x = "FL (Frontal Lobe)",
+    y = "CL (Carapace Length)",
+    color = "EM Cluster",
+    shape = "Actual Group"
+  ) +
+  scale_color_brewer(palette = "Set1")
+
+
+
+
+
+################################################################################
+
+### density-based clustering (DBSCAN Algorithm)
+
+################################################################################
+
+
+library(cluster)
+str(ruspini)
+plot(ruspini)
+
+df <- ruspini
+library(fpc)
+ds <- dbscan(data = ruspini, eps = 20, MinPts = 5)
+
+
+plot(ruspini, col = ds$cluster)
+
+
+library(ggplot2)
+# Prepare data frame for ggplot (combine original data with cluster results)
+plot_data <- as.data.frame(df)
+plot_data$Cluster <- as.factor(ds$cluster)
+# Advanced and stylish visualization using ggplot2
+ggplot(plot_data, aes(x = x, y = y, color = Cluster, shape = Cluster)) +
+  # Add points with customized size and transparency
+  geom_point(size = 3.5, alpha = 0.8) +
+  # Use a color palette that clearly distinguishes noise (often labeled as 0) from clusters
+  scale_color_manual(
+    values = c("0" = "gray70", "1" = "#E41A1C", "2" = "#377EB8", "3" = "#4DAF4A", "4" = "#984EA3"),
+    labels = c("0" = "Noise", "1" = "Cluster 1", "2" = "Cluster 2", "3" = "Cluster 3", "4" = "Cluster 4")
+  ) +
+  scale_shape_manual(
+    values = c("0" = 4, "1" = 19, "2" = 17, "3" = 15, "4" = 18),
+    labels = c("0" = "Noise", "1" = "Cluster 1", "2" = "Cluster 2", "3" = "Cluster 3", "4" = "Cluster 4")
+  ) +
+  # Apply a clean, minimal theme with a title and clean axis labels
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "DBSCAN Clustering on Ruspini Dataset",
+    subtitle = "Parameters: eps = 20, MinPts = 5",
+    x = "X Coordinate",
+    y = "Y Coordinate",
+    color = "Legend",
+    shape = "Legend"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(size = 12, hjust = 0.5, color = "gray40"),
+    legend.position = "right",
+    panel.grid.minor = element_blank()
+  )
+
+
+
+# ##############################################################################
+# DBSCAN-Manual
+# ##############################################################################
+
+
+# Load dataset
+df <- ruspini
+
+# 1. Set hyperparameters
+eps <- 20
+MinPts <- 5
+
+# Get the number of data points
+n <- nrow(df)
+
+# Initialize vectors and matrix for tracking
+# cluster assignment: 0 = unassigned/noise, 1, 2, ... = cluster ID
+cluster_id <- rep(0, n) 
+visited <- rep(FALSE, n)   # Track visited status of each point
+
+# Calculate full pairwise Euclidean distance matrix
+# dist_matrix[i, j] represents the distance between point i and point j
+dist_matrix <- as.matrix(dist(df))
+
+# 2. Function to find eps-neighborhood indices for a given point i
+get_neighbors <- function(i, dist_mat, eps) {
+  which(dist_mat[i, ] <= eps)
+}
+
+# 3. Main DBSCAN loop
+current_cluster <- 0
+
+
+for (i in 1:n) {
+  # If the point has already been visited, skip it
+  if (visited[i]) {
+    next
+  }
+  
+  # Mark the point as visited
+  visited[i] <- TRUE
+  
+  # Find neighbors within eps radius
+  neighbors <- get_neighbors(i, dist_matrix, eps)
+  
+  # Check if the point is a core point
+  if (length(neighbors) < MinPts) {
+    # If not a core point, temporarily label as noise (0)
+    # It might be reclassified as a border point later
+    cluster_id[i] <- 0
+  } else {
+    # Start a new cluster
+    current_cluster <- current_cluster + 1
+    cluster_id[i] <- current_cluster
+    
+    # Process neighbors using density-reachability (Breadth-First Search style expansion)
+    seed_set <- setdiff(neighbors, i) # Exclude self
+    
+    j <- 1
+    while (j <= length(seed_set)) {
+      current_neighbor <- seed_set[j]
+      
+      # If the neighbor has not been visited yet
+      if (!visited[current_neighbor]) {
+        visited[current_neighbor] <- TRUE
+        
+        # Find neighbors of this current neighbor
+        neighbor_neighbors <- get_neighbors(current_neighbor, dist_matrix, eps)
+        
+        # If it is also a core point, expand the seed set with its neighbors
+        if (length(neighbor_neighbors) >= MinPts) {
+          # Append new unvisited or noise neighbors to the seed set
+          new_adds <- setdiff(neighbor_neighbors, seed_set)
+          seed_set <- c(seed_set, new_adds)
+        }
+      }
+      
+      # If the neighbor is not yet a member of any cluster (noise or unassigned), assign it to the current cluster
+      # This handles border points correctly
+      if (cluster_id[current_neighbor] == 0) {
+        cluster_id[current_neighbor] <- current_cluster
+      }
+      
+      j <- j + 1
+    }
+  }
+}
+
+# 4. Plot the manual clustering results
+# Noise points will be colored as black (0 or unassigned)
+plot(df, col = cluster_id + 1, pch = ifelse(cluster_id == 0, 4, 19), cex = 1.2,
+     main = "Manual DBSCAN Clustering on Ruspini Dataset",
+     sub = "Parameters: eps = 20, MinPts = 5 (X = Noise)")
+
+
+
+
+#-------------------------------------------------------------------------------
+
+## Chapter8.3 - clustering( fuzzy, SOM )
+
+#-------------------------------------------------------------------------------
