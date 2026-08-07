@@ -3507,3 +3507,292 @@ plot(df, col = cluster_id + 1, pch = ifelse(cluster_id == 0, 4, 19), cex = 1.2,
 ## Chapter8.3 - clustering( fuzzy, SOM )
 
 #-------------------------------------------------------------------------------
+
+
+
+
+###############################################################################
+
+#fuzzy clustering
+
+###############################################################################
+
+
+data('USArrests')
+str(USArrests)
+
+set.seed(123)
+df <- scale(x = USArrests[sample(x = 1:50, size = 20),])
+
+library(cluster)
+fuzzy_cluster <- fanny(x = df, k = 4)
+
+summary(fuzzy_cluster)
+
+library(factoextra)
+fviz_cluster(object = fuzzy_cluster, 
+             ellipse.type = "norm",
+             ellipse.level = 0.6)
+
+fviz_silhouette(sil.obj = fuzzy_cluster, label = TRUE)
+
+
+fuzzy_cluster$clustering
+
+
+
+
+#fuzzy clustering - Manual
+
+
+# 1. 데이터 준비 및 전처리
+data('USArrests')
+set.seed(123)
+df <- scale(as.matrix(USArrests[sample(1:50, 20),]))
+
+N <- nrow(df)      # 데이터 개수 (이미지의 N)
+C <- 4             # 군집 개수 (이미지의 C)
+m <- 2             # 퍼지승수 (이미지의 m > 1)
+maxit <- 100
+tol <- 1e-5
+
+# 2. 소속도 행렬 U 초기화 (모든 데이터에 대해 각 군집 소속도의 합 = 1)
+set.seed(123)
+U <- matrix(runif(N * C), nrow = N, ncol = C)
+U <- U / rowSums(U)
+
+for (iter in 1:maxit) {
+  U_old <- U
+  U_m <- U^m  # u_{ij}^m 계산
+  
+  # -------------------------------------------------------------------------
+  # [이미지 3. ① 군집 중심(v_i) 업데이트 식]
+  # v_i = sum(u_ij^m * x_j) / sum(u_ij^m)
+  # -------------------------------------------------------------------------
+  V <- matrix(0, nrow = C, ncol = ncol(df))
+  for (i in 1:C) {
+    V[i, ] <- colSums(U_m[, i] * df) / sum(U_m[, i])
+  }
+  
+  # -------------------------------------------------------------------------
+  # [이미지 1 & 3. ② 소속도(u_ij)와 거리 계산]
+  # u_ij = 1 / sum_{k=1}^C ( (||x_j - v_i|| / ||x_j - v_k||)^(2 / (m - 1)) )
+  # -------------------------------------------------------------------------
+  D <- matrix(0, nrow = N, ncol = C)
+  for (i in 1:C) {
+    # 유클리드 거리 제곱 계산: ||x_j - v_i||^2
+    D[, i] <- rowSums((df - matrix(V[i, ], nrow = N, ncol = ncol(df), byrow = TRUE))^2)
+  }
+  D[D == 0] <- 1e-10 # 0 나누기 방지
+  
+  # 소속도 갱신 공식 적용
+  exponent <- 2 / (m - 1)
+  for (j in 1:N) {
+    for (i in 1:C) {
+      U[j, i] <- 1 / sum((D[j, i] / D[j, ])^(exponent))
+    }
+  }
+  
+  # 3. 수렴 조건 확인
+  if (max(abs(U - U_old)) < tol) {
+    cat("Converged at iteration:", iter, "\n")
+    break
+  }
+}
+
+# 최종 결과 확인
+print("Final Cluster Centers (V):")
+print(V)
+
+V_display <- t(V)
+colnames(V_display) <- colnames(df)
+rownames(V_display) <- paste0("Cluster_", 1:4)
+
+print(V_display)
+
+print("Final Membership Matrix:")
+print((round(U * 100, 1)))
+
+
+
+
+###############################################################################
+
+#SOM clustering
+
+###############################################################################
+
+
+
+library(kohonen)
+data('USArrests')
+str(USArrests)
+
+# Load data and train SOM model
+data('USArrests')
+df <- scale(USArrests)
+set.seed(123)
+USArrests_som <- som(X = df, grid = somgrid(xdim = 5, ydim = 4, topo = "hexagonal"))
+
+# Set layout to display 8 plots in a 2x4 grid
+par(mfrow = c(2, 4))
+
+# 1. Changes plot
+plot(USArrests_som, type = "changes", main = "1. Changes")
+
+# 2. Codes plot
+plot(USArrests_som, type = "codes", main = "2. Codes")
+
+# 3. Counts plot
+plot(USArrests_som, type = "counts", main = "3. Counts")
+
+# 4. Neighbour distances (U-Matrix)
+plot(USArrests_som, type = "dist.neighbours", main = "4. Dist. Neighbours")
+
+# 5. Mapping plot (using row names as labels)
+plot(USArrests_som, type = "mapping", labels = rownames(USArrests), main = "5. Mapping")
+
+# 6. Property plot (visualizing a specific variable, e.g., Murder rates)
+plot(USArrests_som, type = "property", property = df[, "Murder"], main = "6. Property (Murder)")
+
+# 7. Quality plot
+plot(USArrests_som, type = "quality", main = "7. Quality")
+
+# 8. Prediction plot (Note: 'prediction' is typically for supervised models like xyf, 
+# but can be called or checked in workflow contexts)
+tryCatch({
+  plot(USArrests_som, type = "prediction", main = "8. Prediction")
+}, error = function(e) {
+  plot.new()
+  text(0.5, 0.5, "Prediction plot\n(Supervised only)", cex = 1.2)
+  title(main = "8. Prediction")
+})
+
+# Reset graphical parameters back to default
+par(mfrow = c(1, 1))
+
+
+
+
+library(kohonen)
+
+# Load data and scale
+data('USArrests')
+df <- scale(USArrests)
+
+# Set grid size so that total nodes (e.g., 7x7 = 49) do not exceed the number of rows (50)
+set.seed(123)
+USArrests_som_highres <- som(
+  X = df, 
+  grid = somgrid(xdim = 7, ydim = 7, topo = "hexagonal")
+)
+
+# Plotting U-Matrix with the adjusted high resolution
+plot(USArrests_som_highres, 
+     type = "dist.neighbours", 
+     main = "High-Resolution U-Matrix (7x7)")
+
+
+
+
+library(kohonen)
+
+# 1. Extract codebook vectors from the trained SOM model
+som_codes <- USArrests_som_highres$codes[[1]]
+
+# 2. Perform hierarchical clustering on the codebook vectors
+# (e.g., trying to find clusters using Ward's method)
+dist_matrix <- dist(som_codes)
+hc <- hclust(dist_matrix, method = "ward.D2")
+
+# 3. Plot the dendrogram to decide the number of clusters visually
+plot(hc, main = "Cluster Dendrogram of SOM Codes")
+
+# 4. Cut the tree into a specific number of clusters (e.g., 4 clusters)
+# and visualize them directly on the SOM grid
+my_clusters <- cutree(hc, k = 4)
+
+plot(USArrests_som_highres, type = "mapping", bgcol = rainbow(4)[my_clusters], 
+     main = "SOM Mapped with 4 Clusters")
+add.cluster.boundaries(USArrests_som_highres, my_clusters)
+
+
+
+
+
+
+###############################################################################
+#SOM clustering-Manual
+###############################################################################
+
+
+
+# Load and scale data
+data('USArrests')
+data_matrix <- as.matrix(scale(USArrests))
+n_samples <- nrow(data_matrix)
+
+# 1. Set grid size to 2x2 (4 nodes)
+grid_x <- 2  
+grid_y <- 2  
+n_nodes <- grid_x * grid_y
+
+grid_coords <- as.matrix(expand.grid(x = 1:grid_x, y = 1:grid_y))
+
+# Initialize codebook vectors randomly
+set.seed(123)
+codes <- data_matrix[sample(1:n_samples, n_nodes), ]
+
+# 2. Simplified SOM Training Loop
+n_iterations <- 50
+for (iter in 1:n_iterations) {
+  radius <- (max(grid_x, grid_y) / 2) * exp(-iter / n_iterations)
+  learning_rate <- 0.5 * (1 - iter / n_iterations)
+  
+  # Corrected sampling: pick 1 random row from data_matrix
+  x <- data_matrix[sample(1:n_samples, size = 1), ] 
+  
+  distances <- apply(codes, 1, function(code) sum((code - x)^2))
+  bmu_idx <- which.min(distances)
+  bmu_coord <- grid_coords[bmu_idx, ]
+  
+  for (i in 1:n_nodes) {
+    node_coord <- grid_coords[i, ]
+    dist_to_bmu <- sum((node_coord - bmu_coord)^2)
+    influence <- exp(-dist_to_bmu / (2 * (radius^2)))
+    codes[i, ] <- codes[i, ] + learning_rate * influence * (x - codes[i, ])
+  }
+}
+
+# 3. Map each data point to its BMU
+mapped_nodes <- apply(data_matrix, 1, function(row) {
+  dists <- apply(codes, 1, function(code) sum((code - row)^2))
+  return(which.min(dists))
+})
+
+# 4. Split the plotting device into a 2x2 grid layout
+par(mfrow = c(2, 2), mar = c(3, 3, 2, 1))
+
+# Loop through each quadrant/node and create an individual plot window for it
+for (node_i in 1:n_nodes) {
+  assigned_indices <- which(mapped_nodes == node_i)
+  assigned_data <- USArrests[assigned_indices, ]
+  
+  if (nrow(assigned_data) > 0) {
+    plot(assigned_data$Murder, assigned_data$Assault,
+         main = paste("Node", node_i, "(n =", nrow(assigned_data), ")"),
+         xlab = "Murder", ylab = "Assault",
+         pch = 19, col = "darkred", cex = 1.2,
+         xlim = c(0, 18), ylim = c(0, 350))
+    
+    text(assigned_data$Murder, assigned_data$Assault,
+         labels = rownames(assigned_data), pos = 3, cex = 0.7, col = "black")
+  } else {
+    plot(0, 0, type = "n", main = paste("Node", node_i, "(Empty)"),
+         xlab = "Murder", ylab = "Assault", xlim = c(0, 18), ylim = c(0, 350))
+    text(0, 9, "No Data", col = "gray")
+  }
+}
+
+# Reset layout back to default
+par(mfrow = c(1, 1))
