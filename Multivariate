@@ -3796,3 +3796,207 @@ for (node_i in 1:n_nodes) {
 
 # Reset layout back to default
 par(mfrow = c(1, 1))
+
+
+
+#-------------------------------------------------------------------------------
+
+## Chapter9 - Partial Least Squares Path Modeling(PLS-PM)
+
+#-------------------------------------------------------------------------------
+
+
+
+
+
+#Data
+library(plspm)
+data("russett")
+
+str(russett)
+?russett
+
+
+#Path matrix
+ARGIN <- c(0,0,0)
+INDEV <- c(0,0,0)
+POLINS <- c(1,1,0)
+rus_path <- rbind(ARGIN, INDEV, POLINS)
+colnames(rus_path) <- rownames(rus_path)
+rus_path #column affects on the rows, recursive
+
+windows()
+innerplot(rus_path)
+
+rus_blocks <- list(1:3, 4:5, 6:11)
+rus_blocks <- list(c("gini","farm","rent"),
+                   c("gnpr", "labo"),
+                   c("inst", "ecks" ,"death",
+                     "demostab","demoinst","dictator")) #or
+
+#reflective model
+rus_modes <- rep("A",3)
+
+
+#PLS-PM
+rus_pls <- plspm(Data = russett, 
+                 path_matrix = rus_path,
+                 blocks = rus_blocks, 
+                 modes = rus_modes)
+rus_pls
+
+summary(rus_pls)
+
+
+rus_pls$outer_model
+rus_pls$data
+
+rus_pls$inner_model
+rus_pls$scores
+
+# 1. Convert latent variable scores to a data frame
+scores_df <- as.data.frame(rus_pls$scores)
+
+# 2. Perform regression analysis with POLINS as the dependent variable and ARGIN and INDEV as independent variables
+model_polins <- lm(POLINS ~ ARGIN + INDEV, data = scores_df)
+
+# 3. Check the coefficient of determination (R-squared)
+summary(model_polins)$r.squared
+
+
+head(rus_pls$scores)
+# 1. Standardize the data as a matrix
+scaled_data <- as.matrix(scale(rus_pls$data))
+
+# 2. Calculate the weighted sum for all rows
+all_raw_scores <- scaled_data[, 1:3] %*% 
+  t(t(rus_pls$outer_model[,"weight"][1:3]))
+
+# 3. Apply the correction factor (sqrt(N / (N-1))) and verify
+N <- nrow(rus_pls$data)
+manual_scores <- all_raw_scores * sqrt(N / (N - 1))
+
+# Compare results
+manual_scores[1, 1]
+rus_pls$scores[1, "ARGIN"]
+
+
+
+rus_pls$inner_model
+rus_pls$path_coefs
+rus_pls$crossloadings
+rus_pls$outer_model
+
+
+rus_pls$inner_summary
+
+
+
+rus_pls$effects
+
+
+
+rus_pls$unidim
+
+
+rus_pls$gof
+
+# 1. Extract communality and R-squared from the inner summary
+comm <- rus_pls$inner_summary[, "Block_Communality"]
+r2 <- rus_pls$inner_summary[, "R2"]
+
+# 2. Define the number of manifest variables for each block (ARGIN: 3, INDEV: 2, POLINS: 6)
+mv_counts <- c(3, 2, 6)
+
+# 3. Calculate the weighted average communality based on the number of manifest variables
+weighted_comm <- sum(comm * mv_counts) / sum(mv_counts)
+
+# 4. Multiply by the R-squared of the endogenous variable (POLINS) and take the square root
+manual_gof <- sqrt(weighted_comm * r2[3])
+
+# Print the calculated Goodness of Fit value
+print(manual_gof)
+
+
+
+rus_pls$boot
+
+# Run plspm with bootstrap validation enabled (e.g., 500 bootstrap resamples)
+rus_pls_boot <- plspm(
+  Data = russett, 
+  path_matrix = rus_path, 
+  blocks = rus_blocks, 
+  modes = rus_modes, 
+  boot.val = TRUE,  # Enable bootstrap validation
+  br = 500          # Number of bootstrap resamples
+)
+
+# Check bootstrap results for path coefficients
+rus_pls_boot$boot$paths
+
+
+
+
+#visualization
+
+plot(rus_pls)
+
+windows()
+plot(rus_pls, what = "loadings", arr.width = 0.1)
+windows()
+plot(rus_pls, what = "weights", arr.width = 0.1)
+
+
+
+# 1. 기본 경로 다이어그램 시각화 실행
+windows()
+plot(rus_pls, arr.width = 0.1)
+
+# 2. 마우스 클릭으로 원하는 위치를 찍어서 텍스트(경로 계수)를 넣는 방법
+# (콘솔 창에 안내가 뜨면 그래프 위에서 글자를 넣고 싶은 위치를 마우스로 클릭하세요)
+path_mat <- rus_pls$path_coefs
+
+# 예시: ARGIN -> POLINS 계수 넣기
+text(locator(1), 
+     labels = round(path_mat[ "POLINS","ARGIN"],3),
+     col = "blue")
+
+# 예시: INDEV -> POLINS 계수 넣기
+text(locator(1), 
+     labels = round(path_mat[ "POLINS","INDEV"],3),
+     col = "blue")
+
+
+
+library(ggplot2)
+library(dplyr)
+library(patchwork)
+
+# 1. Prepare data and maintain block grouping order
+plot_data <- rus_pls$outer_model %>%
+  mutate(name = factor(name, levels = rev(name)))
+
+# 2. Create Outer Loadings plot grouped by latent variable blocks
+p_loadings <- ggplot(plot_data, aes(x = name, y = loading, fill = block)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  coord_flip() +
+  geom_text(aes(label = round(loading, 3)), hjust = ifelse(plot_data$loading >= 0, -0.1, 1.1), size = 3.2) +
+  facet_grid(block ~ ., scales = "free_y", space = "free_y") +
+  ylim(min(0, min(plot_data$loading) - 0.1), max(plot_data$loading) + 0.1) +
+  labs(title = "Outer Loadings by Latent Variable", x = "Manifest Variables", y = "Loading") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# 3. Create Outer Weights plot grouped by latent variable blocks
+p_weights <- ggplot(plot_data, aes(x = name, y = weight, fill = block)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  coord_flip() +
+  geom_text(aes(label = round(weight, 3)), hjust = ifelse(plot_data$weight >= 0, -0.1, 1.1), size = 3.2) +
+  facet_grid(block ~ ., scales = "free_y", space = "free_y") +
+  ylim(min(0, min(plot_data$weight) - 0.1), max(plot_data$weight) + 0.1) +
+  labs(title = "Outer Weights by Latent Variable", x = "Manifest Variables", y = "Weight") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# 4. Combine both plots side by side using patchwork
+p_loadings | p_weights
