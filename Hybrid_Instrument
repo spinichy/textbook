@@ -1,0 +1,80 @@
+#-------------------------------------------------------------------------------
+##chapter-1. imput data
+#-------------------------------------------------------------------------------
+
+
+# Load required libraries
+library(ggplot2)
+
+# Data input based on the image (Maturity in years and corresponding YTM in %)
+maturities <- c(0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 7.0, 10.0)
+ytm_rates  <- c(5.150, 6.206, 7.031, 7.321, 8.393, 9.404, 9.883, 10.324, 10.529, 10.708, 10.804,11.326)
+orig_data <- data.frame(Maturity = maturities, YTM = ytm_rates)
+orig_data
+# Target maturities to interpolate (6, 8, and 9 years)
+target_maturities <- c(6.0, 8.0, 9.0)
+
+# 1. Linear Interpolation
+linear_preds <- approx(maturities, ytm_rates, xout = target_maturities)$y
+
+# 2. Cubic Spline Interpolation
+spline_fit <- splinefun(maturities, ytm_rates, method = "natural")
+spline_preds <- spline_fit(target_maturities)
+
+# Combine results into a data frame for comparison
+results <- data.frame(
+  Maturity = target_maturities,
+  Linear = linear_preds,
+  Cubic_Spline = spline_preds
+)
+print(results)
+
+# 3. Create a denser sequence for smooth curve plotting using ggplot
+dense_maturities <- seq(min(maturities), max(maturities), length.out = 300)
+curve_data <- data.frame(
+  Maturity = rep(dense_maturities, 2),
+  YTM = c(approx(maturities, ytm_rates, xout = dense_maturities)$y, spline_fit(dense_maturities)),
+  Method = rep(c("Linear Interpolation", "Cubic Spline"), each = length(dense_maturities))
+)
+
+# Target points data frame with separate vjust settings for text placement
+target_data <- data.frame(
+  Maturity = rep(target_maturities, 2),
+  YTM = c(linear_preds, spline_preds),
+  Method = rep(c("Linear Interpolation", "Cubic Spline"), each = length(target_maturities))
+)
+target_data$Label <- sprintf("%.3f%%", target_data$YTM)
+
+# Assign distinct vertical adjustments: Linear text goes below (vjust = 1.5), Spline text goes above (vjust = -1.2)
+target_data$Vjust <- ifelse(target_data$Method == "Linear Interpolation", 1.5, -1.2)
+
+# 4. ggplot Visualization with 0.5-year X-axis intervals
+ggplot() +
+  # Plot interpolation curves
+  geom_line(data = curve_data, aes(x = Maturity, y = YTM, color = Method, linetype = Method), linewidth = 1) +
+  # Plot original data points
+  geom_point(data = orig_data, aes(x = Maturity, y = YTM), color = "black", size = 3) +
+  # Plot target interpolated points
+  geom_point(data = target_data, aes(x = Maturity, y = YTM, color = Method), size = 3.5, shape = 4, stroke = 1.5) +
+  # Add text labels (Linear below, Cubic Spline above)
+  geom_text(data = target_data, aes(x = Maturity, y = YTM, label = Label, color = Method, vjust = Vjust), 
+            size = 3.5, fontface = "bold", show.legend = FALSE) +
+  # Set X-axis breaks at every 0.5-year interval from 0 to 10
+  scale_x_continuous(breaks = seq(0, 10, by = 0.5)) +
+  # Customize theme and labels
+  labs(
+    title = "Yield Curve Interpolation: Linear vs. Cubic Spline",
+    subtitle = "X-axis displayed in 0.5-year increments",
+    x = "Maturity (Years)",
+    y = "YTM (%)",
+    color = "Interpolation Method",
+    linetype = "Interpolation Method"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1) # Rotate X labels slightly for better readability
+  ) +
+  scale_color_manual(values = c("Linear Interpolation" = "blue", "Cubic Spline" = "red")) +
+  ylim(min(ytm_rates) - 1.0, max(ytm_rates) + 1.5)
