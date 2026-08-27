@@ -78,3 +78,99 @@ ggplot() +
   ) +
   scale_color_manual(values = c("Linear Interpolation" = "blue", "Cubic Spline" = "red")) +
   ylim(min(ytm_rates) - 1.0, max(ytm_rates) + 1.5)
+
+
+
+
+
+#-------------------------------------------------------------------------------
+##chapter-2. Black-Scholes Option Pricing
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(gridExtra)
+
+# Define parameters
+S <- seq(50, 150, by = 1)
+K <- 100
+C_premium <- 8
+P_premium <- 6
+
+# Create data frames for each position
+df_lc <- data.frame(S = S, Profit = pmax(S - K, 0) - C_premium, Position = "Long Call")
+df_sc <- data.frame(S = S, Profit = C_premium - pmax(S - K, 0), Position = "Short Call")
+df_lp <- data.frame(S = S, Profit = pmax(K - S, 0) - P_premium, Position = "Long Put")
+df_sp <- data.frame(S = S, Profit = P_premium - pmax(K - S, 0), Position = "Short Put")
+
+# Plot each position
+p1 <- ggplot(df_lc, aes(x = S, y = Profit)) + geom_line(color = "blue", size = 1.2) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+  geom_vline(xintercept = K, linetype = "dotted", color = "gray50") +
+  labs(title = "1. Long Call", x = "Underlying Price (S)", y = "Profit / Loss") + theme_minimal()
+
+
+p2 <- ggplot(df_lp, aes(x = S, y = Profit)) + geom_line(color = "skyblue", size = 1.2) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+  geom_vline(xintercept = K, linetype = "dotted", color = "gray50") +
+  labs(title = "3. Long Put", x = "Underlying Price (S)", y = "Profit / Loss") + theme_minimal()
+
+p3 <- ggplot(df_sc, aes(x = S, y = Profit)) + geom_line(color = "red", size = 1.2) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+  geom_vline(xintercept = K, linetype = "dotted", color = "gray50") +
+  labs(title = "2. Short Call", x = "Underlying Price (S)", y = "Profit / Loss") + theme_minimal()
+
+p4 <- ggplot(df_sp, aes(x = S, y = Profit)) + geom_line(color = "purple", size = 1.2) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+  geom_vline(xintercept = K, linetype = "dotted", color = "gray50") +
+  labs(title = "4. Short Put", x = "Underlying Price (S)", y = "Profit / Loss") + theme_minimal()
+
+# Arrange plots in a 2x2 grid layout
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+
+
+
+
+
+# Black-Scholes Option Pricing Function
+# Parameters:
+# S: Current stock price
+# K: Strike price
+# T: Time to maturity (in years)
+# r: Risk-free interest rate (annualized)
+# sigma: Volatility of the underlying asset (annualized)
+
+black_scholes <- function(S, K, T, r, sigma) {
+  # Calculate d1 and d2 based on the derivation
+  d1 <- (log(S / K) + (r + 0.5 * sigma^2) * T) / (sigma * sqrt(T))
+  d2 <- d1 - sigma * sqrt(T)
+  
+  # Calculate call and put option prices
+  call_price <- S * pnorm(d1) - K * exp(-r * T) * pnorm(d2)
+  put_price  <- K * exp(-r * T) * pnorm(-d2) - S * pnorm(-d1)
+  
+  # Return results as a list
+  return(list(
+    Call = call_price,
+    Put = put_price,
+    Delta_Call = pnorm(d1),
+    Delta_Put = pnorm(d1) - 1,
+    Probability_ITM = pnorm(d2) # N(d2): Exercise probability
+  ))
+}
+
+# --- Example Usage ---
+S_0 <- 100     # Current stock price: $100
+Strike <- 100  # Strike price: $100
+Time <- 1.0    # Time to maturity: 1 year
+Rate <- 0.05   # Risk-free rate: 5%
+Vol <- 0.2     # Volatility: 20%
+
+result <- black_scholes(S = S_0, K = Strike, T = Time, r = Rate, sigma = Vol)
+result
+
+
+
+
