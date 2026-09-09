@@ -174,3 +174,221 @@ result
 
 
 
+
+#-------------------------------------------------------------------------------
+##chapter-3. Binomial Option Pricing
+#-------------------------------------------------------------------------------
+
+
+
+################################################################################
+##Example1
+################################################################################
+
+
+
+# Binomial Option Pricing Model (CRR Model) - 2-Year Maturity (N = 4 steps)
+# Parameters setup
+S0 <- 100     # Initial stock price
+K <- 100      # Strike price
+T <- 2.0      # Time to maturity in years (2 years)
+N <- 4        # Number of steps (delta t = 0.5 years)
+dt <- T / N   # Time step size (0.5 years)
+sigma <- 0.20 # Volatility (20% per annum)
+
+# Interest rate: 3% nominal annual rate compounded semi-annually
+discount_factor_step <- 1.015 
+r_dt <- log(discount_factor_step)
+
+# Up and down factors
+u <- exp(sigma * sqrt(dt))
+d <- 1 / u
+
+# Risk-neutral probability
+p <- (discount_factor_step - d) / (u - d)
+
+# 1. Generate Stock Price Tree (Matrix: rows = up states, cols = time steps)
+stock_tree <- matrix(NA, nrow = N + 1, ncol = N + 1)
+for (j in 0:N) {
+  for (i in 0:j) {
+    stock_tree[i + 1, j + 1] <- S0 * (u^i) * (d^(j - i))
+  }
+}
+stock_tree
+
+# 2. Generate Option Value Tree via Backward Induction
+option_tree <- matrix(NA, nrow = N + 1, ncol = N + 1)
+
+# Calculate option payoff at maturity (Step N)
+for (i in 0:N) {
+  option_tree[i + 1, N + 1] <- max(stock_tree[i + 1, N + 1] - K, 0)
+}
+
+# Backward induction through intermediate and initial steps
+for (j in (N - 1):0) {
+  for (i in 0:j) {
+    option_tree[i + 1, j + 1] <- exp(-r_dt) * (p * option_tree[i + 2, j + 2] + 
+                                                 (1 - p) * option_tree[i + 1, j + 2])
+  }
+}
+
+# Print the current option price
+print(paste("2-Year European Call Option Price:", round(option_tree[1, 1], 4)))
+
+# 3. Plotting the Binomial Trees for N = 4
+par(mfrow = c(1, 2), mar = c(2, 2, 4, 2))
+
+# Function to draw the tree layout
+draw_tree <- function(tree_matrix, main_title) {
+  plot(NA, xlim = c(-0.5, N + 0.5), ylim = c(-N/2 - 0.5, N/2 + 0.5),
+       xlab = "", ylab = "", axes = FALSE, main = main_title)
+  for (j in 0:N) {
+    for (i in 0:j) {
+      val <- tree_matrix[i + 1, j + 1]
+      if (!is.na(val)) {
+        # Y-coordinate alignment for tree nodes
+        y_pos <- i - j / 2
+        text(j, y_pos, labels = round(val, 2), cex = 0.75, font = 2, col = "darkblue")
+        
+        # Connect nodes with branches
+        if (j < N) {
+          # Up branch target position
+          y_up <- (i + 1) - (j + 1) / 2
+          segments(j, y_pos, j + 1, y_up, col = "gray60", lwd = 1.2)
+          
+          # Down branch target position
+          y_down <- i - (j + 1) / 2
+          segments(j, y_pos, j + 1, y_down, col = "gray60", lwd = 1.2)
+        }
+      }
+    }
+  }
+}
+
+# Draw Stock Price Tree and Option Value Tree side-by-side
+draw_tree(stock_tree, "Stock Price Tree (N=4)")
+draw_tree(option_tree, "European Call Option Tree (N=4)")
+
+# Reset plot layout configuration
+par(mfrow = c(1, 1))
+
+
+
+
+################################################################################
+##Example2
+################################################################################
+
+
+# Parameters configuration (Continuous Compounding)
+S0 <- 5000         # Initial stock price
+K <- 5000          # Strike price
+T <- 3.0           # Time to maturity in years
+dt <- 1 / 52       # Time step size: 1 weekly = 1/52 years
+N <- round(T / dt) # Total number of steps (156 steps)
+sigma <- 0.3       # Volatility (30% per annum)
+rf <- 0.03         # Risk-free rate (continuously compounded)
+
+# Continuous compounding growth factor per step and discount factor exponent
+growth_factor_step <- exp(rf * dt)
+r_dt <- rf * dt    # Used for exp(-r_dt) discounting in backward induction
+
+# Up and down factors for CRR model
+u <- exp(sigma * sqrt(dt))
+d <- 1 / u
+
+# Risk-neutral probability under continuous compounding
+p <- (growth_factor_step - d) / (u - d)
+
+# 1. Generate Stock Price Tree (Matrix: rows = up states, cols = time steps)
+stock_tree <- matrix(NA, nrow = N + 1, ncol = N + 1)
+for (j in 0:N) {
+  for (i in 0:j) {
+    stock_tree[i + 1, j + 1] <- S0 * (u^i) * (d^(j - i))
+  }
+}
+
+# 2. Generate Option Value Tree via Backward Induction (European Option base)
+option_tree <- matrix(NA, nrow = N + 1, ncol = N + 1)
+
+# Calculate option payoff at maturity (Step N)
+for (i in 0:N) {
+  option_tree[i + 1, N + 1] <- max(stock_tree[i + 1, N + 1] - K, 0)
+}
+
+# Backward induction through intermediate and initial steps
+for (j in (N - 1):0) {
+  for (i in 0:j) {
+    option_tree[i + 1, j + 1] <- exp(-r_dt) * (p * option_tree[i + 2, j + 2] + 
+                                                 (1 - p) * option_tree[i + 1, j + 2])
+  }
+}
+
+# Print the current option price per share
+print(paste("Fair value per share:", round(option_tree[1, 1], 2)))
+
+# 3. Export to Excel File using 'writexl' package
+library(writexl)
+
+# Convert matrices to data frames and add step/state identifiers for readability
+col_names <- paste0("Step_", 0:N)
+row_names <- paste0("Up_", 0:N)
+
+stock_df <- as.data.frame(stock_tree)
+colnames(stock_df) <- col_names
+rownames(stock_df) <- row_names
+
+option_df <- as.data.frame(option_tree)
+colnames(option_df) <- col_names
+rownames(option_df) <- row_names
+
+# Save both trees into separate sheets in a single Excel file
+output_file <- "CRR_Option_Pricing_Results_Continuous.xlsx"
+write_xlsx(
+  list(
+    "Stock_Price_Tree" = data.frame(State = rownames(stock_df), stock_df, check.names = FALSE),
+    "Option_Value_Tree" = data.frame(State = rownames(option_df), option_df, check.names = FALSE)
+  ),
+  path = output_file
+)
+
+print(paste("Results successfully saved to", output_file))
+
+
+
+
+#Define function for condensed text-based tree output matching requested style
+print_tree_condensed <- function(tree_matrix, title, max_steps = 4, N_total = N) {
+  cat("\n=== ", title, " (Condensed Tree) ===\n", sep = "")
+  
+  early_steps <- 0:min(max_steps, N_total)
+  
+  # Print header
+  cat(sprintf("%-7s", "Step:"))
+  for (j in early_steps) {
+    cat(sprintf("  t=%-3d", j))
+  }
+  cat("  ...   (Middle steps omitted) ...   Final (t=", N_total, ")\n", sep = "")
+  
+  # Print rows from 0 to max_steps
+  max_i <- min(max_steps, nrow(tree_matrix) - 1)
+  for (i in 0:max_i) {
+    cat(sprintf("Up_%-4d:", i))
+    for (j in early_steps) {
+      val <- tree_matrix[i + 1, j + 1]
+      if (!is.na(val)) {
+        cat(sprintf(" %9.2f", val))
+      } else {
+        cat(sprintf(" %9s", ""))
+      }
+    }
+    final_val <- tree_matrix[i + 1, N_total + 1]
+    cat("    ...                              ", sprintf("%9.2f", final_val), "\n", sep = "")
+  }
+  cat("  ...\n")
+  cat(sprintf("... (Total steps: %d, showing layout up to step %d and step %d)\n", N_total, max_steps, N_total))
+}
+
+# Execute the condensed printing function for both trees
+print_tree_condensed(stock_tree, "Stock Price Tree")
+print_tree_condensed(option_tree, "Option Value Tree")
