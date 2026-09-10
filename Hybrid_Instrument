@@ -392,3 +392,532 @@ print_tree_condensed <- function(tree_matrix, title, max_steps = 4, N_total = N)
 # Execute the condensed printing function for both trees
 print_tree_condensed(stock_tree, "Stock Price Tree")
 print_tree_condensed(option_tree, "Option Value Tree")
+
+
+
+
+
+#-------------------------------------------------------------------------------
+##chapter-4. T&F Model
+#-------------------------------------------------------------------------------
+
+
+
+
+################################################################################
+#Part1. 
+################################################################################
+
+
+# Load required libraries if needed (base R is sufficient for this binomial tree implementation)
+
+# 1. Input Parameters from the Given Conditions
+S0 <- 10000          # Initial stock price at valuation date (CU)
+K <- 8000            # Conversion price (CU)
+face_value <- 1000000000 # Total face value (CU 1,000,000,000)
+shares_issued <- 100000  # Number of shares issued
+conv_ratio <- shares_issued / (face_value / 10000) # Conversion ratio per unit or total scale adjustment
+
+# Dates & Time-to-Maturity
+# Valuation Date: 2022-12-31, Maturity Date: 2027-12-31 (T = 5 years)
+T_years <- 5.0
+dt <- 1 / 12         # Monthly time step (1 month)
+N <- round(T_years / dt) # Total steps = 60 months
+
+sigma <- 0.50        # Stock price volatility (50%)
+rf <- 0.03           # Risk-free rate (3%)
+rd <- 0.05           # Risky discount rate / credit-adjusted rate (5%)
+ytm_put <- 0.06      # Put option guaranteed yield (6% annual compound)
+
+# 2. Binomial Tree Parameters (CRR Parameters)
+u <- exp(sigma * sqrt(dt))
+d <- 1 / u
+p <- (exp(rf * dt) - d) / (u - d) # Risk-neutral probability
+
+# 3. Initialize Stock Price Tree
+stock_tree <- matrix(NA, nrow = N + 1, ncol = N + 1)
+for (i in 0:N) {
+  for (j in 0:i) {
+    stock_tree[j + 1, i + 1] <- S0 * (u^j) * (d^(i - j))
+  }
+}
+
+# 4. Initialize Convertible Bond Value Tree & Component Trees (T-F Framework)
+# T-F model splits CB into Equity-like part (discounted at rf) and Debt-like part (discounted at rd)
+cb_tree <- matrix(NA, nrow = N + 1, ncol = N + 1)
+equity_part <- matrix(NA, nrow = N + 1, ncol = N + 1)
+debt_part <- matrix(NA, nrow = N + 1, ncol = N + 1)
+
+# 5. Boundary Conditions at Maturity (T = 60 months, 2027-12-31)
+# At maturity, holder compares conversion value vs redemption value with 6% annual compound YTM
+maturity_redemption <- face_value * (1 + 0.06)^T_years
+
+for (j in 0:N) {
+  st <- stock_tree[j + 1, N + 1]
+  conversion_value <- (face_value / K) * st
+  
+  if (conversion_value > maturity_redemption) {
+    # Optimal to convert into equity
+    equity_part[j + 1, N + 1] <- conversion_value
+    debt_part[j + 1, N + 1] <- 0
+  } else {
+    # Hold to maturity and collect cash redemption
+    equity_part[j + 1, N + 1] <- 0
+    debt_part[j + 1, N + 1] <- maturity_redemption
+  }
+  cb_tree[j + 1, N + 1] <- equity_part[j + 1, N + 1] + debt_part[j + 1, N + 1]
+}
+
+# 6. Backward Induction through the Tree
+# Put option available from 2024-12-31 (2 years later, i = 24) to maturity
+put_start_step <- 24 
+
+for (i in (N - 1):0) {
+  current_time_years <- i * dt
+  
+  # Calculate put redemption value if applicable (6% annual compound from inception)
+  put_value <- face_value * ((1 + ytm_put)^current_time_years)
+  
+  for (j in 0:i) {
+    st <- stock_tree[j + 1, i + 1]
+    conversion_value <- (face_value / K) * st
+    
+    # Expected continuation values discounted at respective rates (T-F dual discounting)
+    exp_equity <- exp(-rf * dt) * (p * equity_part[j + 2, i + 2] + (1 - p) * equity_part[j + 1, i + 2])
+    exp_debt <- exp(-rd * dt) * (p * debt_part[j + 2, i + 2] + (1 - p) * debt_part[j + 1, i + 2])
+    
+    # Default continuation value in T-F framework
+    cont_value <- exp_equity + exp_debt
+    
+    # Check early exercise conditions (Conversion vs Put vs Continuation)
+    best_equity <- exp_equity
+    best_debt <- exp_debt
+    
+    # 1. Conversion option check (available anytime after 1 year, i >= 12 based on image text)
+    if (i >= 12 && conversion_value > cont_value) {
+      best_equity <- conversion_value
+      best_debt <- 0
+    }
+    
+    # 2. Put option check (available after 2 years, i >= 24)
+    if (i >= put_start_step && put_value > (best_equity + best_debt) && put_value > conversion_value) {
+      # If put is exercised, investor receives cash (treated fully as debt recovery or put payout)
+      best_equity <- 0
+      best_debt <- put_value
+    }
+    
+    equity_part[j + 1, i + 1] <- best_equity
+    debt_part[j + 1, i + 1] <- best_debt
+    cb_tree[j + 1, i + 1] <- best_equity + best_debt
+  }
+}
+
+# 7. Output Valuation Result at Valuation Date (t = 0)
+cat("=== Tsiveriotis-Fernandes (T-F) Model Valuation Result ===\n")
+cat(sprintf("Valuation Date: 2022-12-31\n"))
+cat(sprintf("Initial Stock Price: CU %s\n", format(S0, big.mark = ",")))
+cat(sprintf("Calculated Convertible Bond Value: CU %s\n", format(round(cb_tree[1, 1], 2), big.mark = ",", nsmall = 2)))
+cat(sprintf("  - Equity Component Value: CU %s\n", format(round(equity_part[1, 1], 2), big.mark = ",", nsmall = 2)))
+cat(sprintf("  - Debt Component Value:   CU %s\n", format(round(debt_part[1, 1], 2), big.mark = ",", nsmall = 2)))
+
+
+
+
+################################################################################
+#Part2. Time step: 1 Year (simplified from 1 month)
+################################################################################
+
+
+# ==========================================
+# 1. Input Parameters (Given Conditions)
+# ==========================================
+S0 <- 10000          # Initial stock price at valuation date (CU)
+K <- 8000            # Conversion price (CU)
+face_value <- 1000000000 # Total face value (CU 1,000,000,000)
+
+T_years <- 5.0       # Total maturity (5 years)
+dt <- 1.0            # Time step: 1 Year (simplified from 1 month)
+N <- round(T_years / dt) # Total steps = 5 steps (Year 1, 2, 3, 4, 5)
+
+sigma <- 0.50        # Stock volatility (50%)
+rf <- 0.03           # Risk-free rate for equity part (3%)
+rd <- 0.05           # Risky discount rate for debt part (5%)
+ytm_put <- 0.06      # Put option guaranteed yield (6% annual compound)
+
+# ==========================================
+# 2. Binomial Tree Setup (Up/Down & Probability)
+# ==========================================
+# Calculate stock jump size with dt = 1 year
+u <- exp(sigma * sqrt(dt))
+d <- 1 / u
+
+# Calculate risk-neutral probability
+p <- (exp(rf * dt) - d) / (u - d)
+
+# ==========================================
+# 3. Create Stock Price Tree (Matrix of size 6 x 6)
+# ==========================================
+stock_tree <- matrix(0, nrow = N + 1, ncol = N + 1)
+
+for (i in 0:N) {
+  for (j in 0:i) {
+    # j represents the number of upward movements
+    stock_tree[j + 1, i + 1] <- S0 * (u^j) * (d^(i - j))
+  }
+}
+
+# ==========================================
+# 4. Initialize T-F Component Trees (Equity & Debt)
+# ==========================================
+equity_part <- matrix(0, nrow = N + 1, ncol = N + 1)
+debt_part <- matrix(0, nrow = N + 1, ncol = N + 1)
+cb_tree <- matrix(0, nrow = N + 1, ncol = N + 1)
+
+total_conversion_shares <- face_value / K # Total shares received upon conversion (125,000 shares)
+
+# ==========================================
+# 5. Set Boundary Conditions at Maturity (Year 5, Step 5)
+# ==========================================
+maturity_redemption <- face_value * (1 + 0.06)^T_years # Principal + 6% compound yield for 5 years
+
+for (j in 0:N) {
+  st <- stock_tree[j + 1, N + 1]
+  conversion_value <- total_conversion_shares * st
+  
+  if (conversion_value > maturity_redemption) {
+    # If stock conversion is worth more than cash redemption
+    equity_part[j + 1, N + 1] <- conversion_value
+    debt_part[j + 1, N + 1] <- 0
+  } else {
+    # If cash redemption is higher
+    equity_part[j + 1, N + 1] <- 0
+    debt_part[j + 1, N + 1] <- maturity_redemption
+  }
+  cb_tree[j + 1, N + 1] <- equity_part[j + 1, N + 1] + debt_part[j + 1, N + 1]
+}
+
+# ==========================================
+# 6. Backward Induction (From Year 4 back to Present Day 0)
+# ==========================================
+# Note: With dt = 1 year, Year 1 is step 1 (i = 1), Year 2 is step 2 (i = 2)
+put_start_step <- 2 # Put option available after 2 years (Step 2)
+
+for (i in (N - 1):0) {
+  current_time_years <- i * dt
+  put_value <- face_value * ((1 + ytm_put)^current_time_years) # Put value at current step
+  
+  for (j in 0:i) {
+    st <- stock_tree[j + 1, i + 1]
+    conversion_value <- total_conversion_shares * st
+    
+    # Step A: Dual discounting from next year (i + 2) to current year (i + 1)
+    exp_equity <- exp(-rf * dt) * (p * equity_part[j + 2, i + 2] + (1 - p) * equity_part[j + 1, i + 2])
+    exp_debt <- exp(-rd * dt) * (p * debt_part[j + 2, i + 2] + (1 - p) * debt_part[j + 1, i + 2])
+    
+    # Default holding values (continuation)
+    best_equity <- exp_equity
+    best_debt <- exp_debt
+    cont_value <- exp_equity + exp_debt
+    
+    # Step B: Check Conversion Option (Available after 1 year, i >= 1)
+    if (i >= 1 && conversion_value > cont_value) {
+      best_equity <- conversion_value
+      best_debt <- 0
+    }
+    
+    # Step C: Check Put Option (Available after 2 years, i >= 2)
+    if (i >= put_start_step && 
+        put_value > (best_equity + best_debt) && 
+        put_value > conversion_value) {
+      best_equity <- 0
+      best_debt <- put_value
+    }
+    
+    # Store optimized values into matrices
+    equity_part[j + 1, i + 1] <- best_equity
+    debt_part[j + 1, i + 1] <- best_debt
+    cb_tree[j + 1, i + 1] <- best_equity + best_debt
+  }
+}
+
+# ==========================================
+# 7. Print Final Valuation Results
+# ==========================================
+cat("=== Tsiveriotis-Fernandes (T-F) Model Valuation Result (Annual Steps) ===\n")
+cat(sprintf("Valuation Date: 2022-12-31\n"))
+cat(sprintf("Initial Stock Price: CU %s\n", format(S0, big.mark = ",")))
+cat(sprintf("Calculated Convertible Bond Value: CU %s\n", format(round(cb_tree[1, 1], 2), big.mark = ",", nsmall = 2)))
+cat(sprintf("  - Equity Component Value: CU %s\n", format(round(equity_part[1, 1], 2), big.mark = ",", nsmall = 2)))
+cat(sprintf("  - Debt Component Value:   CU %s\n", format(round(debt_part[1, 1], 2), big.mark = ",", nsmall = 2)))
+
+
+
+################################################################################
+#Part3. TAdd. Call-option
+################################################################################
+
+
+
+
+# 1. Input Parameters from the Given Conditions
+S0 <- 10000          # Initial stock price at valuation date (CU)
+K <- 8000            # Conversion price (CU)
+face_value <- 1000000000 # Total face value (CU 1,000,000,000)
+
+# Dates & Time-to-Maturity
+# Valuation Date: 2022-12-31, Maturity Date: 2027-12-31 (T = 5 years)
+T_years <- 5.0
+dt <- 1 / 12         # Monthly time step (1 month)
+N <- round(T_years / dt) # Total steps = 60 months
+
+sigma <- 0.50        # Stock price volatility (50%)
+rf <- 0.03           # Risk-free rate (3%)
+rd <- 0.05           # Risky discount rate / credit-adjusted rate (5%)
+ytm_put <- 0.06      # Put option guaranteed yield (6% annual compound)
+ytm_call <- 0.05     # Call option redemption yield (5% annual compound)
+
+# 2. Binomial Tree Parameters (CRR Parameters)
+u <- exp(sigma * sqrt(dt))
+d <- 1 / u
+p <- (exp(rf * dt) - d) / (u - d) # Risk-neutral probability
+
+# 3. Initialize Stock Price Tree
+stock_tree <- matrix(NA, nrow = N + 1, ncol = N + 1)
+for (i in 0:N) {
+  for (j in 0:i) {
+    stock_tree[j + 1, i + 1] <- S0 * (u^j) * (d^(i - j))
+  }
+}
+
+# 4. Initialize Convertible Bond Value Tree & Component Trees (T-F Framework)
+cb_tree <- matrix(NA, nrow = N + 1, ncol = N + 1)
+equity_part <- matrix(NA, nrow = N + 1, ncol = N + 1)
+debt_part <- matrix(NA, nrow = N + 1, ncol = N + 1)
+
+total_conversion_shares <- face_value / K # Total shares received upon conversion
+
+# 5. Boundary Conditions at Maturity (T = 60 months, 2027-12-31)
+maturity_redemption <- face_value * (1 + 0.06)^T_years
+
+for (j in 0:N) {
+  st <- stock_tree[j + 1, N + 1]
+  conversion_value <- total_conversion_shares * st
+  
+  if (conversion_value > maturity_redemption) {
+    equity_part[j + 1, N + 1] <- conversion_value
+    debt_part[j + 1, N + 1] <- 0
+  } else {
+    equity_part[j + 1, N + 1] <- 0
+    debt_part[j + 1, N + 1] <- maturity_redemption
+  }
+  cb_tree[j + 1, N + 1] <- equity_part[j + 1, N + 1] + debt_part[j + 1, N + 1]
+}
+
+# 6. Backward Induction through the Tree
+put_start_step <- 24 # Put option available after 2 years (i = 24)
+call_start_step <- 24 # Call option available after 2 years (i = 24)
+
+for (i in (N - 1):0) {
+  current_time_years <- i * dt
+  
+  put_value <- face_value * ((1 + ytm_put)^current_time_years)
+  call_value <- face_value * ((1 + ytm_call)^current_time_years)
+  
+  for (j in 0:i) {
+    st <- stock_tree[j + 1, i + 1]
+    conversion_value <- total_conversion_shares * st
+    
+    # Expected continuation values (T-F dual discounting)
+    exp_equity <- exp(-rf * dt) * (p * equity_part[j + 2, i + 2] + (1 - p) * equity_part[j + 1, i + 2])
+    exp_debt <- exp(-rd * dt) * (p * debt_part[j + 2, i + 2] + (1 - p) * debt_part[j + 1, i + 2])
+    
+    best_equity <- exp_equity
+    best_debt <- exp_debt
+    cont_value <- exp_equity + exp_debt
+    
+    # 1. Conversion option check (available anytime after 1 year, i >= 12)
+    if (i >= 12 && conversion_value > cont_value) {
+      best_equity <- conversion_value
+      best_debt <- 0
+    }
+    
+    # 2. Put option check (available after 2 years, i >= 24)
+    if (i >= put_start_step && put_value > (best_equity + best_debt) && put_value > conversion_value) {
+      best_equity <- 0
+      best_debt <- put_value
+    }
+    
+    # 3. Call option (Issuer's early redemption) check (available after 2 years, i >= 24)
+    # Issuer calls if continuation value exceeds call value
+    if (i >= call_start_step && cont_value > call_value) {
+      # When issuer calls, holder chooses between conversion and cash call price
+      if (conversion_value > call_value) {
+        best_equity <- conversion_value
+        best_debt <- 0
+      } else {
+        best_equity <- 0
+        best_debt <- call_value
+      }
+    }
+    
+    equity_part[j + 1, i + 1] <- best_equity
+    debt_part[j + 1, i + 1] <- best_debt
+    cb_tree[j + 1, i + 1] <- best_equity + best_debt
+  }
+}
+
+# 7. Output Valuation Result at Valuation Date (t = 0)
+cat("=== Tsiveriotis-Fernandes (T-F) Model Valuation Result (with Call Option) ===\n")
+cat(sprintf("Valuation Date: 2022-12-31\n"))
+cat(sprintf("Initial Stock Price: CU %s\n", format(S0, big.mark = ",")))
+cat(sprintf("Calculated Convertible Bond Value: CU %s\n", format(round(cb_tree[1, 1], 2), big.mark = ",", nsmall = 2)))
+cat(sprintf("  - Equity Component Value: CU %s\n", format(round(equity_part[1, 1], 2), big.mark = ",", nsmall = 2)))
+cat(sprintf("  - Debt Component Value:   CU %s\n", format(round(debt_part[1, 1], 2), big.mark = ",", nsmall = 2)))
+
+
+
+
+################################################################################
+#Part4. Decomposition
+################################################################################
+
+
+# ==========================================
+# 1. Input Parameters and Setup
+# ==========================================
+S0 <- 10000          # Initial stock price at valuation date (CU)
+K <- 8000            # Conversion price (CU)
+face_value <- 1000000000 # Total face value (CU 1,000,000,000)
+
+T_years <- 5.0
+dt <- 1 / 12         # Monthly time step
+N <- round(T_years / dt)
+
+sigma <- 0.50        # Volatility
+rf <- 0.03           # Risk-free rate
+rd <- 0.05           # Risky discount rate (credit-adjusted)
+ytm_put <- 0.06      # Put yield (6%)
+ytm_call <- 0.05     # Call yield (5%)
+
+u <- exp(sigma * sqrt(dt))
+d <- 1 / u
+p <- (exp(rf * dt) - d) / (u - d)
+
+# Stock Price Tree
+stock_tree <- matrix(NA, nrow = N + 1, ncol = N + 1)
+for (i in 0:N) {
+  for (j in 0:i) {
+    stock_tree[j + 1, i + 1] <- S0 * (u^j) * (d^(i - j))
+  }
+}
+total_conversion_shares <- face_value / K
+
+# ==========================================
+# Function to Value CB under Different Option Settings
+# ==========================================
+valuation_cb <- function(has_conversion = TRUE, has_put = TRUE, has_call = TRUE) {
+  
+  cb_tree <- matrix(NA, nrow = N + 1, ncol = N + 1)
+  equity_part <- matrix(NA, nrow = N + 1, ncol = N + 1)
+  debt_part <- matrix(NA, nrow = N + 1, ncol = N + 1)
+  
+  maturity_redemption <- face_value * (1 + 0.06)^T_years
+  
+  # Maturity Boundary
+  for (j in 0:N) {
+    st <- stock_tree[j + 1, N + 1]
+    conversion_value <- total_conversion_shares * st
+    
+    if (has_conversion && conversion_value > maturity_redemption) {
+      equity_part[j + 1, N + 1] <- conversion_value
+      debt_part[j + 1, N + 1] <- 0
+    } else {
+      equity_part[j + 1, N + 1] <- 0
+      debt_part[j + 1, N + 1] <- maturity_redemption
+    }
+    cb_tree[j + 1, N + 1] <- equity_part[j + 1, N + 1] + debt_part[j + 1, N + 1]
+  }
+  
+  # Backward Induction
+  put_start_step <- 24
+  call_start_step <- 24
+  
+  for (i in (N - 1):0) {
+    current_time_years <- i * dt
+    put_value <- face_value * ((1 + ytm_put)^current_time_years)
+    call_value <- face_value * ((1 + ytm_call)^current_time_years)
+    
+    for (j in 0:i) {
+      st <- stock_tree[j + 1, i + 1]
+      conversion_value <- total_conversion_shares * st
+      
+      exp_equity <- exp(-rf * dt) * (p * equity_part[j + 2, i + 2] + (1 - p) * equity_part[j + 1, i + 2])
+      exp_debt <- exp(-rd * dt) * (p * debt_part[j + 2, i + 2] + (1 - p) * debt_part[j + 1, i + 2])
+      
+      best_equity <- exp_equity
+      best_debt <- exp_debt
+      cont_value <- exp_equity + exp_debt
+      
+      # 1. Conversion
+      if (has_conversion && i >= 12 && conversion_value > cont_value) {
+        best_equity <- conversion_value
+        best_debt <- 0
+      }
+      
+      # 2. Put Option
+      if (has_put && i >= put_start_step && put_value > (best_equity + best_debt) && put_value > conversion_value) {
+        best_equity <- 0
+        best_debt <- put_value
+      }
+      
+      # 3. Call Option
+      if (has_call && i >= call_start_step && cont_value > call_value) {
+        if (has_conversion && conversion_value > call_value) {
+          best_equity <- conversion_value
+          best_debt <- 0
+        } else {
+          best_equity <- 0
+          best_debt <- call_value
+        }
+      }
+      
+      equity_part[j + 1, i + 1] <- best_equity
+      debt_part[j + 1, i + 1] <- best_debt
+      cb_tree[j + 1, i + 1] <- best_equity + best_debt
+    }
+  }
+  return(cb_tree[1, 1])
+}
+
+# ==========================================
+# 2. Straight Bond Value (Host Bond without any options)
+# ==========================================
+# Calculated purely by discounting contractual cash flows at risky rate (rd)
+# Alternatively, using the model with all options turned FALSE:
+straight_bond_value <- valuation_cb(has_conversion = FALSE, has_put = FALSE, has_call = FALSE)
+
+
+# ==========================================
+# Correct Incremental Option Decomposition
+# ==========================================
+cb_base <- straight_bond_value
+cb_plus_conv <- valuation_cb(has_conversion = TRUE, has_put = FALSE, has_call = FALSE)
+cb_plus_conv_put <- valuation_cb(has_conversion = TRUE, has_put = TRUE, has_call = FALSE)
+cb_full <- valuation_cb(has_conversion = TRUE, has_put = TRUE, has_call = TRUE)
+
+# Incremental values
+inc_conversion <- cb_plus_conv - cb_base
+inc_put <- cb_plus_conv_put - cb_plus_conv
+inc_call <- cb_full - cb_plus_conv_put # Call reduces value, so it's negative or a deduction
+
+# Check sum: Straight + Conv + Put + Call (Call impact is negative)
+reconstructed_cb <- cb_base + inc_conversion + inc_put + inc_call
+
+cat("=== Corrected Incremental Option Decomposition ===\n")
+cat(sprintf("1. Pure Straight Bond Value:     CU %s\n", format(round(cb_base, 2), big.mark = ",", nsmall = 2)))
+cat(sprintf("   + Conversion Option Incremental: CU %s\n", format(round(inc_conversion, 2), big.mark = ",", nsmall = 2)))
+cat(sprintf("   + Put Option Incremental:        CU %s\n", format(round(inc_put, 2), big.mark = ",", nsmall = 2)))
+cat(sprintf("   + Call Option Incremental:       CU %s\n", format(round(inc_call, 2), big.mark = ",", nsmall = 2)))
+cat("---------------------------------------------------\n")
+cat(sprintf("Reconstructed Full CB Value:     CU %s\n", format(round(reconstructed_cb, 2), big.mark = ",", nsmall = 2)))
+cat(sprintf("Actual Full CB Value (Model):    CU %s\n", format(round(cb_full, 2), big.mark = ",", nsmall = 2)))
