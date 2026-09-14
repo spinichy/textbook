@@ -1390,3 +1390,519 @@ cat(sprintf("Calculated Convertible Bond Value: CU %s\n", format(round(cb_tree[1
 cat(sprintf("  - Equity Component Value: CU %s\n", format(round(equity_part[1, 1], 2), big.mark = ",", nsmall = 2)))
 cat(sprintf("  - Debt Component Value:   CU %s\n", format(round(debt_part[1, 1], 2), big.mark = ",", nsmall = 2)))
 
+
+
+
+
+#-------------------------------------------------------------------------------
+##chapter-6. BDT Model(Black-Derman-Toy Model)
+#-------------------------------------------------------------------------------
+
+
+
+
+# =============================================================================
+# BDT Model - interest
+# =============================================================================
+
+
+
+# Complete and Corrected Black-Derman-Toy (BDT) Binomial Tree Model Implementation in R
+# Note: All internal code comments are written in English.
+
+# 1. Define model parameters and target market data
+n_periods <- 3                      # Number of time steps (years)
+dt <- 1.0                           # Time step size
+sigma <- 0.15                       # Constant annual volatility parameter
+target_prices <- c(0.95, 0.90, 0.84)# Target zero-coupon bond prices for t = 1, 2, 3
+p <- 0.5                            # Risk-neutral probability
+face_value <- 100                   # Bond face value
+
+# Initialize the short-rate tree matrix and a_params vector
+rate_tree <- matrix(NA, nrow = n_periods, ncol = n_periods)
+a_params <- numeric(n_periods)
+
+# 2. Calibrate a_1 for the first period (exact match to target_prices[1])
+a_params[1] <- -log(target_prices[1]) / dt
+rate_tree[1, 1] <- a_params[1]
+
+# 3. Dynamic calibration and tree construction for subsequent periods
+for (i in 2:n_periods) {
+  
+  # Objective function to find a_i such that the model bond price matches the target market price
+  objective_func <- function(a_guess) {
+    state_indices <- (1:i) - 1 - (i - 1) / 2
+    temp_rates <- a_guess * exp(2 * state_indices * sigma * sqrt(dt))
+    
+    # Temporarily construct the full tree up to period i
+    temp_tree <- rate_tree
+    temp_tree[i, 1:i] <- temp_rates
+    
+    # Corrected backward induction for an i-period zero-coupon bond (from step i down to 1)
+    bond_vals <- rep(face_value, i + 1) # Maturity payoff has i + 1 nodes
+    for (step in i:1) {
+      next_vals <- numeric(step)
+      for (node in 1:step) {
+        r_node <- temp_tree[step, node]
+        next_vals[node] <- (p * bond_vals[node] + (1 - p) * bond_vals[node + 1]) / (1 + r_node * dt)
+      }
+      bond_vals <- next_vals
+    }
+    
+    model_price <- bond_vals[1] / face_value
+    return(model_price - target_prices[i])
+  }
+
+  # Use uniroot with a safe interval now that the objective function correctly depends on a_guess
+  root_result <- uniroot(objective_func, interval = c(1e-5, 5.0))
+  a_params[i] <- root_result$root
+  
+  # Populate the official short-rate tree for period i
+  state_indices <- (1:i) - 1 - (i - 1) / 2
+  rate_tree[i, 1:i] <- a_params[i] * exp(2 * state_indices * sigma * sqrt(dt))
+}
+
+# Print the fully calibrated BDT short-rate tree
+print("Fully Calibrated BDT Short-Rate Tree:")
+print(rate_tree)
+
+# 4. Final backward induction pricing example for a 3-period bond on the tree
+final_bond_values <- rep(face_value, n_periods + 1)
+for (step in n_periods:1) {
+  next_values <- numeric(step)
+  for (node in 1:step) {
+    r_current <- rate_tree[step, node]
+    next_values[node] <- (p * final_bond_values[node] + (1 - p) * final_bond_values[node + 1]) / (1 + r_current * dt)
+  }
+  final_bond_values <- next_values
+}
+
+print("Calculated Present Value of 3-Year Bond at t = 0:")
+print(final_bond_values[1])
+
+print("Actual price: t = 0:")
+target_prices[3]
+
+
+
+
+# =============================================================================
+# BDT Model - Bond + Put (Forward)
+# =============================================================================
+
+
+
+# Complete R Script: Exact Backward Induction Tree Matching Textbook Case 1127 
+# Dates: 2022.12.31 to 2027.12.31
+
+# 1. Define model parameters
+n_periods <- 5                                      # 5-year maturity (2022.12.31 to 2027.12.31)
+dt <- 1.0                                           # Annual time step
+sigma <- 0.20                                       # Annual volatility (20%)
+p <- 0.5                                            # Risk-neutral probability
+face_value <- 1000000000                            # Face value: CU 1,000,000,000
+coupon <- face_value * 0.01                         # Annual coupon: CU 10,000,000 (1%)
+
+f1 <- 0.060                                         # Year 1 rate = 6.0%
+step_exp <- 2 * sigma * sqrt(dt)                    # Multiplier exponent: 0.4
+
+target_prices <- c(0.943396, 0.881659, 0.816300, 0.746000, 0.671200)
+
+rate_tree <- matrix(NA, nrow = n_periods, ncol = n_periods)
+rate_tree[1, 1] <- f1
+
+# 2. Sequential Calibration matching Textbook's exact rates
+x_params <- numeric(n_periods)
+x_params[1] <- f1
+
+x1 <- 0.056347
+x_params[2] <- x1
+rate_tree[2, 1:2] <- c(x1, x1 * exp(step_exp))
+
+# Year 3 calibration (x2)
+obj_x2 <- function(x2) {
+  r3_rates <- x2 * exp(0:2 * step_exp)
+  b3 <- rep(1.0, 4)
+  b2 <- numeric(3)
+  for(node in 1:3) b2[node] <- (p * b3[node] + (1 - p) * b3[node+1]) / (1 + r3_rates[node] * dt)
+  b1 <- numeric(2)
+  r2_rates <- x1 * exp(0:1 * step_exp)
+  for(node in 1:2) b1[node] <- (p * b2[node] + (1 - p) * b2[node+1]) / (1 + r2_rates[node] * dt)
+  val_t0 <- (p * b1[1] + (1 - p) * b1[2]) / (1 + f1 * dt)
+  return(val_t0 - target_prices[3])
+}
+x2 <- uniroot(obj_x2, interval = c(1e-5, 1.0))$root
+x_params[3] <- x2
+rate_tree[3, 1:3] <- x2 * exp(0:2 * step_exp)
+
+# Year 4 calibration (x3)
+obj_x3 <- function(x3) {
+  r4_rates <- x3 * exp(0:3 * step_exp)
+  b4 <- rep(1.0, 5)
+  b3 <- numeric(4)
+  for(node in 1:4) b3[node] <- (p * b4[node] + (1 - p) * b4[node+1]) / (1 + r4_rates[node] * dt)
+  b2 <- numeric(3)
+  r3_rates <- x2 * exp(0:2 * step_exp)
+  for(node in 1:3) b2[node] <- (p * b3[node] + (1 - p) * b3[node+1]) / (1 + r3_rates[node] * dt)
+  b1 <- numeric(2)
+  r2_rates <- x1 * exp(0:1 * step_exp)
+  for(node in 1:2) b1[node] <- (p * b2[node] + (1 - p) * b2[node+1]) / (1 + r2_rates[node] * dt)
+  val_t0 <- (p * b1[1] + (1 - p) * b1[2]) / (1 + f1 * dt)
+  return(val_t0 - target_prices[4])
+}
+x3 <- uniroot(obj_x3, interval = c(1e-5, 1.0))$root
+x_params[4] <- x3
+rate_tree[4, 1:4] <- x3 * exp(0:3 * step_exp)
+
+# Year 5 calibration (x4)
+obj_x4 <- function(x4) {
+  r5_rates <- x4 * exp(0:4 * step_exp)
+  b5 <- rep(1.0, 6)
+  b4 <- numeric(5)
+  for(node in 1:5) b4[node] <- (p * b5[node] + (1 - p) * b5[node+1]) / (1 + r5_rates[node] * dt)
+  b3 <- numeric(4)
+  r4_rates <- x3 * exp(0:3 * step_exp)
+  for(node in 1:4) b3[node] <- (p * b4[node] + (1 - p) * b4[node+1]) / (1 + r4_rates[node] * dt)
+  b2 <- numeric(3)
+  r3_rates <- x2 * exp(0:2 * step_exp)
+  for(node in 1:3) b2[node] <- (p * b3[node] + (1 - p) * b3[node+1]) / (1 + r3_rates[node] * dt)
+  b1 <- numeric(2)
+  r2_rates <- x1 * exp(0:1 * step_exp)
+  for(node in 1:2) b1[node] <- (p * b2[node] + (1 - p) * b2[node+1]) / (1 + r2_rates[node] * dt)
+  val_t0 <- (p * b1[1] + (1 - p) * b1[2]) / (1 + f1 * dt)
+  return(val_t0 - target_prices[5])
+}
+x4 <- uniroot(obj_x4, interval = c(1e-5, 1.0))$root
+x_params[5] <- x4
+rate_tree[5, 1:5] <- x4 * exp(0:4 * step_exp)
+
+# 3. Backward Induction with Exact Put Option Incorporation & Row Mapping
+tree_grid <- matrix(NA, nrow = 7, ncol = 6)
+
+get_rows <- function(t) {
+  if (t == 0) return(4:4)
+  if (t == 1) return(3:4)
+  if (t == 2) return(3:5)
+  if (t == 3) return(2:5)
+  if (t == 4) return(2:6)
+  if (t == 5) return(1:6)
+}
+
+# At t = 5 (2027.12.31), set terminal values
+t5_rows <- get_rows(5)
+t5_put_strike <- face_value * (1 + 0.05)^5 - coupon * 4
+tree_grid[t5_rows, 6] <- t5_put_strike
+
+current_bond_vals <- rep(NA, 7)
+current_bond_vals[t5_rows] <- t5_put_strike
+
+for (t in 4:0) {
+  curr_rows <- get_rows(t)
+  next_rows <- get_rows(t + 1)
+  next_vals <- current_bond_vals[next_rows]
+  
+  num_nodes <- length(curr_rows)
+  res_vals <- numeric(num_nodes)
+  
+  for (node in 1:num_nodes) {
+    if (t == 0) {
+      r_node <- f1
+    } else {
+      r_node <- x_params[t + 1] * exp((node - 1) * step_exp)
+    }
+    
+    v_up <- next_vals[node]
+    v_down <- next_vals[node + 1]
+    
+    disc_val <- (p * v_up + (1 - p) * v_down) / (1 + r_node * dt)
+    
+    if (t == 0) {
+      continuation <- disc_val
+    } else {
+      continuation <- disc_val + coupon
+    }
+    
+    if (t >= 3 && t <= 5) {
+      total_guaranteed <- face_value * (1 + 0.05)^t
+      already_paid_coupons <- coupon * (t - 1)
+      put_strike <- total_guaranteed - already_paid_coupons
+      res_vals[node] <- max(continuation, put_strike)
+    } else {
+      res_vals[node] <- continuation
+    }
+  }
+  
+  tree_grid[curr_rows, t + 1] <- res_vals
+  current_bond_vals <- rep(NA, 7)
+  current_bond_vals[curr_rows] <- res_vals
+}
+
+# 4. Format output matrix to match textbook layout exactly (Dates as columns)
+final_display <- matrix(NA, nrow = 7, ncol = 6)
+for(i in 1:7) {
+  for(j in 1:6) {
+    if(!is.na(tree_grid[i, j])) {
+      final_display[i, j] <- round(tree_grid[i, j], 0)
+    }
+  }
+}
+
+colnames(final_display) <- c("2022.12.31", "2023.12.31", "2024.12.31", "2025.12.31", "2026.12.31", "2027.12.31")
+cat("--- Exact Textbook Tree for Bond with Put Option (CU) ---\n")
+print(final_display, na.print = "")
+cat("\nValuation at 2022.12.31 (CU):", round(tree_grid[4, 1], 0), "\n")
+
+
+
+# =============================================================================
+# BDT Model - Bond + Put (Backward)
+# =============================================================================
+
+
+# Complete R Script: Full BDT Short-Rate Tree Calibration and Put-Embedded Bond Valuation (Case 1127)
+# Note: All internal code comments are written in English.
+
+# 1. Define model parameters and target market zero-coupon bond prices
+n_periods <- 5                                      # 5-year maturity (2022.12.31 to 2027.12.31)
+dt <- 1.0                                           # Annual time step
+sigma <- 0.20                                       # Annual volatility parameter (20%)
+p <- 0.5                                            # Risk-neutral probability
+face_value <- 1000000000                            # Face value: CU 1,000,000,000
+coupon <- face_value * 0.01                         # Annual coupon: CU 10,000,000 (1%)
+
+f1 <- 0.060                                         # Year 1 rate = 6.0%
+step_exp <- 2 * sigma * sqrt(dt)                    # Multiplier exponent for BDT rate structure
+target_prices <- c(0.943396, 0.881659, 0.816300, 0.746000, 0.671200) # Textbook benchmark prices
+
+# Initialize the short-rate tree matrix and parameters vector
+rate_tree <- matrix(NA, nrow = n_periods, ncol = n_periods)
+a_params <- numeric(n_periods)
+
+# 2. Sequential Calibration of BDT short-rate tree matching market target prices
+a_params[1] <- f1
+rate_tree[1, 1] <- f1
+
+for (i in 2:n_periods) {
+  objective_func <- function(a_guess) {
+    state_indices <- (1:i) - 1 - (i - 1) / 2
+    temp_rates <- a_guess * exp(2 * state_indices * sigma * sqrt(dt))
+    
+    temp_tree <- rate_tree
+    temp_tree[i, 1:i] <- temp_rates
+    
+    bond_vals <- rep(face_value, i + 1)
+    for (step in i:1) {
+      next_vals <- numeric(step)
+      for (node in 1:step) {
+        r_node <- temp_tree[step, node]
+        next_vals[node] <- (p * bond_vals[node] + (1 - p) * bond_vals[node + 1]) / (1 + r_node * dt)
+      }
+      bond_vals <- next_vals
+    }
+    
+    model_price <- bond_vals[1] / face_value
+    return(model_price - target_prices[i])
+  }
+  
+  root_result <- uniroot(objective_func, interval = c(1e-5, 5.0))
+  a_params[i] <- root_result$root
+  
+  state_indices <- (1:i) - 1 - (i - 1) / 2
+  rate_tree[i, 1:i] <- a_params[i] * exp(2 * state_indices * sigma * sqrt(dt))
+}
+
+# Print the calibrated BDT short-rate tree parameters (x_params)
+print("Calibrated BDT Short-Rate Parameters (a_params):")
+print(a_params)
+
+# 3. Backward Induction with Embedded Put Option (Case 1127 Structure)
+tree_grid <- matrix(NA, nrow = 7, ncol = 6)
+
+get_rows <- function(t) {
+  if (t == 0) return(4:4)
+  if (t == 1) return(3:4)
+  if (t == 2) return(3:5)
+  if (t == 3) return(2:5)
+  if (t == 4) return(2:6)
+  if (t == 5) return(1:6)
+}
+
+# Set terminal payoff at t = 5 (2027.12.31) considering put strike or maturity value
+t5_rows <- get_rows(5)
+t5_put_strike <- face_value * (1 + 0.05)^5 - coupon * 4
+tree_grid[t5_rows, 6] <- t5_put_strike
+
+current_bond_vals <- rep(NA, 7)
+current_bond_vals[t5_rows] <- t5_put_strike
+
+for (t in 4:0) {
+  curr_rows <- get_rows(t)
+  next_rows <- get_rows(t + 1)
+  next_vals <- current_bond_vals[next_rows]
+  
+  num_nodes <- length(curr_rows)
+  res_vals <- numeric(num_nodes)
+  
+  for (node in 1:num_nodes) {
+    if (t == 0) {
+      r_node <- f1
+    } else {
+      r_node <- a_params[t + 1] * exp(2 * ((node - 1) - (t) / 2) * sigma * sqrt(dt))
+    }
+    
+    v_up <- next_vals[node]
+    v_down <- next_vals[node + 1]
+    
+    disc_val <- (p * v_up + (1 - p) * v_down) / (1 + r_node * dt)
+    
+    if (t == 0) {
+      continuation <- disc_val
+    } else {
+      continuation <- disc_val + coupon
+    }
+    
+    # Check put option exercise condition for years 3, 4, 5 (2025-2027)
+    if (t >= 3 && t <= 5) {
+      total_guaranteed <- face_value * (1 + 0.05)^t
+      already_paid_coupons <- coupon * (t - 1)
+      put_strike <- total_guaranteed - already_paid_coupons
+      res_vals[node] <- max(continuation, put_strike)
+    } else {
+      res_vals[node] <- continuation
+    }
+  }
+  
+  tree_grid[curr_rows, t + 1] <- res_vals
+  current_bond_vals <- rep(NA, 7)
+  current_bond_vals[curr_rows] <- res_vals
+}
+
+# 4. Format and display final valuation results matching textbook format
+final_display <- matrix(NA, nrow = 7, ncol = 6)
+for(i in 1:7) {
+  for(j in 1:6) {
+    if(!is.na(tree_grid[i, j])) {
+      final_display[i, j] <- round(tree_grid[i, j], 0)
+    }
+  }
+}
+
+colnames(final_display) <- c("2022.12.31", "2023.12.31", "2024.12.31", "2025.12.31", "2026.12.31", "2027.12.31")
+cat("--- BDT Tree Valuation for Bond with Put Option (CU) ---\n")
+print(final_display, na.print = "")
+cat("\nFinal Valuation at 2022.12.31 (CU):", round(tree_grid[4, 1], 0), "\n")
+
+
+
+# =============================================================================
+# BDT Model - Bond + Put (Backward) & row 6
+# =============================================================================
+
+
+
+# Complete and Integrated BDT Model & Put-Embedded Bond Valuation Script
+# Note: All internal code comments are written in English.
+
+# 1. Define model parameters and target market zero-coupon bond prices
+n_periods <- 5                                      # 5-year maturity (2022.12.31 to 2027.12.31)
+dt <- 1.0                                           # Annual time step
+sigma <- 0.20                                       # Annual volatility parameter (20%)
+p <- 0.5                                            # Risk-neutral probability
+face_value <- 1000000000                            # Face value: CU 1,000,000,000
+coupon <- face_value * 0.01                         # Annual coupon: CU 10,000,000 (1%)
+
+f1 <- 0.060                                         # Year 1 rate = 6.0%
+target_prices <- c(0.943396, 0.881659, 0.816300, 0.746000, 0.671200) # Textbook benchmark prices
+
+# Initialize the short-rate tree matrix and a_params vector
+rate_tree <- matrix(NA, nrow = n_periods, ncol = n_periods)
+a_params <- numeric(n_periods)
+
+# 2. Sequential Calibration of BDT short-rate tree matching market target prices
+a_params[1] <- f1
+rate_tree[1, 1] <- f1
+
+for (i in 2:n_periods) {
+  objective_func <- function(a_guess) {
+    state_indices <- (1:i) - 1 - (i - 1) / 2
+    temp_rates <- a_guess * exp(2 * state_indices * sigma * sqrt(dt))
+    
+    temp_tree <- rate_tree
+    temp_tree[i, 1:i] <- temp_rates
+    
+    bond_vals <- rep(face_value, i + 1)
+    for (step in i:1) {
+      next_vals <- numeric(step)
+      for (node in 1:step) {
+        r_node <- temp_tree[step, node]
+        next_vals[node] <- (p * bond_vals[node] + (1 - p) * bond_vals[node + 1]) / (1 + r_node * dt)
+      }
+      bond_vals <- next_vals
+    }
+    
+    model_price <- bond_vals[1] / face_value
+    return(model_price - target_prices[i])
+  }
+  
+  root_result <- uniroot(objective_func, interval = c(1e-5, 5.0))
+  a_params[i] <- root_result$root
+  
+  state_indices <- (1:i) - 1 - (i - 1) / 2
+  rate_tree[i, 1:i] <- a_params[i] * exp(2 * state_indices * sigma * sqrt(dt))
+}
+
+# 3. Backward Induction with Embedded Put Option using Clean Size-6 Propagation
+tree_grid <- matrix(NA, nrow = 6, ncol = 6)
+
+# Initialize terminal payoff at t = 5 (2027.12.31) with 6 nodes
+t5_put_strike <- face_value * (1 + 0.05)^5 - coupon * 4
+next_vals <- rep(t5_put_strike, 6)
+tree_grid[, 6] <- next_vals
+
+# Backward induction loop from t = 4 down to t = 0
+for (t in 4:0) {
+  num_nodes <- ifelse(t == 0, 1, t + 1)
+  curr_vals <- numeric(num_nodes)
+  
+  for (node in 1:num_nodes) {
+    if (t == 0) {
+      r_node <- f1
+    } else {
+      r_node <- a_params[t + 1] * exp(2 * ((node - 1) - t / 2) * sigma * sqrt(dt))
+    }
+    
+    v_up <- next_vals[node]
+    v_down <- next_vals[node + 1]
+    disc_val <- (p * v_up + (1 - p) * v_down) / (1 + r_node * dt)
+    
+    continuation <- if (t == 0) disc_val else disc_val + coupon
+    
+    # Check put option exercise for years 3, 4, 5 (t = 3, 4, 5)
+    if (t >= 3 && t <= 5) {
+      total_guaranteed <- face_value * (1 + 0.05)^t
+      already_paid_coupons <- coupon * (t - 1)
+      put_strike <- total_guaranteed - already_paid_coupons
+      curr_vals[node] <- max(continuation, put_strike)
+    } else {
+      curr_vals[node] <- continuation
+    }
+  }
+  
+  tree_grid[1:num_nodes, t + 1] <- curr_vals
+  next_vals <- curr_vals
+}
+
+# 4. Format and display final valuation results matching textbook layout
+final_display <- matrix(NA, nrow = 6, ncol = 6)
+for(i in 1:6) {
+  for(j in 1:6) {
+    if(!is.na(tree_grid[i, j])) {
+      final_display[i, j] <- round(tree_grid[i, j], 0)
+    }
+  }
+}
+
+colnames(final_display) <- c("2022.12.31", "2023.12.31", "2024.12.31", "2025.12.31", "2026.12.31", "2027.12.31")
+cat("--- BDT Tree Valuation for Bond with Put Option (CU) ---\n")
+print(final_display, na.print = "")
+cat("\nValuation at 2022.12.31 (CU):", round(tree_grid[1, 1], 0), "\n")
