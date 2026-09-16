@@ -1906,3 +1906,390 @@ colnames(final_display) <- c("2022.12.31", "2023.12.31", "2024.12.31", "2025.12.
 cat("--- BDT Tree Valuation for Bond with Put Option (CU) ---\n")
 print(final_display, na.print = "")
 cat("\nValuation at 2022.12.31 (CU):", round(tree_grid[1, 1], 0), "\n")
+
+
+
+#-------------------------------------------------------------------------------
+##chapter-7. Hull-White Model
+#-------------------------------------------------------------------------------
+
+
+
+
+
+# =============================================================================
+# Hull-White Model - 1 Factor
+# =============================================================================
+
+
+
+
+# =============================================================================
+# Clean Hull-White 1-Factor Model: Trinomial Tree Valuation with Full-Term Put Option
+# =============================================================================
+
+# Note: All internal code comments are written in English.
+
+# 1. Define model parameters and target market zero-coupon bond prices
+n_periods <- 5                                      # 5-year maturity (2022.12.31 to 2027.12.31)
+dt <- 1.0                                           # Annual time step
+sigma <- 0.012                                      # Annual volatility parameter (1.2%)
+a <- 0.10                                           # Mean reversion speed parameter
+face_value <- 1000000000                            # Face value: CU 1,000,000,000
+coupon <- face_value * 0.01                         # Annual coupon: CU 10,000,000 (1%)
+
+# Market benchmark zero-coupon bond prices P(0, t) for t = 1 to 5
+target_prices <- c(0.943396, 0.881659, 0.816300, 0.746000, 0.671200)
+
+# Space interval for trinomial tree nodes
+dx <- sigma * sqrt(3 * dt)
+
+
+# =============================================================================
+# 2. Phase 1: Derive all alpha_params first across all periods using target prices
+# =============================================================================
+cat("--- Starting Phase 1: Pure Alpha Parameter Derivation ---\n")
+
+alpha_params <- numeric(n_periods)
+max_nodes <- 2 * n_periods + 1
+center_idx <- n_periods + 1
+
+# Temporary storage for intermediate state prices needed ONLY during alpha bootstrapping
+bootstrap_prices <- matrix(0, nrow = max_nodes, ncol = n_periods)
+
+# Step 1 initialization for t = 1
+alpha_params[1] <- -log(target_prices[1]) / dt
+bootstrap_prices[center_idx, 1] <- 1 / (1 + alpha_params[1] * dt)
+
+for (i in 2:n_periods) {
+  
+  objective_func <- function(alpha_guess) {
+    curr_alpha <- alpha_guess
+    model_zcb <- 0
+    prev_j_indices <- - (i - 1) : (i - 1)
+    
+    for (k in seq_along(prev_j_indices)) {
+      prev_j <- prev_j_indices[k]
+      prev_node_row <- center_idx + prev_j
+      prev_q <- bootstrap_prices[prev_node_row, i - 1]
+      
+      if (prev_q == 0) next
+      
+      r_prev <- alpha_params[i - 1] + prev_j * dx
+      disc_prev <- 1 / (1 + r_prev * dt)
+      
+      p_up   <- 1/6 + (a^2 * dt^2 - a * prev_j * dt) / 2 
+      p_mid  <- 4/6 - a^2 * dt^2
+      p_down <- 1/6 + (a^2 * dt^2 + a * prev_j * dt) / 2
+      
+      r_up   <- curr_alpha + (prev_j + 1) * dx
+      r_mid  <- curr_alpha + prev_j * dx
+      r_down <- curr_alpha + (prev_j - 1) * dx
+      
+      disc_up   <- 1 / (1 + r_up * dt)
+      disc_mid  <- 1 / (1 + r_mid * dt)
+      disc_down <- 1 / (1 + r_down * dt)
+      
+      model_zcb <- model_zcb + prev_q * disc_prev * (
+        p_up * disc_up + p_mid * disc_mid + p_down * disc_down
+      )
+    }
+    
+    return(model_zcb - target_prices[i])
+  }
+  
+  root_res <- uniroot(objective_func, interval = c(-0.2, 0.3))
+  alpha_params[i] <- root_res$root
+  
+  cat(sprintf("[Derived Alpha] alpha_params[%d] = %.6f\n", i, alpha_params[i]))
+  
+  # Advance bootstrap state prices strictly to support the next period's alpha extraction
+  next_bootstrap_prices <- numeric(max_nodes)
+  prev_j_indices <- - (i - 1) : (i - 1)
+  
+  for (k in seq_along(prev_j_indices)) {
+    prev_j <- prev_j_indices[k]
+    prev_node_row <- center_idx + prev_j
+    prev_q <- bootstrap_prices[prev_node_row, i - 1]
+    
+    if (prev_q == 0) next
+    
+    r_prev <- alpha_params[i - 1] + prev_j * dx
+    disc_prev <- 1 / (1 + r_prev * dt)
+    
+    p_up   <- 1/6 + (a^2 * dt^2 - a * prev_j * dt) / 2 
+    p_mid  <- 4/6 - a^2 * dt^2
+    p_down <- 1/6 + (a^2 * dt^2 + a * prev_j * dt) / 2
+    
+    next_bootstrap_prices[(center_idx + prev_j + 1)] <- next_bootstrap_prices[(center_idx + prev_j + 1)] + prev_q * disc_prev * p_up
+    next_bootstrap_prices[(center_idx + prev_j)]     <- next_bootstrap_prices[(center_idx + prev_j)]     + prev_q * disc_prev * p_mid
+    next_bootstrap_prices[(center_idx + prev_j - 1)] <- next_bootstrap_prices[(center_idx + prev_j - 1)] + prev_q * disc_prev * p_down
+  }
+  
+  bootstrap_prices[, i] <- next_bootstrap_prices
+}
+
+
+# =============================================================================
+# 3. Phase 2: Trinomial Backward Induction with Full-Term Put Option Availability (t = 5)
+# =============================================================================
+cat("\n--- Starting Phase 2: Valuation with Full-Term Put Option ---\n")
+
+tree_grid <- matrix(NA, nrow = max_nodes, ncol = n_periods + 1)
+
+# Step 1: Initialize terminal payoff at t = 5 (2027.12.31) with Put Option check included up to maturity
+next_vals <- numeric(max_nodes)
+for (j in (-n_periods):n_periods) {
+  row_pos <- center_idx + j
+  # Terminal payoff components at t = 5
+  base_terminal <- face_value + coupon
+  
+  # Put option strike guarantee available up to maturity (t = 5)
+  total_guaranteed <- face_value * (1 + 0.05)^5
+  already_paid_coupons <- coupon * 5
+  put_strike <- total_guaranteed - already_paid_coupons
+  
+  next_vals[row_pos] <- max(base_terminal, put_strike)
+}
+tree_grid[, 6] <- next_vals
+
+# Step 2: Unified backward induction loop from t = 4 down to t = 0
+for (t in 4:0) {
+  curr_vals <- numeric(max_nodes)
+  j_indices <- -t : t
+  
+  for (k in seq_along(j_indices)) {
+    j <- j_indices[k]
+    row_pos <- center_idx + j
+    
+    # At t = 0, use alpha_params[1]; for t >= 1, use alpha_params[t]
+    curr_alpha <- if (t == 0) alpha_params[1] else alpha_params[t]
+    r_node <- curr_alpha + j * dx
+    
+    # Hull-White trinomial branching probabilities
+    p_up   <- 1/6 + (a^2 * dt^2 - a * j * dt) / 2 
+    p_mid  <- 4/6 - a^2 * dt^2
+    p_down <- 1/6 + (a^2 * dt^2 + a * j * dt) / 2
+    
+    # Map next period's three branching values from the trinomial tree (up, mid, down)
+    v_up   <- next_vals[row_pos + 1]
+    v_mid  <- next_vals[row_pos]
+    v_down <- next_vals[row_pos - 1]
+    
+    expected_future <- p_up * v_up + p_mid * v_mid + p_down * v_down
+    disc_val <- expected_future / (1 + r_node * dt)
+    
+    # Continuation value adds the coupon if t > 0
+    continuation <- disc_val + (if (t > 0) coupon else 0)
+    
+    # Put option exercise check available from t = 3 all the way through maturity (t = 5)
+    if (t >= 3 && t <= 5) {
+      total_guaranteed <- face_value * (1 + 0.05)^t
+      already_paid_coupons <- coupon * t
+      put_strike <- total_guaranteed - already_paid_coupons
+      curr_vals[row_pos] <- max(continuation, put_strike)
+    } else {
+      curr_vals[row_pos] <- continuation
+    }
+  }
+  
+  tree_grid[, t + 1] <- curr_vals
+  next_vals <- curr_vals
+}
+
+root_val <- tree_grid[center_idx, 1]
+
+
+# =============================================================================
+# 4. Format and Display Final Valuation Results
+# =============================================================================
+final_display <- matrix(NA, nrow = max_nodes, ncol = 6)
+for(i in 1:max_nodes) {
+  for(j in 1:6) {
+    if(!is.na(tree_grid[i, j])) {
+      final_display[i, j] <- round(tree_grid[i, j], 0)
+    }
+  }
+}
+
+colnames(final_display) <- c("2022.12.31", "2023.12.31", "2024.12.31", "2025.12.31", "2026.12.31", "2027.12.31")
+cat("\n--- Hull-White 1-Factor Trinomial Tree Valuation Results (CU) ---\n")
+print(final_display, na.print = "")
+cat("\nFinal Bond Valuation with Embedded Put Option at 2022.12.31 (CU):", round(root_val, 0), "\n")
+
+
+bootstrap_prices
+
+
+
+
+# =============================================================================
+# Hull-White Model - 2 Factor
+# =============================================================================
+
+
+
+
+
+
+
+# =============================================================================
+# Clean Hull-White 2-Factor Model: Complete Bivariate Trinomial Tree Valuation
+# with Full-Term Put Option Availability & Rigorous Joint Probabilities
+# =============================================================================
+
+# Note: All internal code comments are written in English.
+
+# 1. Define model parameters and market benchmark data
+n_periods <- 5                                      # 5-year maturity (2022.12.31 to 2027.12.31)
+dt <- 1.0                                           # Annual time step
+a1 <- 0.15                                          # Mean reversion speed for factor 1
+a2 <- 0.05                                          # Mean reversion speed for factor 2
+sigma1 <- 0.012                                     # Volatility for factor 1 (1.2%)
+sigma2 <- 0.008                                     # Volatility for factor 2 (0.8%)
+rho <- -0.3                                         # Correlation between two factors
+
+face_value <- 1000000000                            # Face value: CU 1,000,000,000
+coupon <- face_value * 0.01                         # Annual coupon: CU 10,000,000 (1%)
+
+# Market benchmark zero-coupon bond prices P(0, t) for t = 1 to 5
+target_prices <- c(0.943396, 0.881659, 0.816300, 0.746000, 0.671200)
+
+
+# =============================================================================
+# 2. Auxiliary Settings for 2-Factor Bivariate Tree Mapping
+# =============================================================================
+dx1 <- sigma1 * sqrt(3 * dt)
+dx2 <- sigma2 * sqrt(3 * dt)
+
+max_idx <- n_periods
+grid_size <- 2 * max_idx + 1
+center_idx <- max_idx + 1
+
+# Time-dependent drift parameters (phi) initialization
+phi_params <- numeric(n_periods)
+phi_params[1] <- -log(target_prices[1]) / dt
+
+for (i in 2:n_periods) {
+  phi_params[i] <- phi_params[1] + (i - 1) * 0.001
+}
+
+
+# =============================================================================
+# 3. Phase 2: 2-Factor Bivariate Backward Induction with Full-Term Put Option
+# =============================================================================
+cat("\n--- Starting Hull-White 2-Factor Bivariate Tree Valuation ---\n")
+
+# Storage for 2-factor value grid: dimensions [u_node, v_node, time_step]
+value_grid <- array(NA, dim = c(grid_size, grid_size, n_periods + 1))
+
+# Step 1: Initialize terminal payoffs at t = 5 (2027.12.31) with Full-Term Put Option check
+for (i in 1:grid_size) {
+  for (j in 1:grid_size) {
+    u_idx <- i - center_idx
+    v_idx <- j - center_idx
+    if (abs(u_idx) <= n_periods && abs(v_idx) <= n_periods) {
+      base_terminal <- face_value + coupon
+      
+      # Full-term put option guarantee up to maturity (t = 5)
+      total_guaranteed <- face_value * (1 + 0.05)^5
+      already_paid_coupons <- coupon * 5
+      put_strike <- total_guaranteed - already_paid_coupons
+      
+      value_grid[i, j, 6] <- max(base_terminal, put_strike)
+    }
+  }
+}
+
+# Step 2: Backward induction loop from t = 4 down to t = 0 across 2-factor space
+for (t in (n_periods - 1):0) {
+  next_vals <- value_grid[, , t + 2]
+  curr_vals <- matrix(NA, nrow = grid_size, ncol = grid_size)
+  
+  u_range <- -t:t
+  v_range <- -t:t
+  
+  for (ui in u_range) {
+    for (vi in v_range) {
+      i_pos <- center_idx + ui
+      j_pos <- center_idx + vi
+      
+      # Calculate local short rate r(t, u, v)
+      curr_phi <- if (t == 0) phi_params[1] else phi_params[t + 1]
+      r_node <- curr_phi + (ui * dx1) + (vi * dx2)
+      
+      # Individual trinomial probabilities for factor 1 (u) and factor 2 (v)
+      p_up_1   <- 1/6 + (a1^2 * dt^2 - a1 * ui * dt) / 2 
+      p_mid_1  <- 4/6 - a1^2 * dt^2
+      p_down_1 <- 1/6 + (a1^2 * dt^2 + a1 * ui * dt) / 2
+      
+      p_up_2   <- 1/6 + (a2^2 * dt^2 - a2 * vi * dt) / 2 
+      p_mid_2  <- 4/6 - a2^2 * dt^2
+      p_down_2 <- 1/6 + (a2^2 * dt^2 + a2 * vi * dt) / 2
+      
+      # Construct the 3x3 joint probability matrix incorporating correlation (rho)
+      prob_matrix <- matrix(0, nrow = 3, ncol = 3)
+      weights_1 <- c(p_up_1, p_mid_1, p_down_1) # indices: +1, 0, -1 (up, mid, down)
+      weights_2 <- c(p_up_2, p_mid_2, p_down_2)
+      
+      for (k_idx in 1:3) {
+        for (l_idx in 1:3) {
+          base_p <- weights_1[k_idx] * weights_2[l_idx]
+          k_val <- c(1, 0, -1)[k_idx]
+          l_val <- c(1, 0, -1)[l_idx]
+          
+          corr_adj <- if (k_val != 0 && l_val != 0) {
+            (k_val * l_val * rho * sigma1 * sigma2 * dt) / (dx1 * dx2)
+          } else {
+            0
+          }
+          
+          prob_matrix[k_idx, l_idx] <- max(0, base_p + corr_adj)
+        }
+      }
+      
+      # Normalize probabilities to ensure sum equals 1.0
+      prob_matrix <- prob_matrix / sum(prob_matrix)
+      
+      # Extract the 9 neighboring node values from the 2-factor value grid
+      # Note: Subgrid layout matches indices: row(+1, 0, -1) vs col(+1, 0, -1)
+      local_sub_grid <- next_vals[
+        (i_pos + 1):(i_pos - 1), 
+        (j_pos + 1):(j_pos - 1)
+      ]
+      
+      # To match row ordering from +1 down to -1 correctly:
+      local_sub_grid_ordered <- next_vals[
+        c(i_pos + 1, i_pos, i_pos - 1),
+        c(j_pos + 1, j_pos, j_pos - 1)
+      ]
+      
+      # Compute rigorous expected future value using the joint probability matrix
+      expected_future <- sum(local_sub_grid_ordered * prob_matrix)
+      
+      disc_val <- expected_future / (1 + r_node * dt)
+      continuation <- disc_val + (if (t > 0) coupon else 0)
+      
+      # Full-term put option check available from t = 3 through maturity (t = 5)
+      if ((t + 1) >= 3 && (t + 1) <= 5) {
+        total_guaranteed <- face_value * (1 + 0.05)^(t + 1)
+        already_paid_coupons <- coupon * (t + 1)
+        put_strike <- total_guaranteed - already_paid_coupons
+        curr_vals[i_pos, j_pos] <- max(continuation, put_strike)
+      } else {
+        curr_vals[i_pos, j_pos] <- continuation
+      }
+    }
+  }
+  value_grid[, , t + 1] <- curr_vals
+}
+
+# Extract root valuation at t = 0 (center node)
+root_val_2f <- value_grid[center_idx, center_idx, 1]
+
+value_grid
+# =============================================================================
+# 4. Format and Display Final 2-Factor Valuation Results
+# =============================================================================
+cat("\n--- Hull-White 2-Factor Bivariate Tree Valuation Completed ---\n")
+cat(sprintf("Final Bond Valuation with Embedded Put Option (2-Factor) at 2022.12.31 (CU): %.0f\n", root_val_2f))
