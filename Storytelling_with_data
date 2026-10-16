@@ -1,0 +1,337 @@
+#-------------------------------------------------------------------------------
+## Pie Chart
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+
+# Prepare dataset with 5 categories using the built-in diamonds dataset
+data("diamonds")
+survey_data <- diamonds %>%
+  count(cut) %>%
+  mutate(percentage = round(n / sum(n) * 100, 1))
+
+# Open a new graphics window for Windows OS
+windows(width = 8, height = 6)
+
+# Create the pie chart using ggplot2
+ggplot(survey_data, aes(x = "", y = n, fill = cut)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar("y", start = 0) +
+  geom_text(aes(label = paste0(cut, "\n(", percentage, "%)")), 
+            position = position_stack(vjust = 0.5), 
+            color = "black", fontface = "bold", size = 3.5) +
+  scale_fill_brewer(palette = "Set2") +
+  theme_void() +
+  # Add title and source caption using labs()
+  labs(
+    title = "Diamond Cut Distribution (5 Categories)", 
+    fill = "Cut Quality",
+    caption = "Source: ggplot2 diamonds dataset"
+  ) +
+  theme(
+    # Move the title down and adjust margin
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 14, 
+                              margin = margin(t = 30, b = 15)),
+    # Align caption to the right (hjust = 1) and pull it closer to the chart using top margin (t)
+    plot.caption = element_text(hjust = 1, size = 9, color = "gray40", face = "italic",
+                                margin = margin(t = -10, r = 10)),
+    # Add overall plot margin
+    plot.margin = unit(c(1, 1, 1, 1), "cm"),
+    legend.position = "right"
+  )
+
+
+
+#-------------------------------------------------------------------------------
+## Line Chart
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Prepare a dataset with exactly 5 categories using the built-in 'diamonds' dataset
+# We aggregate average price across different years or simulated time periods by 'cut' (5 categories)
+set.seed(42)
+trend_data <- diamonds %>%
+  mutate(Year = sample(2010:2015, n(), replace = TRUE)) %>%
+  group_by(Year, cut) %>%
+  summarise(Average_Price = mean(price), .groups = "drop")
+
+# Create the line chart using ggplot2
+ggplot(trend_data, aes(x = Year, y = Average_Price, color = cut, group = cut)) +
+  # Draw lines and points for 5 categories
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 2.5) +
+  # Apply a clean minimal theme
+  theme_minimal() +
+  # Add title, axis labels, legend, and source caption
+  labs(
+    title = "Diamond Price Trend by Cut (5 Categories)",
+    x = "Year",
+    y = "Average Price ($)",
+    color = "Cut Quality",
+    caption = "Source: ggplot2 diamonds dataset"
+  ) +
+  # Customize theme elements (title position, caption alignment, margins)
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16, 
+                              margin = margin(t = 20, b = 15)),
+    plot.caption = element_text(hjust = 1, size = 9, color = "gray40", face = "italic",
+                                margin = margin(t = -5, r = 5)),
+    plot.margin = unit(c(1, 1, 1, 1), "cm"),
+    legend.position = "right",
+    panel.grid.minor = element_blank()
+  )
+
+
+
+#-------------------------------------------------------------------------------
+## Bar Chart - Grouped or Clustered
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Use the built-in airquality dataset and aggregate by month to get actual monthly data
+monthly_real_data <- airquality %>%
+  mutate(Month_Name = factor(Month, 
+                             levels = 5:9, 
+                             labels = c("May", "June", "July", "August", "September"))) %>%
+  group_by(Month_Name) %>%
+  summarise(
+    Avg_Ozone = round(mean(Ozone, na.rm = TRUE), 1),
+    Avg_Solar = round(mean(Solar.R, na.rm = TRUE) / 5, 1) # scaled for comparative visualization
+  ) %>%
+  pivot_longer(cols = c(Avg_Ozone, Avg_Solar), names_to = "Metric", values_to = "Value")
+
+# Create the grouped bar chart using ggplot2
+ggplot(monthly_real_data, aes(x = Month_Name, y = Value, fill = Metric)) +
+  # Use position = "dodge" to create clustered/grouped bars side by side
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.7) +
+  # Add value labels above the bars
+  geom_text(aes(label = Value), 
+            position = position_dodge(width = 0.8), 
+            vjust = -0.5, size = 3.5, fontface = "bold") +
+  # Set y-axis limits to give headroom for text labels
+  scale_y_continuous(limits = c(0, max(monthly_real_data$Value, na.rm = TRUE) * 1.15)) +
+  # Apply a clean minimal theme
+  theme_minimal() +
+  # Add title, axis labels, legend, and source caption
+  labs(
+    title = "Monthly Air Quality Trend",
+    x = "Month",
+    y = "Index Value",
+    fill = "Indicator",
+    caption = "Source: R built-in airquality dataset"
+  ) +
+  # Customize theme elements
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16, 
+                              margin = margin(t = 20, b = 15)),
+    plot.caption = element_text(hjust = 1, size = 9, color = "gray40", face = "italic",
+                                margin = margin(t = -5, r = 5)),
+    plot.margin = unit(c(1, 1, 1, 1), "cm"),
+    legend.position = "bottom",
+    panel.grid.major.x = element_blank()
+  )
+
+
+
+#-------------------------------------------------------------------------------
+## 100% Stacked Horizontal Bar Chart
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Use the built-in HairEyeColor dataset and convert it into a data frame
+data("HairEyeColor")
+hair_data <- as.data.frame(HairEyeColor)
+
+# Aggregate and calculate proportions (display all percentages without filtering)
+survey_real_data <- hair_data %>%
+  group_by(Eye, Hair) %>%
+  summarise(Count = sum(Freq), .groups = "drop") %>%
+  group_by(Eye) %>%
+  mutate(
+    Proportion = Count / sum(Count),
+    Percent_Label = paste0(round(Proportion * 100, 0), "%")
+  ) %>%
+  ungroup()
+
+# Rename columns for clarity
+colnames(survey_real_data)[1:2] <- c("Feature", "Rating")
+
+# Create the 100% stacked horizontal bar chart with text labels using ggplot2
+ggplot(survey_real_data, aes(x = reorder(Feature, Proportion), y = Proportion, fill = Rating)) +
+  # Use position = "fill" to scale bars to 100%
+  geom_bar(stat = "identity", position = "fill", width = 0.7) +
+  # Add percentage text labels inside the bars for all segments
+  geom_text(aes(label = Percent_Label), 
+            position = position_fill(vjust = 0.5), 
+            color = "white", fontface = "bold", size = 4) +
+  # Flip coordinates to make it horizontal
+  coord_flip() +
+  # Format y-axis as percentage
+  scale_y_continuous(labels = scales::percent_format()) +
+  # Apply a clean color palette
+  scale_fill_brewer(palette = "Set2") +
+  # Apply a minimal theme
+  theme_minimal() +
+  # Add title, axis labels, legend, and source caption
+  labs(
+    title = "Eye Color Distribution with All Proportions",
+    x = "Eye Color Category",
+    y = "Percentage",
+    fill = "Hair Rating",
+    caption = "Source: R built-in HairEyeColor dataset"
+  ) +
+  # Customize theme elements
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16, 
+                              margin = margin(t = 20, b = 15)),
+    plot.caption = element_text(hjust = 1, size = 9, color = "gray40", face = "italic",
+                                margin = margin(t = -5, r = 5)),
+    plot.margin = unit(c(1, 1, 1, 1), "cm"),
+    legend.position = "bottom",
+    panel.grid.major.y = element_blank()
+  )
+
+
+
+#-------------------------------------------------------------------------------
+## 100% Stacked Vertical Bar Chart
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Use the built-in HairEyeColor dataset to get actual real-world multi-group data
+data("HairEyeColor")
+hair_df <- as.data.frame(HairEyeColor)
+
+# Aggregate actual data by Sex (Group) and Hair/Eye segments
+# Here, 'Sex' acts as the 2 groups (Male vs Female) and 'Hair' acts as the segments
+segment_real_data <- hair_df %>%
+  group_by(Sex, Hair) %>%
+  summarise(Count = sum(Freq), .groups = "drop") %>%
+  group_by(Sex) %>%
+  mutate(
+    Proportion = Count / sum(Count),
+    Percent_Label = paste0(round(Proportion * 100, 0), "%")
+  ) %>%
+  ungroup()
+
+# Rename columns for clarity
+colnames(segment_real_data)[1:2] <- c("Group", "Segment")
+
+# Create the 100% stacked vertical bar chart with actual data using ggplot2
+ggplot(segment_real_data, aes(x = Group, y = Proportion, fill = Segment)) +
+  # Use position = "fill" to scale bars to 100%
+  geom_bar(stat = "identity", position = "fill", width = 0.5) +
+  # Add percentage text labels inside the segments
+  geom_text(aes(label = Percent_Label), 
+            position = position_fill(vjust = 0.5), 
+            color = "white", fontface = "bold", size = 5) +
+  # Format y-axis as percentage
+  scale_y_continuous(labels = scales::percent_format()) +
+  # Apply a clean color palette
+  scale_fill_brewer(palette = "Set2") +
+  # Apply a minimal theme
+  theme_minimal() +
+  # Add title, axis labels, legend, and source caption
+  labs(
+    title = "Hair Color Distribution by Gender (Real Dataset)",
+    x = NULL,
+    y = NULL,
+    fill = "Segment",
+    caption = "Source: R built-in HairEyeColor dataset"
+  ) +
+  # Customize theme elements
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16, 
+                              margin = margin(t = 20, b = 15)),
+    plot.caption = element_text(hjust = 1, size = 9, color = "gray40", face = "italic",
+                                margin = margin(t = -5, r = 5)),
+    plot.margin = unit(c(1, 1, 1, 1), "cm"),
+    legend.position = "right",
+    panel.grid.major.x = element_blank()
+  )
+
+
+
+#-------------------------------------------------------------------------------
+## Dot Plot / Scatter Plot
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Use the built-in 'mtcars' dataset to create a realistic multi-entity comparison
+# We compare different car models (Entities) across performance metrics (Variables)
+mtcars_subset <- mtcars[1:6, c("mpg", "disp", "hp", "wt")]
+mtcars_subset$Entity <- rownames(mtcars_subset)
+
+# Normalize/scale the metrics so they fit on a comparable index scale around zero
+performance_data <- mtcars_subset %>%
+  mutate(
+    MPG_Index = scale(mpg)[, 1],
+    Disp_Index = scale(disp)[, 1],
+    HP_Index = scale(hp)[, 1],
+    WT_Index = scale(wt)[, 1]
+  ) %>%
+  select(Entity, MPG_Index, Disp_Index, HP_Index, WT_Index) %>%
+  pivot_longer(cols = -Entity, names_to = "Metric", values_to = "Index_Value")
+
+# Create the weighted index dot plot using ggplot2
+ggplot(performance_data, aes(x = Metric, y = Index_Value, color = Entity, shape = Entity)) +
+  # Add a horizontal reference line at y = 0
+  geom_hline(yintercept = 0, color = "gray60", linewidth = 0.8) +
+  # Draw points with customized size
+  geom_point(size = 3.5, stroke = 1) +
+  # Apply a clean minimal theme
+  theme_minimal() +
+  # Add title, axis labels, legend, and source caption
+  labs(
+    title = "Weighted Performance Index",
+    x = NULL,
+    y = "Index Value",
+    color = "Entity",
+    shape = "Entity",
+    caption = "Source: R built-in mtcars dataset"
+  ) +
+  # Customize theme elements
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16, 
+                              margin = margin(t = 20, b = 15)),
+    plot.caption = element_text(hjust = 1, size = 9, color = "gray40", face = "italic",
+                                margin = margin(t = -5, r = 5)),
+    plot.margin = unit(c(1, 1, 1, 1), "cm"),
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    panel.grid.minor = element_blank()
+  )
