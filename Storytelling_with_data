@@ -700,3 +700,652 @@ final_plot <- ggdraw(combined_plots) +
 
 # Print the final combined plot
 print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Simple text
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(patchwork)
+library(cowplot)
+
+# ==========================================
+# 1. Left Graph: Figure 2.2 (Exact Replication with Note & Source)
+# ==========================================
+
+df_left <- data.frame(
+  Year = c("1970", "2012"),
+  Percentage = c(41, 20)
+)
+
+# Combine subtitle, note, and source neatly using newline characters in labs()
+p_left <- ggplot(df_left, aes(x = Year, y = Percentage)) +
+  geom_col(fill = "#235763", width = 0.45) +
+  geom_text(aes(label = Percentage), vjust = -0.6, size = 4, color = "#235763", fontface = "bold") +
+  scale_y_continuous(limits = c(0, 50), breaks = NULL, expand = c(0, 0)) +
+  theme_minimal() +
+  labs(
+    title = 'Children with a\n"Traditional" Stay-at-\nHome Mother',
+    subtitle = paste0(
+      "% of children with a married\n",
+      "stay-at-home mother with a\n",
+      "working husband\n\n",
+      "Note: Based on children younger than 18.\n",
+      "Their mothers are categorized based on\n",
+      "employment status in 1970 and 2012."
+    ),
+    caption = paste0(
+      "Source: Pew Research Center analysis of\n",
+      "March Current Population Surveys\n",
+      "Integrated Public Use Microdata Series\n",
+      "(IPUMS-CPS), 1971 and 2013\n\n",
+      "Adapted from PEW RESEARCH CENTER"
+    ),
+    x = NULL,
+    y = NULL
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 11, color = "black", lineheight = 1.1, margin = margin(b = 4)),
+    # Subtitle acts as the Note section here
+    plot.subtitle = element_text(size = 7.5, color = "#666666", face = "italic", lineheight = 1.2, margin = margin(b = 5)),
+    # Caption acts as the Source & Adapted section here, aligned to the left
+    plot.caption = element_text(size = 7.5, color = "#666666", hjust = 0, lineheight = 1.2),
+    axis.text.x = element_text(face = "bold", size = 10, color = "black"),
+    panel.grid = element_blank(),
+    axis.line.x = element_line(color = "black", linewidth = 0.5),
+    plot.margin = margin(t = 10, r = 10, b = 10, l = 10)
+  )
+
+
+# ==========================================
+# 2. Right Graph: Figure 2.3 (Simple Text Makeover)
+# ==========================================
+
+p_right <- ggplot() +
+  annotate("text", x = 1, y = 3.3, label = "20%", size = 40, fontface = "bold", color = "#2A89A0", hjust = 0) +
+  annotate("text", x = 1, y = 2.3, label = "of children had a", size = 8, color = "grey50", hjust = 0) +
+  annotate("text", x = 1, y = 2.0, label = "traditional stay-at-home mom", size = 8, fontface = "bold", color = "#2A89A0", hjust = 0) +
+  annotate("text", x = 1, y = 1.7, label = "in 2012, compared to 41% in 1970", size = 8, color = "grey50", hjust = 0) +
+  xlim(0.8, 3) +
+  ylim(0.5, 4) +
+  theme_void() +
+  theme(plot.margin = margin(t = 10, r = 10, b = 10, l = 10))
+
+
+# ==========================================
+# 3. Combine and Overlay "Bad" / "Good" using cowplot
+# ==========================================
+
+combined_plots <- p_left + p_right
+
+# Overlay 'Bad' and 'Good' precisely on the title baseline level using cowplot
+final_plot <- ggdraw(combined_plots) +
+  draw_label("Bad", x = 0.47, y = 0.945, fontface = "bold", color = "#D9534F", size = 13, hjust = 1) +
+  draw_label("Good", x = 0.965, y = 0.945, fontface = "bold", color = "#1F4E79", size = 13, hjust = 1)
+
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Tables
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(patchwork)
+library(cowplot)
+
+# Define sample data
+df <- data.frame(
+  Group = paste("Group", 1:5),
+  Metric_A = "$X.X",
+  Metric_B = "Y%",
+  Metric_C = "Z,ZZZ"
+)
+colnames(df) <- c("Group", "Metric A", "Metric B", "Metric C")
+
+# Base compact theme
+my_theme <- ttheme_default(
+  core = list(
+    fg_params = list(fontsize = 12),
+    padding = unit(c(8, 12), "mm")
+  ),
+  colhead = list(
+    fg_params = list(fontsize = 12, fontface = "bold"),
+    padding = unit(c(10, 12), "mm")
+  )
+)
+
+# 1. Heavy borders table
+p1_theme <- my_theme
+p1_theme$core$bg_params <- list(fill = "white", col = "black", lwd = 2.5)
+p1_theme$colhead$bg_params <- list(fill = "black", col = "black", lwd = 2.5)
+p1_theme$colhead$fg_params$col <- "white"
+p1 <- tableGrob(df, rows = NULL, theme = p1_theme)
+
+# 2. Light borders table
+p2_theme <- my_theme
+p2_theme$core$bg_params <- list(fill = "white", col = "gray70", lwd = 1)
+p2_theme$colhead$bg_params <- list(fill = "gray70", col = "gray70", lwd = 1)
+p2_theme$colhead$fg_params$col <- "white"
+p2_theme$core$fg_params$col <- "gray30"
+p2 <- tableGrob(df, rows = NULL, theme = p2_theme)
+
+# 3. Minimal borders table
+p3_theme <- my_theme
+p3_theme$core$bg_params <- list(fill = "white", col = NA)
+p3_theme$colhead$bg_params <- list(fill = "white", col = NA)
+p3_theme$core$fg_params$col <- "gray20"
+p3_theme$colhead$fg_params$col <- "black"
+p3 <- tableGrob(df, rows = NULL, theme = p3_theme)
+
+# Draw a single horizontal line directly beneath the header cells (row 1)
+header_bottom_line <- linesGrob(
+  x = unit(c(0, 1), "npc"),
+  y = unit(c(0, 0), "npc"),
+  gp = gpar(col = "gray50", lwd = 1.5)
+)
+
+p3 <- gtable::gtable_add_grob(
+  p3,
+  grobs = header_bottom_line,
+  t = 1, l = 1, b = 1, r = 4
+)
+
+# Convert tableGrobs into ggplot objects WITHOUT ggtitle (using clean void theme)
+plot1 <- ggplot() + 
+  annotation_custom(p1, xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) + 
+  theme_void() + 
+  theme(plot.margin = margin(0, 0, 0, 0))
+
+plot2 <- ggplot() + 
+  annotation_custom(p2, xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) + 
+  theme_void() + 
+  theme(plot.margin = margin(0, 0, 0, 0))
+
+plot3 <- ggplot() + 
+  annotation_custom(p3, xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) + 
+  theme_void() + 
+  theme(plot.margin = margin(0, 0, 0, 0))
+
+# Combine the three tables using patchwork with zero gap
+tables_combined <- (plot1 | plot2 | plot3) + plot_layout(guides = "collect") & 
+  theme(plot.margin = margin(0, 0, 0, 0))
+
+# Create top title banner and direct text annotations (Bad -> Good + Table Titles) using cowplot
+final_banner <- ggdraw() +
+  # Top Bad -> Good Indicator
+  draw_label("Bad", x = 0.30, y = 0.82, fontface = "bold", color = "#D9534F", size = 15, hjust = 1) +
+  draw_label("  --------------------------------------->  ", x = 0.50, y = 0.82, fontface = "bold", color = "#6C757D", size = 15, hjust = 0.5) +
+  draw_label("Good", x = 0.70, y = 0.82, fontface = "bold", color = "#1F4E79", size = 15, hjust = 0) +
+  
+  # Direct Table Titles placed precisely right above each table to eliminate extra spacing
+  draw_label("Heavy borders", x = 0.03, y = 0.1, fontface = "bold", color = "black", size = 13, hjust = 0) +
+  draw_label("Light borders", x = 0.36, y = 0.1, fontface = "bold", color = "gray40", size = 13, hjust = 0) +
+  draw_label("Minimal borders", x = 0.68, y = 0.1, fontface = "bold", color = "gray60", size = 13, hjust = 0)
+
+# Stack the direct banner and titles directly above the tables block
+final_plot <- final_banner / tables_combined + 
+  plot_layout(heights = c(0.22, 0.78))
+
+# Display final output
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Tables - Heatmap
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(tidyr)
+library(patchwork)
+library(cowplot)
+library(ggtext) # Required for markdown/HTML rendering in ggplot text elements
+
+# ==========================================
+# 0. Data Preparation
+# ==========================================
+df_raw <- data.frame(
+  Category = paste0("Category ", 1:6),
+  A = c(0.15, 0.40, 0.35, 0.30, 0.55, 0.11),
+  B = c(0.22, 0.36, 0.17, 0.29, 0.30, 0.25),
+  C = c(0.42, 0.20, 0.34, 0.26, 0.58, 0.49)
+)
+
+df_long <- df_raw %>%
+  pivot_longer(cols = c(A, B, C), names_to = "Column", values_to = "Value")
+
+df_long$Category <- factor(df_long$Category, levels = rev(paste0("Category ", 1:6)))
+df_long$Column <- factor(df_long$Column, levels = c("A", "B", "C"))
+
+
+# ==========================================
+# 1. Left Graph: Standard Table (Bad)
+# ==========================================
+p_left <- ggplot(df_long, aes(x = Column, y = Category)) +
+  geom_tile(fill = "white", color = "#D0D0D0", linewidth = 0.5) +
+  geom_text(aes(label = paste0(round(Value * 100), "%")), color = "#333333", size = 4.5, fontface = "bold") +
+  scale_x_discrete(position = "top") +
+  theme_minimal() +
+  labs(
+    title = "Table",
+    x = NULL,
+    y = NULL
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, color = "black", margin = margin(b = 10)),
+    axis.text.x = element_text(face = "bold", size = 11, color = "black"),
+    axis.text.y = element_text(face = "bold", size = 11, color = "#333333"),
+    panel.grid = element_blank(),
+    plot.margin = margin(t = 15, r = 15, b = 15, l = 15)
+  )
+
+
+# ==========================================
+# 2. Right Graph: Heatmap Table (Good)
+# ==========================================
+p_right <- ggplot(df_long, aes(x = Column, y = Category, fill = Value)) +
+  geom_tile(color = "white", linewidth = 0.8) +
+  scale_fill_gradient(low = "#EBF2F8", high = "#2A6F97") +
+  geom_text(
+    aes(label = paste0(round(Value * 100), "%"), 
+        color = Value > 0.45), 
+    size = 4.5, 
+    fontface = "bold"
+  ) +
+  scale_color_manual(values = c(`TRUE` = "white", `FALSE` = "#555555"), guide = "none") +
+  scale_x_discrete(position = "top") +
+  theme_minimal() +
+  labs(
+    title = "Heatmap",
+    # Using markdown syntax for colored LOW-HIGH text inside subtitle
+    subtitle = "<span style='color:#9AC6E0;'>LOW</span>-<span style='color:#2A6F97;'><b>HIGH</b></span>",
+    x = NULL,
+    y = NULL
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, color = "black", margin = margin(b = 2)),
+    # element_textbox_simple or element_markdown allows HTML tags inside subtitle
+    plot.subtitle = element_markdown(size = 9, face = "bold", margin = margin(b = 15)),
+    axis.text.x = element_text(face = "bold", size = 11, color = "black"),
+    axis.text.y = element_text(face = "bold", size = 11, color = "#333333"),
+    legend.position = "none",
+    panel.grid = element_blank(),
+    plot.margin = margin(t = 15, r = 15, b = 15, l = 15)
+  )
+
+
+# ==========================================
+# 3. Combine and Overlay "Bad" / "Good" using cowplot
+# ==========================================
+combined_plots <- p_left + p_right
+
+# Overlay 'Bad' and 'Good' labels cleanly using cowplot
+final_plot <- ggdraw(combined_plots) +
+  draw_label("Bad", x = 0.47, y = 0.945, fontface = "bold", color = "#D9534F", size = 13, hjust = 1) +
+  draw_label("Good", x = 0.965, y = 0.945, fontface = "bold", color = "#1F4E79", size = 13, hjust = 1)
+
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Scatterplot
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(patchwork)
+library(cowplot)
+
+# ==========================================
+# 0. Exact Data Extraction from Figure 2.6 / 2.7
+# ==========================================
+df <- data.frame(
+  Miles = c(
+    1100, 1150, 1250, 1350, 1450, 1550, 1650, 1800, 1850, 1950, 
+    2050, 2150, 2250, 2300, 2350, 2400, 2500, 2600, 2650, 2750, 
+    2850, 3000, 3050, 3150, 3450, 3500, 3600, 3750, 2200
+  ),
+  Cost = c(
+    2.40, 2.80, 2.20, 2.50, 1.90, 2.00, 2.20, 1.35, 1.30, 1.20, 
+    1.10, 1.35, 1.20, 1.30, 1.10, 1.25, 1.20, 1.10, 1.10, 0.80, 
+    1.00, 1.32, 1.00, 1.25, 1.35, 1.65, 1.80, 1.70, 1.52
+  )
+)
+
+# Calculate exact averages
+avg_miles <- mean(df$Miles)
+avg_cost <- mean(df$Cost)
+
+# Define highlight group for the Right graph
+df$Highlight <- ifelse(df$Cost > avg_cost, "High", "Normal")
+
+
+# ==========================================
+# 1. Left Graph: Standard Scatterplot (Bad)
+# ==========================================
+p_left <- ggplot(df, aes(x = Miles, y = Cost)) +
+  geom_point(color = "#B8B8B8", size = 2.5) +
+  # AVG marker precisely placed
+  annotate("point", x = 2350, y = avg_cost, color = "#444444", size = 3.2) +
+  annotate("text", x = 2200, y = avg_cost, label = "AVG", fontface = "bold", size = 3.5, color = "#444444", hjust = 1) +
+  scale_x_continuous(limits = c(0, 4000), labels = scales::comma, breaks = seq(0, 4000, 500)) +
+  scale_y_continuous(limits = c(0, 3.0), labels = scales::dollar_format(), breaks = seq(0, 3.0, 0.5)) +
+  theme_minimal() +
+  labs(
+    title = "Cost per mile by miles driven",
+    x = "Miles driven per month",
+    y = "Cost per mile"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 12, color = "#444444", margin = margin(b = 20)),
+    axis.title.x = element_text(size = 9, color = "#666666", hjust = 0, margin = margin(t = 8)),
+    # Position y-axis title vertically at the top-left (near $3.00 level), aligned nicely
+    axis.title.y = element_text(size = 9, color = "#666666", angle = 90, hjust = 1, vjust = 0.5, margin = margin(r = 2)),
+    axis.text = element_text(size = 8.5, color = "#666666"),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "#999999", linewidth = 0.5),
+    plot.margin = margin(t = 15, r = 15, b = 15, l = 15)
+  )
+
+
+# ==========================================
+# 2. Right Graph: Modified Scatterplot (Good)
+# ==========================================
+p_right <- ggplot(df, aes(x = Miles, y = Cost)) +
+  geom_hline(yintercept = avg_cost, linetype = "dashed", color = "#666666", linewidth = 0.6) +
+  geom_point(aes(color = Highlight), size = 2.5) +
+  scale_color_manual(values = c("High" = "#F49B38", "Normal" = "#B8B8B8"), guide = "none") +
+  annotate("point", x = 2350, y = avg_cost, color = "#444444", size = 3.2) +
+  annotate("text", x = 2200, y = avg_cost, label = "AVG", fontface = "bold", size = 3.5, color = "#444444", hjust = 1) +
+  scale_x_continuous(limits = c(0, 4000), labels = scales::comma, breaks = seq(0, 4000, 500)) +
+  scale_y_continuous(limits = c(0, 3.0), labels = scales::dollar_format(), breaks = seq(0, 3.0, 0.5)) +
+  theme_minimal() +
+  labs(
+    title = "Cost per mile by miles driven",
+    x = "Miles driven per month",
+    y = "Cost per mile"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 12, color = "#444444", margin = margin(b = 20)),
+    axis.title.x = element_text(size = 9, color = "#666666", hjust = 0, margin = margin(t = 8)),
+    # Position y-axis title vertically at the top-left (near $3.00 level), aligned nicely
+    axis.title.y = element_text(size = 9, color = "#666666", angle = 90, hjust = 1, vjust = 0.5, margin = margin(r = 2)),
+    axis.text = element_text(size = 8.5, color = "#666666"),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "#999999", linewidth = 0.5),
+    plot.margin = margin(t = 15, r = 15, b = 15, l = 15)
+  )
+
+
+# ==========================================
+# 3. Combine and Overlay "Bad" / "Good" using cowplot
+# ==========================================
+combined_plots <- p_left + p_right
+
+# Overlay 'Bad' and 'Good' labels precisely on the title baseline level using cowplot
+final_plot <- ggdraw(combined_plots) +
+  draw_label("Bad", x = 0.47, y = 0.945, fontface = "bold", color = "#D9534F", size = 13, hjust = 1) +
+  draw_label("Good", x = 0.965, y = 0.945, fontface = "bold", color = "#1F4E79", size = 13, hjust = 1)
+
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Line graph
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(patchwork)
+library(cowplot)
+
+# ==========================================
+# 1. Figure 2.8 Data & Plots (Line Graphs)
+# ==========================================
+months <- c("Jan", "Feb", "Mar", "Apr", "May")
+
+df_line <- data.frame(
+  Month = factor(months, levels = months),
+  A = c(4, 5, 4, 4, 7),
+  B = c(3, 6, 5, 5, 6),
+  C = c(1, 3, 1, 2, 5),
+  D = c(1, 1, 2, 2, 3)
+)
+
+# Common theme for clean textbook look
+theme_line <- theme_minimal() +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_text(size = 9, color = "#666666"),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "#999999", linewidth = 0.5),
+    plot.title = element_text(face = "bold", size = 11, color = "#333333", margin = margin(b = 10)),
+    plot.margin = margin(10, 10, 10, 10)
+  )
+
+# Single series
+p_single <- ggplot(df_line, aes(x = Month, y = A, group = 1)) +
+  geom_line(color = "#2A6F97", linewidth = 1.2) +
+  annotate("text", x = 5.15, y = 7, label = "A", fontface = "bold", color = "#2A6F97", size = 4) +
+  scale_y_continuous(limits = c(0, 8), breaks = 0:8) +
+  coord_cartesian(clip = "off") +
+  theme_line +
+  labs(title = "Single series")
+
+# Two series
+p_two <- ggplot(df_line, aes(x = Month)) +
+  geom_line(aes(y = B, group = 1), color = "#B8B8B8", linewidth = 1.2) +
+  geom_line(aes(y = A, group = 1), color = "#2A6F97", linewidth = 1.2) +
+  annotate("text", x = 5.15, y = 7, label = "A", fontface = "bold", color = "#2A6F97", size = 4) +
+  annotate("text", x = 5.15, y = 6, label = "B", fontface = "bold", color = "#B8B8B8", size = 4) +
+  scale_y_continuous(limits = c(0, 8), breaks = 0:8) +
+  coord_cartesian(clip = "off") +
+  theme_line +
+  labs(title = "Two series")
+
+# Multiple series
+p_multi <- ggplot(df_line, aes(x = Month)) +
+  geom_line(aes(y = D, group = 1), color = "#C8C8C8", linewidth = 1.2) +
+  geom_line(aes(y = C, group = 1), color = "#B8B8B8", linewidth = 1.2) +
+  geom_line(aes(y = B, group = 1), color = "#B8B8B8", linewidth = 1.2) +
+  geom_line(aes(y = A, group = 1), color = "#2A6F97", linewidth = 1.2) +
+  annotate("text", x = 5.15, y = 7, label = "A", fontface = "bold", color = "#2A6F97", size = 4) +
+  annotate("text", x = 5.15, y = 6, label = "B", fontface = "bold", color = "#B8B8B8", size = 4) +
+  annotate("text", x = 5.15, y = 5, label = "C", fontface = "bold", color = "#B8B8B8", size = 4) +
+  annotate("text", x = 5.15, y = 3, label = "D", fontface = "bold", color = "#C8C8C8", size = 4) +
+  scale_y_continuous(limits = c(0, 8), breaks = 0:8) +
+  coord_cartesian(clip = "off") +
+  theme_line +
+  labs(title = "Multiple series")
+
+# Combine Figure 2.8 charts horizontally
+fig_2_8 <- p_single + p_two + p_multi
+
+
+# ==========================================
+# 2. Figure 2.9 Data & Plot (Range Line Graph)
+# ==========================================
+df_range <- data.frame(
+  Month = c("Sep\n2014", "Oct", "Nov", "Dec", "Jan\n2015", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"),
+  Min = c(9, 6, 7, 12, 12, 7, 7, 9, 8, 12, 15, 17, 14),
+  Avg = c(18, 12, 13, 18, 17, 13, 12, 14, 13, 18, 19, 24, 21),
+  Max = c(26, 17, 17, 26, 24, 20, 18, 21, 21, 28, 26, 36, 32)
+)
+df_range$Month <- factor(df_range$Month, levels = df_range$Month)
+
+p_range <- ggplot(df_range, aes(x = Month, group = 1)) +
+  # Shaded ribbon for min-max range
+  geom_ribbon(aes(ymin = Min, ymax = Max), fill = "#D8D8D8", alpha = 0.6) +
+  # Average line
+  geom_line(aes(y = Avg), color = "#444444", linewidth = 1.2) +
+  # Final data point highlight
+  geom_point(data = tail(df_range, 1), aes(x = Month, y = Avg), color = "#444444", size = 3) +
+  annotate("text", x = 13.3, y = 21, label = "21", fontface = "bold", size = 4, color = "#444444") +
+  # Annotations inside chart
+  annotate("text", x = 1.2, y = 24, label = "MAX", size = 3, fontface = "bold", color = "#888888") +
+  annotate("text", x = 1.2, y = 19, label = "AVG", size = 3, fontface = "bold", color = "#444444") +
+  annotate("text", x = 1.2, y = 10, label = "MIN", size = 3, fontface = "bold", color = "#888888") +
+  scale_y_continuous(limits = c(0, 40), breaks = seq(0, 40, 5)) +
+  coord_cartesian(clip = "off") +
+  theme_minimal() +
+  labs(
+    title = "Passport control wait time",
+    subtitle = "Past 13 months",
+    x = NULL,
+    y = "Wait time (minutes)"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 13, color = "#333333"),
+    plot.subtitle = element_text(size = 10, color = "#666666", margin = margin(b = 15)),
+    axis.title.y = element_text(size = 9, color = "#666666", angle = 90, vjust = 0.5),
+    axis.text = element_text(size = 8.5, color = "#666666"),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "#999999", linewidth = 0.5),
+    plot.margin = margin(15, 25, 15, 15)
+  )
+
+
+# ==========================================
+# 3. Final Stacked Layout
+# ==========================================
+final_combined <- fig_2_8 / p_range + plot_layout(heights = c(1, 1.3))
+
+print(final_combined)
+
+
+#-------------------------------------------------------------------------------
+## Slopegraph
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+library(patchwork)
+library(cowplot)
+
+# ==========================================
+# 0. Data Preparation (Employee Feedback)
+# ==========================================
+df_slope <- data.frame(
+  Category = c("Peers", "Culture", "Work environment", "Leadership", 
+               "Career development", "Rewards & recognition", "Perf management"),
+  Y2014 = c(85, 80, 76, 59, 49, 41, 33),
+  Y2015 = c(91, 96, 75, 62, 33, 45, 42)
+)
+
+x1 <- 1
+x2 <- 2
+
+# ==========================================
+# 1. Left Graph: Standard Slopegraph (Bad)
+# ==========================================
+p_bad <- ggplot(df_slope) +
+  geom_segment(aes(x = x1, y = Y2014, xend = x2, yend = Y2015), color = "#7F7F7F", linewidth = 0.8) +
+  geom_point(aes(x = x1, y = Y2014), color = "#7F7F7F", size = 2.5) +
+  geom_point(aes(x = x2, y = Y2015), color = "#7F7F7F", size = 2.5) +
+  
+  # [MODIFIED] Left: Category name size increased (3.2 -> 4.0)
+  geom_text(aes(x = 0.2, y = Y2014, label = Category), hjust = 1, color = "#666666", size = 4.0) +
+  # [MODIFIED] 2014 Percent size increased (3.2 -> 4.0)
+  geom_text(aes(x = x1 - 0.08, y = Y2014, label = paste0(Y2014, "%")), hjust = 1, color = "#666666", size = 4.0) +
+  # Right: 2015 Percent positioned to the right of the point
+  geom_text(aes(x = x2 + 0.08, y = Y2015, label = paste0(Y2015, "%")), hjust = 0, color = "#666666", size = 4.0) +
+  
+  # [MODIFIED] Header text size increased
+  annotate("text", x = 0.2, y = 104, label = "Survey category", hjust = 1, color = "#777777", size = 4.2, fontface = "bold") +
+  annotate("text", x = 0.38, y = 104, label = "|", hjust = 0.5, color = "#BBBBBB", size = 4.0) +
+  annotate("text", x = 0.45, y = 104, label = "Percent favorable", hjust = 0, color = "#777777", size = 4.2, fontface = "bold") +
+  
+  annotate("segment", x = x1, xend = x2, y = 18, yend = 18, color = "#B8B8B8", linewidth = 0.6) +
+  annotate("segment", x = x1, xend = x1, y = 18, yend = 19.5, color = "#B8B8B8", linewidth = 0.6) +
+  annotate("segment", x = x2, xend = x2, y = 18, yend = 19.5, color = "#B8B8B8", linewidth = 0.6) +
+  annotate("text", x = x1, y = 13, label = "2014", color = "#666666", size = 3.5) +
+  annotate("text", x = x2, y = 13, label = "2015", color = "#666666", size = 3.5) +
+  annotate("text", x = (x1 + x2)/2, y = 6, label = "Survey year", color = "#888888", size = 3.2) +
+  
+  scale_x_continuous(limits = c(-0.4, 2.4)) +
+  scale_y_continuous(limits = c(0, 115)) +
+  coord_cartesian(clip = "off") +
+  theme_void() +
+  labs(title = "Employee feedback over time") +
+  theme(
+    plot.title = element_text(face = "bold", size = 15, color = "#555555", margin = margin(b = 20)),
+    plot.margin = margin(15, 15, 15, 15)
+  )
+
+
+# ==========================================
+# 2. Right Graph: Modified Slopegraph (Good)
+# ==========================================
+df_slope <- df_slope %>%
+  mutate(
+    Highlight = ifelse(Category == "Career development", "High", "Normal")
+  )
+
+p_good <- ggplot(df_slope) +
+  geom_segment(aes(x = x1, y = Y2014, xend = x2, yend = Y2015, color = Highlight, linewidth = Highlight)) +
+  scale_color_manual(values = c("High" = "#E6550D", "Normal" = "#B8B8B8"), guide = "none") +
+  scale_linewidth_manual(values = c("High" = 1.2, "Normal" = 0.8), guide = "none") +
+  
+  geom_point(aes(x = x1, y = Y2014, color = Highlight), size = 2.5) +
+  geom_point(aes(x = x2, y = Y2015, color = Highlight), size = 2.5) +
+  
+  # [MODIFIED] Left: Category name size increased (3.2 -> 4.0)
+  geom_text(aes(x = 0.2, y = Y2014, label = Category, color = Highlight, fontface = ifelse(Highlight == "High", "bold", "plain")), hjust = 1, size = 4.0) +
+  # [MODIFIED] 2014 Percent size increased (3.2 -> 4.0)
+  geom_text(aes(x = x1 - 0.08, y = Y2014, label = paste0(Y2014, "%"), color = Highlight, fontface = ifelse(Highlight == "High", "bold", "plain")), hjust = 1, size = 4.0) +
+  # Right: 2015 Percent positioned to the right of the point
+  geom_text(aes(x = x2 + 0.08, y = Y2015, label = paste0(Y2015, "%"), color = Highlight, fontface = ifelse(Highlight == "High", "bold", "plain")), hjust = 0, size = 4.0) +
+  
+  # [MODIFIED] Header text size increased
+  annotate("text", x = 0.2, y = 104, label = "Survey category", hjust = 1, color = "#777777", size = 4.2, fontface = "bold") +
+  annotate("text", x = 0.38, y = 104, label = "|", hjust = 0.5, color = "#BBBBBB", size = 4.0) +
+  annotate("text", x = 0.45, y = 104, label = "Percent favorable", hjust = 0, color = "#777777", size = 4.2, fontface = "bold") +
+  
+  annotate("segment", x = x1, xend = x2, y = 18, yend = 18, color = "#B8B8B8", linewidth = 0.6) +
+  annotate("segment", x = x1, xend = x1, y = 18, yend = 19.5, color = "#B8B8B8", linewidth = 0.6) +
+  annotate("segment", x = x2, xend = x2, y = 18, yend = 19.5, color = "#B8B8B8", linewidth = 0.6) +
+  annotate("text", x = x1, y = 13, label = "2014", color = "#666666", size = 3.5) +
+  annotate("text", x = x2, y = 13, label = "2015", color = "#666666", size = 3.5) +
+  annotate("text", x = (x1 + x2)/2, y = 6, label = "Survey year", color = "#888888", size = 3.2) +
+  
+  scale_x_continuous(limits = c(-0.4, 2.4)) +
+  scale_y_continuous(limits = c(0, 115)) +
+  coord_cartesian(clip = "off") +
+  theme_void() +
+  labs(title = "Employee feedback over time") +
+  theme(
+    plot.title = element_text(face = "bold", size = 15, color = "#555555", margin = margin(b = 20)),
+    plot.margin = margin(15, 15, 15, 15)
+  )
+
+
+# ==========================================
+# 3. Combine Side-by-Side and Add "Bad"/"Good" Labels
+# ==========================================
+combined_slope <- p_bad + p_good
+
+final_slope_plot <- ggdraw(combined_slope) +
+  draw_label("Bad", x = 0.47, y = 0.95, fontface = "bold", color = "#D9534F", size = 13, hjust = 1) +
+  draw_label("Good", x = 0.965, y = 0.95, fontface = "bold", color = "#1F4E79", size = 13, hjust = 1)
+
+print(final_slope_plot)
