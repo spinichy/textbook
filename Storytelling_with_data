@@ -335,3 +335,368 @@ ggplot(performance_data, aes(x = Metric, y = Index_Value, color = Entity, shape 
     legend.box = "horizontal",
     panel.grid.minor = element_blank()
   )
+
+
+
+#-------------------------------------------------------------------------------
+## Good Example: Before vs After (1)
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(patchwork)
+library(cowplot) # Required for precise title-level annotation
+
+# Create the ticket volume dataset
+ticket_data <- data.frame(
+  Month = factor(
+    c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
+    levels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+  ),
+  Received = c(160, 184, 241, 149, 180, 161, 132, 202, 160, 139, 149, 177),
+  Processed = c(160, 184, 237, 148, 181, 150, 123, 156, 126, 104, 124, 140)
+)
+
+# Reshape data from wide to long format
+ticket_long <- ticket_data %>%
+  pivot_longer(
+    cols = c(Received, Processed),
+    names_to = "Metric",
+    values_to = "Volume"
+  )
+
+# Add conditional flags for labels (Show numbers only from August onward)
+ticket_long <- ticket_long %>%
+  mutate(
+    show_num = ifelse(Month %in% c("Aug", "Sep", "Oct", "Nov", "Dec"), as.character(Volume), NA_character_)
+  )
+
+# Separate end-point data for 'Received' and 'Processed' text annotations
+end_labels <- ticket_long %>%
+  filter(Month == "Dec")
+
+# 1. Left Plot: Ticket Trend (Bar Chart - Bad)
+p_left <- ggplot(ticket_long, aes(x = Month, y = Volume, fill = Metric)) +
+  geom_col(position = "dodge", width = 0.7) +
+  geom_text(aes(label = Volume), position = position_dodge(0.7), vjust = -0.5, size = 2.8) +
+  scale_fill_manual(values = c("Received" = "#2F75B5", "Processed" = "#D9534F")) +
+  scale_y_continuous(limits = c(0, 320), breaks = seq(0, 300, 50)) +
+  labs(
+    title = "Ticket Trend",
+    subtitle = "Example 1 (before): showing data",
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  ) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    plot.title = element_text(face = "bold", size = 13, color = "#333333"),
+    plot.subtitle = element_text(size = 9, color = "#555555"),
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 30, hjust = 1)
+  )
+
+# 2. Right Plot: Storytelling with Data (Line Chart - Good)
+p_right <- ggplot(ticket_long, aes(x = Month, y = Volume, group = Metric, color = Metric)) +
+  geom_line(linewidth = 1.1) +
+  geom_point(size = 2.5) +
+  geom_text(aes(label = show_num), vjust = -0.8, size = 2.8, show.legend = FALSE) +
+  geom_text(
+    data = end_labels,
+    aes(x = Month, y = Volume, label = Metric, color = Metric),
+    hjust = -0.2, fontface = "bold", size = 3.5, show.legend = FALSE
+  ) +
+  geom_vline(xintercept = "May", linetype = "solid", color = "grey60", linewidth = 0.7) +
+  scale_color_manual(values = c("Received" = "#888888", "Processed" = "#1F4E79")) +
+  scale_y_continuous(limits = c(0, 320), breaks = seq(0, 300, 50)) +
+  scale_x_discrete(expand = expansion(mult = c(0.05, 0.25))) +
+  coord_cartesian(clip = "off") +
+  labs(
+    title = "Ticket volume over time",
+    subtitle = "2 employees quit in May. We nearly kept up with incoming volume\nin the following two months, but fell behind with the increase in Aug\nand haven't been able to catch up since.",
+    x = "2014",
+    y = NULL,
+    color = NULL
+  ) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    plot.title = element_text(face = "bold", size = 13, color = "#333333"),
+    plot.subtitle = element_text(size = 8.5, color = "#555555", lineheight = 1.1),
+    axis.title.x = element_text(hjust = 0, color = "#555555", size = 9),
+    legend.position = "none",
+    axis.text.x = element_text(angle = 30, hjust = 1)
+  )
+
+# Combine plots side by side using patchwork
+combined_plots <- p_left | p_right
+
+# Overlay 'Bad' and 'Good' precisely on the title baseline level using cowplot
+final_plot <- ggdraw(combined_plots) +
+  draw_label("Bad", x = 0.47, y = 0.945, fontface = "bold", color = "#D9534F", size = 13, hjust = 1) +
+  draw_label("Good", x = 0.965, y = 0.945, fontface = "bold", color = "#1F4E79", size = 13, hjust = 1)
+
+# Display the final plot
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Good Example: Before vs After (2)
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(patchwork)
+library(cowplot) # Required for precise canvas-level label positioning
+
+# 1. Create survey dataset
+survey_data <- data.frame(
+  Response = factor(
+    c("Bored", "Not great", "OK", "Kind of interested", "Excited"),
+    levels = c("Bored", "Not great", "OK", "Kind of interested", "Excited")
+  ),
+  Before = c(11, 5, 40, 25, 19),
+  After = c(12, 6, 14, 30, 38)
+)
+
+# Colors matching the survey categories
+response_colors <- c(
+  "Bored" = "#4B89DC", 
+  "Not great" = "#D9534F", 
+  "OK" = "#92C556", 
+  "Kind of interested" = "#8869B3", 
+  "Excited" = "#3BABC9"
+)
+
+# 2. Top Pie Chart: PRE (Title included, percentage labels added)
+p_pre <- ggplot(survey_data, aes(x = "", y = Before, fill = Response)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar("y", start = 0) +
+  geom_text(aes(label = paste0(Before, "%")), 
+            position = position_stack(vjust = 0.5), 
+            size = 3, color = "white", fontface = "bold") +
+  scale_fill_manual(values = response_colors) +
+  labs(title = "PRE: How do you feel\nabout doing science?") +
+  theme_void() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 15, color = "#333333"),
+    legend.position = "none" # Hide individual legend
+  )
+
+# 3. Bottom Pie Chart: POST (Title included, percentage labels added)
+p_post <- ggplot(survey_data, aes(x = "", y = After, fill = Response)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar("y", start = 0) +
+  geom_text(aes(label = paste0(After, "%")), 
+            position = position_stack(vjust = 0.5), 
+            size = 3, color = "white", fontface = "bold") +
+  scale_fill_manual(values = response_colors) +
+  labs(title = "POST: How do you feel\nabout doing science?") +
+  theme_void() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 15, color = "#333333"),
+    legend.position = "none" # Hide individual legend
+  )
+
+# Combine left pie charts vertically and collect a single shared legend
+left_pies <- (p_pre / p_post) + 
+  plot_layout(guides = "collect") & 
+  theme(
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    legend.text = element_text(size = 8)
+  )
+
+# 4. Prepare long-format data for the bar chart
+survey_long <- survey_data %>%
+  pivot_longer(
+    cols = c(Before, After),
+    names_to = "Timing",
+    values_to = "Percentage"
+  ) %>%
+  mutate(
+    Timing = factor(Timing, levels = c("Before", "After"))
+  )
+
+# 5. Right Plot: Storytelling Bar Chart (Both BEFORE/AFTER text aligned at y = 43)
+p_bar <- ggplot(survey_long, aes(x = Response, y = Percentage, fill = Timing)) +
+  geom_col(position = "dodge", width = 0.65) +
+  geom_text(
+    aes(label = paste0(Percentage, "%")), 
+    position = position_dodge(0.65), 
+    vjust = -0.5, 
+    size = 3,
+    fontface = "bold"
+  ) +
+  # Place both text annotations on the exact same baseline level (y = 43)
+  annotate("text", x = 1.5, y = 46, size = 4, 
+           label = "BEFORE program, the\nmajority of children felt\njust OK about science.", 
+           hjust = 0.5, size = 3.1, fontface = "bold", color = "#333333") +
+  annotate("text", x = 3.5, y = 46, size = 5,
+           label = "AFTER program,\nmore children were\nKind of interested &\nExcited about science.", 
+           hjust = 0, size = 3.1, fontface = "bold", color = "#2F75B5") +
+  scale_fill_manual(values = c("Before" = "#999999", "After" = "#4A90E2")) +
+  scale_y_continuous(limits = c(0, 58), breaks = seq(0, 40, 10)) +
+  labs(
+    title = "Pilot program was a success",
+    subtitle = "How do you feel about science?",
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  ) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    plot.title = element_text(face = "bold", size = 12, color = "#333333"),
+    plot.subtitle = element_text(size = 10, color = "#555555", margin = margin(b = 10)),
+    legend.position = "none",
+    axis.text.x = element_text(size = 9, face = "bold", color = "#333333"),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+
+# 6. Combine Layouts: Left (Pies) | Right (Bar chart)
+combined_plots <- left_pies | p_bar
+combined_plots <- combined_plots + plot_layout(widths = c(0.9, 1.1))
+
+# 7. Overlay 'Bad' and 'Good' precisely on the title baseline level using ggdraw
+final_plot <- ggdraw(combined_plots) +
+  draw_label("Bad", x = 0.35, y = 0.945, fontface = "bold", color = "#D9534F", size = 13, hjust = 1) +
+  draw_label("Good", x = 0.965, y = 0.945, fontface = "bold", color = "#1F4E79", size = 13, hjust = 1)
+
+# Print the final plot
+print(final_plot)
+
+
+
+
+#-------------------------------------------------------------------------------
+## Good Example: Before vs After (3)
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(patchwork)
+library(cowplot)
+
+# 1. Create dataset (Average Retail Product Price per Year)
+price_data <- data.frame(
+  Product = c("Product A", "Product B", "Product C", "Product D", "Product E"),
+  Y2008 = c(395, 360, NA, NA, NA),
+  Y2009 = c(420, 400, NA, NA, NA),
+  Y2010 = c(425, 410, 100, NA, NA),
+  Y2011 = c(390, 375, 180, 160, NA),
+  Y2012 = c(300, 290, 200, 260, NA),
+  Y2013 = c(270, 260, 240, 220, 100),
+  Y2014 = c(260, 250, 180, 215, 210)
+)
+
+# Convert to long format for ggplot2
+price_long <- price_data %>%
+  pivot_longer(
+    cols = starts_with("Y"),
+    names_to = "Year",
+    names_prefix = "Y",
+    values_to = "Price"
+  ) %>%
+  mutate(
+    Year = as.numeric(Year)
+  )
+
+# 2. Left Plot: Clustered Bar Chart (Figure 0.6 - Before)
+p_left <- ggplot(price_long %>% filter(!is.na(Price)), 
+                 aes(x = Product, y = Price, fill = as.factor(Year))) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  scale_fill_manual(values = c(
+    "2008" = "#729EA1", "2009" = "#B56576", "2010" = "#A3C9A8",
+    "2011" = "#847979", "2012" = "#62B6CB", "2013" = "#EE9B00", "2014" = "#8ECAE6"
+  )) +
+  scale_y_continuous(limits = c(0, 500), labels = scales::dollar_format()) +
+  guides(fill = guide_legend(nrow = 1)) + # Arrange legend items strictly in 1 horizontal row
+  labs(
+    title = "Average Retail Product Price per Year",
+    subtitle = "",
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  ) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    plot.title = element_text(face = "bold", size = 14, color = "#333333"),
+    plot.subtitle = element_text(size = 9, color = "#555555"),
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    legend.text = element_text(size = 7.5),
+    legend.key.size = unit(0.35, "cm"),
+    axis.text.x = element_text(size = 8.5, color = "#333333")
+  )
+
+# 3. Right Plot: Storytelling Line Chart (Figure 0.7 - After)
+product_labels <- data.frame(
+  Product = c("A", "B", "C", "D", "E"),
+  Year = c(2007.8, 2007.8, 2009.8, 2010.8, 2012.8),
+  Price = c(395, 360, 100, 160, 100)
+)
+
+p_right <- ggplot(price_long %>% filter(!is.na(Price)), 
+                  aes(x = Year, y = Price, group = Product)) +
+  # Add recommended price range shade ($150 - $200)
+  annotate("rect", xmin = 2007.5, xmax = 2014.2, ymin = 150, ymax = 200, fill = "#1F4E79", alpha = 0.12) +
+  annotate("text", x = 2007.6, y = 175, label = "Recommended range", color = "#1F4E79", fontface = "bold", size = 6, hjust = 0) +
+  # Lines and points
+  geom_line(color = "#999999", linewidth = 1.1) +
+  # Direct product labels (A, B, C, D, E)
+  geom_text(data = product_labels, aes(x = Year, y = Price, label = Product), 
+            color = "#888888", fontface = "bold", size = 3.5, inherit.aes = FALSE) +
+  # Highlight Average Point at 2014 ($223)
+  annotate("point", x = 2014, y = 223, color = "#1F4E79", size = 3) +
+  annotate("text", x = 2013.8, y = 223, label = "AVG", color = "#1F4E79", fontface = "bold", size = 2.8, hjust = 1) +
+  scale_y_continuous(limits = c(0, 500), labels = scales::dollar_format(), breaks = seq(0, 500, 100)) +
+  scale_x_continuous(breaks = 2008:2014) +
+  labs(
+    title = "To be competitive, we recommend introducing our product below\nthe $223 average price point in the $150-$200 range",
+    subtitle = "Retail price over time by product",
+    x = "Year",
+    y = "Average price"
+  ) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    plot.title = element_text(face = "bold", size = 14, color = "black", lineheight = 1.1),
+    plot.subtitle = element_text(size = 9, color = "#555555", margin = margin(b = 10)),
+    axis.title.x = element_text(size = 9, color = "#555555"),
+    axis.title.y = element_text(size = 9, color = "#555555"),
+    axis.text = element_text(size = 8, color = "#555555")
+  )
+
+# 4. Combine plots side by side (Left: Bar chart | Right: Line chart)
+combined_plots <- p_left | p_right
+combined_plots <- combined_plots + plot_layout(widths = c(0.95, 1.05))
+
+# 5. Overlay 'Bad' and 'Good' labels at the title baseline using ggdraw
+final_plot <- ggdraw(combined_plots) +
+  draw_label("Bad", x = 0.45, y = 0.95, fontface = "bold", color = "#D9534F", size = 13, hjust = 1) +
+  draw_label("Good", x = 0.965, y = 0.95, fontface = "bold", color = "#1F4E79", size = 13, hjust = 1)
+
+# Print the final combined plot
+print(final_plot)
