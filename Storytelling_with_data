@@ -1231,6 +1231,7 @@ final_combined <- fig_2_8 / p_range + plot_layout(heights = c(1, 1.3))
 print(final_combined)
 
 
+
 #-------------------------------------------------------------------------------
 ## Slopegraph
 #-------------------------------------------------------------------------------
@@ -1349,3 +1350,603 @@ final_slope_plot <- ggdraw(combined_slope) +
   draw_label("Good", x = 0.965, y = 0.95, fontface = "bold", color = "#1F4E79", size = 13, hjust = 1)
 
 print(final_slope_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Vertical bar(1)
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(cowplot)
+
+# 1. Prepare data
+df <- data.frame(
+  category = factor(c("NOW", "JAN. 1, 2013"), levels = c("NOW", "JAN. 1, 2013")),
+  rate = c(35, 39.6)
+)
+
+# 2. Build the "Bad" plot (Non-zero baseline)
+p_bad <- ggplot(df, aes(x = category, y = rate)) +
+  geom_bar(stat = "identity", fill = "#F28E2B", width = 0.55) +
+  geom_text(aes(label = paste0(rate, "%")), vjust = -0.5, size = 3.8, color = "#555555") +
+  coord_cartesian(ylim = c(34, 42)) +
+  scale_y_continuous(
+    position = "right",
+    breaks = seq(34, 42, by = 2),
+    labels = function(x) paste0(x, "%")
+  ) +
+  labs(
+    title = expression(bold("Non-zero baseline: ") ~ "as originally graphed"),
+    subtitle = "IF BUSH TAX CUTS EXPIRE\nTOP TAX RATE",
+    x = NULL,
+    y = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 11, color = "#333333"),
+    plot.subtitle = element_text(size = 8, color = "#888888", lineheight = 1.2),
+    panel.grid = element_blank(),
+    axis.line.x = element_line(color = "#777777"),
+    axis.line.y.right = element_line(color = "#777777"),
+    axis.text.x = element_text(size = 9, color = "#555555", face = "bold"),
+    axis.text.y = element_text(size = 8, color = "#777777")
+  )
+
+# 3. Build the "Good" plot (Zero baseline)
+p_good <- ggplot(df, aes(x = category, y = rate)) +
+  geom_bar(stat = "identity", fill = "#F28E2B", width = 0.55) +
+  geom_text(aes(label = paste0(rate, "%")), vjust = 1.6, size = 3.8, color = "#FFFFFF", fontface = "bold") +
+  coord_cartesian(ylim = c(0, 42)) +
+  scale_y_continuous(
+    position = "left",
+    breaks = seq(0, 40, by = 10),
+    labels = function(x) paste0(x, "%")
+  ) +
+  labs(
+    title = expression(bold("Zero baseline: ") ~ "as it should be graphed"),
+    subtitle = "IF BUSH TAX CUTS EXPIRE\nTOP TAX RATE",
+    x = NULL,
+    y = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 11, color = "#333333"),
+    plot.subtitle = element_text(size = 8, color = "#888888", lineheight = 1.2),
+    panel.grid = element_blank(),
+    axis.line.x = element_line(color = "#777777"),
+    axis.line.y.left = element_line(color = "#777777"),
+    axis.text.x = element_text(size = 9, color = "#555555", face = "bold"),
+    axis.text.y = element_text(size = 8, color = "#777777")
+  )
+
+# 4. Combine both plots side-by-side
+combined_slope <- plot_grid(p_bad, p_good, ncol = 2, align = "h")
+
+# 5. Add "Bad" and "Good" labels using cowplot::ggdraw()
+final_slope_plot <- ggdraw(combined_slope) +
+  draw_label("Bad", x = 0.47, y = 0.95, fontface = "bold", color = "#D9534F", size = 13, hjust = 1) +
+  draw_label("Good", x = 0.965, y = 0.95, fontface = "bold", color = "#1F4E79", size = 13, hjust = 1)
+
+# Display plot
+print(final_slope_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Vertical bar(2)
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(cowplot)
+
+# 1. Prepare data
+df <- data.frame(
+  category = factor(c("A", "B", "C", "D", "E")),
+  value = c(1, 5, 2, 4, 7)
+)
+
+# 2. Define common theme for clean styling
+theme_bar_demo <- theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_line(color = "#777777"),
+    axis.line.y = element_line(color = "#777777"),
+    axis.text = element_text(size = 9, color = "#555555"),
+    axis.title = element_blank(),
+    plot.title = element_text(size = 12, face = "bold", color = "#333333", hjust = 0)
+  )
+
+# 3. Create "Too thin" chart (small bar width)
+p_thin <- ggplot(df, aes(x = category, y = value)) +
+  geom_col(fill = "#999999", width = 0.2) +
+  scale_y_continuous(limits = c(0, 8), breaks = 0:8) +
+  labs(title = "Too thin") +
+  theme_bar_demo
+
+# 4. Create "Too thick" chart (large bar width with minimal spacing)
+p_thick <- ggplot(df, aes(x = category, y = value)) +
+  geom_col(fill = "#999999", width = 0.92) +
+  scale_y_continuous(limits = c(0, 8), breaks = 0:8) +
+  labs(title = "Too thick") +
+  theme_bar_demo
+
+# 5. Create "Just right" chart (balanced bar width)
+p_right <- ggplot(df, aes(x = category, y = value)) +
+  geom_col(fill = "#999999", width = 0.55) +
+  scale_y_continuous(limits = c(0, 8), breaks = 0:8) +
+  labs(title = "Just right") +
+  theme_bar_demo
+
+# 6. Combine the three plots side-by-side
+final_width_plot <- plot_grid(p_thin, p_thick, p_right, ncol = 3, align = "hv")
+
+# Display the final combined plot
+print(final_width_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Vertical bar(3)
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+
+# 1. Prepare data for the charts
+categories <- c("Cat 1", "Cat 2", "Cat 3", "Cat 4", "Cat 5")
+
+# Single series data
+df_single <- data.frame(
+  Category = factor(categories, levels = categories),
+  Value = c(4, 5, 4, 4, 7)
+)
+
+# Two series data
+df_two <- data.frame(
+  Category = rep(factor(categories, levels = categories), 2),
+  Series = rep(c("A", "B"), each = 5),
+  Value = c(4, 5, 4, 4, 7, 3, 6, 5, 5, 6)
+)
+
+# Multiple series data
+df_multi <- data.frame(
+  Category = rep(factor(categories, levels = categories), 4),
+  Series = rep(c("A", "B", "C", "D"), each = 5),
+  Value = c(4, 5, 4, 4, 7, 
+            3, 6, 5, 5, 6, 
+            1, 3, 1, 3, 5, 
+            1, 1, 2, 2, 3)
+)
+
+# 2. Define common theme for clean styling
+base_theme <- theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_line(color = "#777777"),
+    axis.line.y = element_line(color = "#777777"),
+    axis.text = element_text(size = 9, color = "#555555"),
+    axis.title = element_blank(),
+    plot.title = element_text(size = 11, face = "bold", color = "#333333", hjust = 0),
+    legend.position = "none"
+  )
+
+# 3. Create Single series plot
+p1 <- ggplot(df_single, aes(x = Category, y = Value)) +
+  geom_col(fill = "#2B78C5", width = 0.6) +
+  scale_y_continuous(limits = c(0, 8), breaks = 0:8) +
+  labs(title = "Single series") +
+  base_theme
+
+# 4. Create Two series plot with labels A and B
+p2 <- ggplot(df_two, aes(x = Category, y = Value, fill = Series)) +
+  geom_col(position = position_dodge(width = 0.7), width = 0.6) +
+  scale_fill_manual(values = c("A" = "#2B78C5", "B" = "#7EB0D5")) +
+  scale_y_continuous(limits = c(0, 8), breaks = 0:8) +
+  labs(title = "Two series") +
+  base_theme +
+  annotate("text", x = 1, y = 4.5, label = "A", color = "#2B78C5", fontface = "bold", size = 3.5) +
+  annotate("text", x = 1, y = 3.3, label = "B", color = "#7EB0D5", fontface = "bold", size = 3.5)
+
+# 5. Create Multiple series plot with labels A, B, C, D
+p3 <- ggplot(df_multi, aes(x = Category, y = Value, fill = Series)) +
+  geom_col(position = position_dodge(width = 0.75), width = 0.7) +
+  scale_fill_manual(values = c("A" = "#2B78C5", "B" = "#7EB0D5", "C" = "#A6C8E0", "D" = "#B0B0B0")) +
+  scale_y_continuous(limits = c(0, 8), breaks = 0:8) +
+  labs(title = "Multiple series") +
+  base_theme +
+  annotate("text", x = 1, y = 4.5, label = "A", color = "#2B78C5", fontface = "bold", size = 3.5) +
+  annotate("text", x = 1, y = 3.3, label = "B", color = "#7EB0D5", fontface = "bold", size = 3.5) +
+  annotate("text", x = 1, y = 2.1, label = "C", color = "#A6C8E0", fontface = "bold", size = 3.5) +
+  annotate("text", x = 1, y = 1.3, label = "D", color = "#888888", fontface = "bold", size = 3.5)
+
+# 6. Combine the three plots side-by-side
+combined_plots <- plot_grid(p1, p2, p3, ncol = 3, align = "hv")
+
+# 7. Create arrow line label using strrep()
+dash_count <- 100
+arrow_line <- paste0("Good  ◀", strrep("-", dash_count), "  Bad")
+
+# 8. Assemble final plot with adjusted height and top label
+final_plot <- ggdraw() +
+  draw_plot(combined_plots, x = 0, y = 0, width = 1, height = 0.88) +
+  draw_label(arrow_line, x = 0.5, y = 0.94, fontface = "bold", color = "#333333", size = 13, hjust = 0.5)
+
+# Display the final plot
+print(final_plot)
+
+
+
+
+#-------------------------------------------------------------------------------
+## Stacked vertical bar 
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot)
+
+# 1. Prepare data for stacked bar charts (Figure 2.16)
+categories <- c("Cat 1", "Cat 2", "Cat 3", "Cat 4", "Cat 5")
+
+# Data for Good (baseline is at the bottom for easy comparison)
+df_good <- data.frame(
+  Category = rep(categories, 3),
+  Segment = rep(c("Top (Gray)", "Middle (Gray)", "Bottom (Blue)"), each = 5),
+  Value = c(
+    1, 3, 1, 3, 5,   # Top (Gray)
+    3, 6, 5, 5, 6,   # Middle (Gray)
+    4, 5, 4, 4, 7    # Bottom (Blue)
+  )
+)
+df_good$Category <- factor(df_good$Category, levels = categories)
+df_good$Segment <- factor(df_good$Segment, levels = c("Top (Gray)", "Middle (Gray)", "Bottom (Blue)"))
+
+# Data for Bad (blue is in the middle, making comparison hard)
+df_bad <- data.frame(
+  Category = rep(categories, 3),
+  Segment = rep(c("Top (Gray)", "Middle (Blue)", "Bottom (Gray)"), each = 5),
+  Value = c(
+    1, 3, 1, 3, 5,   # Top (Gray)
+    4, 6, 5, 5, 6,   # Middle (Blue)
+    3, 5, 4, 4, 7    # Bottom (Gray)
+  )
+)
+df_bad$Category <- factor(df_bad$Category, levels = categories)
+df_bad$Segment <- factor(df_bad$Segment, levels = c("Top (Gray)", "Middle (Blue)", "Bottom (Gray)"))
+
+# 2. Define common theme for clean styling
+base_theme <- theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_line(color = "#777777"),
+    axis.line.y = element_line(color = "#777777"),
+    axis.text = element_text(size = 9, color = "#555555"),
+    axis.title = element_blank(),
+    plot.title = element_text(size = 11, face = "bold", color = "#333333", hjust = 0),
+    legend.position = "none"
+  )
+
+# 3. Create Bad plot (Left side)
+p_bad <- ggplot(df_bad, aes(x = Category, y = Value, fill = Segment)) +
+  geom_col(width = 0.6) +
+  scale_fill_manual(values = c(
+    "Top (Gray)" = "#C0C0C0", 
+    "Middle (Blue)" = "#2B78C5", 
+    "Bottom (Gray)" = "#C0C0C0"
+  )) +
+  scale_y_continuous(limits = c(0, 20), breaks = seq(0, 20, by = 5)) +
+  labs(title = "Comparing these is hard") +
+  base_theme
+
+# 4. Create Good plot (Right side)
+p_good <- ggplot(df_good, aes(x = Category, y = Value, fill = Segment)) +
+  geom_col(width = 0.6) +
+  scale_fill_manual(values = c(
+    "Top (Gray)" = "#C0C0C0", 
+    "Middle (Gray)" = "#A6C8E0", 
+    "Bottom (Blue)" = "#2B78C5"
+  )) +
+  scale_y_continuous(limits = c(0, 20), breaks = seq(0, 20, by = 5)) +
+  labs(title = "Comparing these is easy") +
+  base_theme
+
+# 5. Combine the two plots side-by-side
+combined_plots <- plot_grid(p_bad, p_good, ncol = 2, align = "hv")
+
+# 6. Add "Bad" on the top-left chart and "Good" on the top-right chart
+final_plot <- ggdraw(combined_plots) +
+  draw_label("Bad", x = 0.47, y = 0.95, fontface = "bold", color = "#D9534F", size = 13, hjust = 1) +
+  draw_label("Good", x = 0.97, y = 0.95, fontface = "bold", color = "#1F4E79", size = 13, hjust = 1)
+
+# Display the final plot
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Horizontal bar 
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+
+# 1. Prepare data for horizontal bar charts (Figure 2.18)
+categories <- c("Category 5", "Category 4", "Category 3", "Category 2", "Category 1") # Reversed for correct top-to-bottom display in ggplot
+
+# Single series data
+df_single <- data.frame(
+  Category = factor(categories, levels = categories),
+  Value = c(3, 4, 4, 5, 7)
+)
+
+# Two series data
+df_two <- data.frame(
+  Category = rep(factor(categories, levels = categories), 2),
+  Series = rep(c("B", "A"), each = 5),
+  Value = c(5, 5, 3, 6, 6,    # Series B (lighter)
+            3, 4, 4, 5, 7)     # Series A (darker)
+)
+
+# Multiple series data
+df_multi <- data.frame(
+  Category = rep(factor(categories, levels = categories), 3),
+  Series = rep(c("C", "B", "A"), each = 5),
+  Value = c(3, 1, 1, 3, 5,    # Series C (gray)
+            5, 5, 3, 6, 6,    # Series B (light blue)
+            3, 4, 4, 5, 7)     # Series A (dark blue)
+)
+
+# 2. Define common theme for clean horizontal styling
+base_theme_h <- theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_line(color = "#777777"),
+    axis.line.y = element_blank(),
+    axis.text.y = element_text(size = 9, color = "#555555", hjust = 1),
+    axis.text.x = element_blank(),
+    axis.title = element_blank(),
+    plot.title = element_text(size = 11, face = "bold", color = "#333333", hjust = 0),
+    legend.position = "none"
+  )
+
+# 3. Create Single series horizontal plot
+p_single <- ggplot(df_single, aes(x = Category, y = Value)) +
+  geom_col(fill = "#2B78C5", width = 0.6) +
+  geom_text(aes(label = Value), hjust = 1.5, color = "white", size = 3, fontface = "bold") +
+  scale_y_continuous(limits = c(0, 8)) +
+  coord_flip() +
+  labs(title = "Single series") +
+  base_theme_h
+
+# 4. Create Two series horizontal plot
+p_two <- ggplot(df_two, aes(x = Category, y = Value, fill = Series)) +
+  geom_col(position = position_dodge(width = 0.7), width = 0.6) +
+  scale_fill_manual(values = c("A" = "#2B78C5", "B" = "#7EB0D5")) +
+  scale_y_continuous(limits = c(0, 8), breaks = 0:8) +
+  coord_flip() +
+  labs(title = "Two series") +
+  base_theme_h +
+  annotate("text", x = 5, y = 7.3, label = "A", color = "#2B78C5", fontface = "bold", size = 3.5) +
+  annotate("text", x = 4, y = 6.3, label = "B", color = "#7EB0D5", fontface = "bold", size = 3.5)
+
+# 5. Create Multiple series horizontal plot
+p_multi <- ggplot(df_multi, aes(x = Category, y = Value, fill = Series)) +
+  geom_col(position = position_dodge(width = 0.75), width = 0.7) +
+  scale_fill_manual(values = c("A" = "#2B78C5", "B" = "#7EB0D5", "C" = "#B0B0B0")) +
+  scale_y_continuous(limits = c(0, 8), breaks = 0:8) +
+  coord_flip() +
+  labs(title = "Multiple series") +
+  base_theme_h +
+  annotate("text", x = 5, y = 7.3, label = "A", color = "#2B78C5", fontface = "bold", size = 3.5) +
+  annotate("text", x = 4, y = 6.3, label = "B", color = "#7EB0D5", fontface = "bold", size = 3.5) +
+  annotate("text", x = 3, y = 5.3, label = "C", color = "#888888", fontface = "bold", size = 3.5)
+
+# 6. Combine all three plots side-by-side
+combined_plots <- plot_grid(p_single, p_two, p_multi, ncol = 3, align = "hv")
+
+# 7. Create arrow line label using strrep()
+dash_count <- 100
+arrow_line <- paste0("Good  ◀", strrep("-", dash_count), "  Bad")
+
+# 8. Assemble final plot with top arrow label using ggdraw()
+final_plot <- ggdraw() +
+  draw_plot(combined_plots, x = 0, y = 0, width = 1, height = 0.88) +
+  draw_label(arrow_line, x = 0.5, y = 0.94, fontface = "bold", color = "#333333", size = 13, hjust = 0.5)
+
+# Display the final plot
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Stacked horizontal bar 
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot)
+
+# 1. Prepare data for 100% stacked horizontal bar chart (Figure 2.19)
+items <- c("Survey item E", "Survey item D", "Survey item C", "Survey item B", "Survey item A")
+
+df_survey <- data.frame(
+  Item = rep(items, each = 5),
+  Response = rep(c("Strongly Disagree", "Disagree", "Neutral", "Agree", "Strongly Agree"), times = 5),
+  Proportion = c(
+    0.18, 0.22, 0.30, 0.20, 0.10,  # Survey item E
+    0.08, 0.32, 0.22, 0.21, 0.17,  # Survey item D
+    0.07, 0.13, 0.45, 0.20, 0.15,  # Survey item C
+    0.05, 0.12, 0.38, 0.25, 0.20,  # Survey item B
+    0.05, 0.05, 0.30, 0.32, 0.28   # Survey item A
+  )
+)
+
+# Set factor levels to maintain correct order
+df_survey$Item <- factor(df_survey$Item, levels = items)
+df_survey$Response <- factor(
+  df_survey$Response, 
+  levels = c("Strongly Disagree", "Disagree", "Neutral", "Agree", "Strongly Agree")
+)
+
+# 2. Define theme for survey chart
+theme_survey <- theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_line(color = "#777777"),
+    axis.line.y = element_blank(),
+    axis.text.y = element_text(size = 9, color = "#555555", hjust = 1),
+    axis.text.x = element_text(size = 8, color = "#555555"),
+    axis.title = element_blank(),
+    plot.title = element_text(size = 11, face = "bold", color = "#333333", hjust = 0),
+    legend.position = "none"
+  )
+
+# 3. Create the 100% stacked horizontal bar chart
+p_survey <- ggplot(df_survey, aes(x = Item, y = Proportion, fill = Response)) +
+  geom_col(width = 0.65) +
+  scale_fill_manual(values = c(
+    "Strongly Disagree" = "#555555",
+    "Disagree"          = "#777777",
+    "Neutral"           = "#CCCCCC",
+    "Agree"             = "#1F4E79",
+    "Strongly Agree"    = "#113355"
+  )) +
+  scale_y_continuous(labels = scales::percent_format(), limits = c(0, 1), expand = c(0, 0)) +
+  coord_flip() +
+  labs(title = "Survey results") +
+  theme_survey
+
+# 4. Assemble final plot with reduced width (width = 0.8, x = 0.1)
+final_plot <- ggdraw() +
+  draw_plot(p_survey, x = 0.1, y = 0, width = 0.8, height = 0.9) +
+  draw_label("Strongly Disagree | Disagree | Neutral | Agree | Strongly Agree", 
+             x = 0.5, y = 0.94, fontface = "bold", color = "#333333", size = 10, hjust = 0.5)
+
+# Display the final plot
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Waterfall chart
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+
+# 1. Prepare data for the waterfall chart (Headcount math)
+waterfall_data <- data.frame(
+  Step = factor(
+    c("1/1/2014\nBeginning HC", "Hires", "Transfers In", "Transfers Out", "Exits", "12/31/2014\nEnding HC"),
+    levels = c("1/1/2014\nBeginning HC", "Hires", "Transfers In", "Transfers Out", "Exits", "12/31/2014\nEnding HC")
+  ),
+  Base = c(0, 100, 130, 126, 116, 0),
+  Height = c(100, 30, 8, 12, 10, 116),
+  Label = c("100", "+30", "+8", "-12", "-10", "116"),
+  Type = c("Total", "Increase", "Increase", "Decrease", "Decrease", "Total"),
+  Label_Y = c(50, 115, 134, 132, 121, 58) # Vertical position for labels inside the bars
+)
+
+# Reshape data into a stacked format for ggplot2 geom_col
+df_stacked <- bind_rows(
+  waterfall_data %>% mutate(Segment = "Base", Value = Base, Fill_Group = "Invisible"),
+  waterfall_data %>% mutate(Segment = "Height", Value = Height, Fill_Group = Type)
+)
+df_stacked$Segment <- factor(df_stacked$Segment, levels = c("Base", "Height"))
+df_stacked
+# 2. Create the waterfall chart
+p_waterfall <- ggplot(df_stacked, aes(x = Step, y = Value, fill = Fill_Group)) +
+  geom_col(position = "stack", width = 0.55) +
+  scale_fill_manual(values = c(
+    "Invisible" = "transparent",
+    "Total" = "#2B78C5",
+    "Increase" = "#2B78C5",
+    "Decrease" = "#2B78C5"
+  )) +
+  scale_y_continuous(limits = c(0, 150), breaks = seq(0, 150, by = 50)) +
+  geom_text(
+    data = waterfall_data,
+    aes(x = Step, y = Label_Y, label = Label, fill = NULL),
+    color = "white", fontface = "bold", size = 3.5
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_line(color = "#777777"),
+    axis.line.y = element_line(color = "#777777"),
+    axis.text = element_text(size = 9, color = "#555555"),
+    axis.title = element_blank(),
+    legend.position = "none"
+  )
+
+# Display the final plot
+print(p_waterfall)
+
+
+
+#-------------------------------------------------------------------------------
+## Area chart
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+
+# 1. Generate 10x10 grid data for the square area graph (Figure 2.20)
+grid_data <- expand.grid(x = 1:10, y = 1:10) %>%
+  mutate(
+    Group = case_when(
+      x >= 8 & x <= 10 & y >= 1 & y <= 3 ~ "Offers",      # 3x3 = 9 (blue)
+      x >= 6 & x <= 10 & y >= 1 & y <= 5 ~ "Onsite",      # 5x5 = 25 (medium gray)
+      TRUE ~ "Phone Screens"                              # Remaining = 75 (light gray)
+    ),
+    # Set factor levels to control drawing order
+    Group = factor(Group, levels = c("Phone Screens", "Onsite", "Offers"))
+  )
+grid_data
+# 2. Create the square area chart (geom_tile)
+p_square <- ggplot(grid_data, aes(x = x, y = y, fill = Group)) +
+  geom_tile(color = "white", linewidth = 0.8) +
+  scale_fill_manual(values = c(
+    "Phone Screens" = "#E0E0E0", # Light gray
+    "Onsite"        = "#999999", # Medium gray
+    "Offers"        = "#2B78C5"  # Blue
+  )) +
+  coord_fixed() +
+  theme_void() +
+  theme(legend.position = "none")
+
+# 3. Assemble final plot with text annotations matching Figure 2.20
+final_plot <- ggdraw() +
+  draw_plot(p_square, x = 0.08, y = 0.1, width = 0.5, height = 0.8) +
+  draw_label("Interview breakdown", x = 0.2, y = 0.95, fontface = "bold", size = 13, color = "#333333", hjust = 0) +
+  draw_label("Out of every 100\nphone screens...", x = 0.52, y = 0.75, fontface = "bold", size = 9, color = "#888888", hjust = 0) +
+  draw_label("we bring 25\ncandidates onsite\nfor interviews...", x = 0.52, y = 0.45, fontface = "bold", size = 9, color = "#555555", hjust = 0) +
+  draw_label("and\nextend 9 offers.", x = 0.52, y = 0.20, fontface = "bold", size = 9, color = "#2B78C5", hjust = 0)
+
+# Display the final plot
+print(final_plot)
+
+
+
