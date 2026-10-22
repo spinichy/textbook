@@ -1950,3 +1950,347 @@ print(final_plot)
 
 
 
+#-------------------------------------------------------------------------------
+## Pie Chart is Evil
+#-------------------------------------------------------------------------------
+
+
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+library(plotrix)
+
+# 1. Prepare data for Supplier Market Share
+df_supplier <- data.frame(
+  Supplier = c("Supplier A", "Supplier B", "Supplier C", "Supplier D"),
+  Share = c(34, 31, 9, 26)
+)
+
+# Sort for horizontal bar chart (Good)
+df_supplier_sorted <- df_supplier %>%
+  mutate(Supplier = factor(Supplier, levels = c("Supplier C", "Supplier D", "Supplier B", "Supplier A")))
+
+slice_colors <- c("#0B3C5D", "#328CC1", "#B3CDE0", "#6497B1")
+
+# 2. Function to render 3D pie charts safely to temporary PNG and record as grob
+get_3d_pie_grob <- function(show_labels = FALSE) {
+  tf <- tempfile(fileext = ".png")
+  png(tf, width = 500, height = 500, res = 120)
+  
+  par(mar = c(1, 1, 3, 1), xpd = TRUE)
+  labels_vec <- if(show_labels) paste0(df_supplier$Share, "%") else NULL
+  
+  pie3D(
+    df_supplier$Share,
+    labels = labels_vec,
+    labelcex = 1.0,
+    explode = 0.08,
+    col = slice_colors,
+    theta = 1.15,
+    height = 0.12,
+    border = "white",
+    radius = 0.95
+  )
+  title(main = "Supplier Market Share", cex.main = 1.1, col.main = "#555555", adj = 0)
+  dev.off()
+  
+  img_raster <- png::readPNG(tf)
+  unlink(tf)
+  
+  return(grid::rasterGrob(img_raster, interpolate = TRUE))
+}
+
+# Generate Grobs for 3D Pies
+grob_evil <- get_3d_pie_grob(show_labels = FALSE)
+grob_bad  <- get_3d_pie_grob(show_labels = TRUE)
+
+p_evil_3d <- ggdraw() + draw_grob(grob_evil)
+p_bad_3d  <- ggdraw() + draw_grob(grob_bad)
+
+# 3. Create "Good" Plot with bottom line, "Total", and "100%"
+p_good <- ggplot(df_supplier_sorted, aes(x = Supplier, y = Share)) +
+  geom_col(fill = "#888888", width = 0.55) +
+  geom_text(
+    aes(label = paste0(Share, "%")), 
+    hjust = 1.3, 
+    color = "white", 
+    size = 3.5, 
+    fontface = "bold"
+  ) +
+  scale_y_continuous(limits = c(0, 40), expand = c(0, 0)) +
+  coord_flip(clip = "off") +
+  labs(title = "Supplier Market Share") +
+  # Add bottom line and Total 100% annotations
+  annotate("segment", x = 0.4, xend = 0.4, y = 0, yend = 40, color = "#777777", linewidth = 0.6) +
+  annotate("text", x = 0.2, y = 30, label = "Total:", size = 4.5, color = "#777777", fontface = "bold", hjust = 0) +
+  annotate("text", x = 0.2, y = 40, label = " 100%", size = 4.5, color = "#777777", fontface = "bold", hjust = 1) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_blank(),
+    axis.line.y = element_blank(),
+    axis.text.y = element_text(size = 9, color = "#555555", hjust = 1),
+    axis.text.x = element_blank(),
+    axis.title = element_blank(),
+    plot.title = element_text(size = 11, face = "bold", color = "#555555", hjust = 0),
+    plot.margin = margin(t = 25, r = 15, b = 35, l = 10),
+    legend.position = "none"
+  )
+
+# 4. Combine three plots side-by-side
+combined_plots <- plot_grid(p_evil_3d, p_bad_3d, p_good, ncol = 3, rel_widths = c(1.1, 1.1, 1))
+
+# 5. Assemble final plot with text labels: "Evil", "Bad", "Good"
+final_plot <- ggdraw() +
+  draw_plot(combined_plots, x = 0, y = 0, width = 1, height = 0.88) +
+  draw_label("Evil", x = 0.15, y = 0.945, fontface = "bold", color = "#FF0000", size = 13, hjust = 1) +
+  draw_label("Bad",  x = 0.47, y = 0.945, fontface = "bold", color = "#D9534F", size = 13, hjust = 1) +
+  draw_label("Good", x = 0.965, y = 0.945, fontface = "bold", color = "#1F4E79", size = 13, hjust = 1)
+
+# Display the final plot
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Dounet Chart is Evil
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+
+# 1. Outer donut chart data (Supplier market shares totaling 100%)
+df_donut <- data.frame(
+  Category = c("Supplier A", "Supplier B", "Supplier D", "Supplier C"),
+  Value = c(34, 31, 26, 9)
+) %>%
+  mutate(
+    fraction = Value / sum(Value),
+    ymax = cumsum(fraction),
+    ymin = c(0, head(ymax, n = -1))
+  )
+
+# 2. Inner arc data linked directly to the exact proportions of Supplier A and Supplier B
+df_inner_arcs <- data.frame(
+  Segment = c("arc A", "arc B"),
+  ymin = c(df_donut$ymin[df_donut$Category == "Supplier A"], df_donut$ymin[df_donut$Category == "Supplier B"]),
+  ymax = c(df_donut$ymax[df_donut$Category == "Supplier A"], df_donut$ymax[df_donut$Category == "Supplier B"])
+)
+
+# 3. Text label data positioned precisely at the midpoint of each proportional arc
+df_labels <- data.frame(
+  Segment = c("arc A", "arc B"),
+  y_pos = c(
+    (df_donut$ymin[df_donut$Category == "Supplier A"] + df_donut$ymax[df_donut$Category == "Supplier A"]) / 2,
+    (df_donut$ymin[df_donut$Category == "Supplier B"] + df_donut$ymax[df_donut$Category == "Supplier B"]) / 2
+  ),
+  Label = c("arc A", "arc B")
+)
+
+# 4. Create the donut chart with centered title
+p_donut <- ggplot() +
+  # Outer donut ring segments
+  geom_rect(
+    data = df_donut,
+    aes(xmin = 2.3, xmax = 3.6, ymin = ymin, ymax = ymax),
+    fill = "#888888", color = "white", linewidth = 1.2
+  ) +
+  # Inner proportional arc bars
+  geom_rect(
+    data = df_inner_arcs,
+    aes(xmin = 1.8, xmax = 2.1, ymin = ymin, ymax = ymax, fill = Segment),
+    color = NA
+  ) +
+  scale_fill_manual(values = c("arc A" = "#2B78C5", "arc B" = "#F28E2B")) +
+  # Inner arc text labels
+  geom_text(
+    data = df_labels,
+    aes(x = 1.4, y = y_pos, label = Label, color = Segment),
+    fontface = "bold",
+    size = 4.5
+  ) +
+  scale_color_manual(values = c("arc A" = "#2B78C5", "arc B" = "#F28E2B")) +
+  coord_polar(theta = "y", start = 0) +
+  xlim(c(0, 3.8)) +
+  labs(title = "The donut chart") +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 13, face = "bold", color = "#555555", hjust = 0.5, vjust = 1.5),
+    plot.margin = margin(t = 20, r = 20, b = 20, l = 20),
+    legend.position = "none"
+  )
+
+# Display the final plot
+print(p_donut)
+
+
+
+#-------------------------------------------------------------------------------
+## Ptthon
+## 3D Chart is Evil
+#-------------------------------------------------------------------------------
+
+
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+# 1. 데이터 준비 (월별 이슈 수)
+months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
+issues = [1.0, 1.0, 2.0, 2.0, 3.0, 4.0]
+
+# 2. 캔버스 및 3D 서브플롯 생성
+fig = plt.figure(figsize=(9, 6))
+ax = fig.add_subplot(111, projection='3d')
+
+# 3. 막대 위치 및 크기 설정
+xpos = np.arange(len(months))
+ypos = np.zeros(len(months))
+zpos = np.zeros(len(months))
+
+dx = 0.35  # 막대 너비
+dy = 0.1   # 막대 두께
+dz = issues  # 막대 높이 (이슈 수)
+
+# 4. 3D 막대 차트 생성 (예시와 유사한 블루 계열 색상 및 테두리 적용)
+ax.bar3d(
+  xpos, ypos, zpos, 
+  dx, dy, dz, 
+  color='#6BAED6',      # 부드러운 블루 컬러
+  edgecolor='#418AB3',  # 테두리 색상
+  alpha=0.95
+)
+
+# 5. 축 눈금 및 레이블 설정
+ax.set_xticks(xpos + dx / 2)
+ax.set_xticklabels(months, fontsize=11, fontweight='bold', color='#333333')
+ax.set_yticks([])  # Y축 레이블 제거하여 깔끔하게 연출
+ax.set_zticks(np.arange(0, 4.5, 0.5))  # Z축 눈금 (0부터 4까지 0.5 단위)
+ax.set_zlim(0, 4.5)
+
+# 6. 시점(Angle) 조절 (예시 이미지의 입체 투시 각도 반영)
+ax.view_init(elev=22, azim=-65)
+
+# 7. 상단 좌측 타이틀 설정
+plt.title('Number of issues', loc='left', fontsize=14, fontweight='bold', color='#555555', pad=15)
+
+# 출력
+plt.tight_layout()
+plt.show()
+
+
+
+#-------------------------------------------------------------------------------
+## Secondary y-axis
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(patchwork)
+
+# 1. 데이터 준비
+df <- data.frame(
+  Quarter = rep(c("Q1", "Q2", "Q3", "Q4"), 2),
+  Year = rep(c("2013", "2014"), each = 4),
+  Revenue = c(0.56, 0.50, 0.68, 0.87, 0.63, 0.62, 0.81, 0.95),
+  Rev_Label = c("$0.6", "$0.5", "$0.7", "$0.9", "$0.6", "$0.6", "$0.8", "$1.0"),
+  Salesforce = c(82, 91, 105, 112, 111, 109, 110, 110)
+)
+df$Period <- factor(paste0(df$Quarter, "\n", df$Year), 
+                    levels = c("Q1\n2013", "Q2\n2013", "Q3\n2013", "Q4\n2013",
+                               "Q1\n2014", "Q2\n2014", "Q3\n2014", "Q4\n2014"))
+
+# 2. [왼쪽: Bad] 이중 Y축 차트 (X축 레이블 축 이름 완전 제거)
+p_bad <- ggplot(df, aes(x = Period)) +
+  geom_bar(aes(y = Revenue * 100), stat = "identity", fill = "#2B78C5", width = 0.6, alpha = 0.8) +
+  geom_line(aes(y = Salesforce, group = 1), color = "#1F4E79", linewidth = 1.2) +
+  geom_point(aes(y = Salesforce), color = "#1F4E79", size = 2) +
+  scale_y_continuous(
+    name = "Revenue (Millions)",
+    limits = c(0, 120),
+    breaks = seq(0, 120, 20),
+    labels = c("$0.0", "$0.2", "$0.4", "$0.6", "$0.8", "$1.0", "$1.2"),
+    sec.axis = sec_axis(~., name = "# of Sales Employees", breaks = seq(0, 120, 20))
+  ) +
+  labs(title = "Secondary y-axis", x = NULL) + # x축 이름(Period) 제거
+  theme_minimal(base_size = 10) +
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333", size = 11, margin = margin(b = 10)),
+    panel.grid.minor = element_blank(),
+    axis.title.y.left = element_text(color = "#2B78C5", size = 9),
+    axis.title.y.right = element_text(color = "#1F4E79", size = 9),
+    axis.text.x = element_text(color = "#333333", face = "bold"),
+    axis.title.x = element_blank() # X축 타이틀 공간 및 텍스트 완전 차단
+  )
+
+# 3. [오른쪽 위: Good - Alternative 1] 빨간 박스 텍스트 레이블 포함[cite: 8]
+p_good1 <- ggplot(df, aes(x = Period)) +
+  geom_bar(aes(y = Revenue), stat = "identity", fill = "#2B78C5", width = 0.6) +
+  geom_line(aes(y = Salesforce / 100, group = 1), color = "#1F4E79", linewidth = 1) +
+  geom_point(aes(y = Salesforce / 100), color = "#1F4E79", size = 2) +
+  geom_text(aes(y = Revenue, label = Rev_Label), vjust = -0.5, size = 3, color = "#2B78C5", fontface = "bold") +
+  geom_text(aes(y = Salesforce / 100, label = Salesforce), vjust = -1.3, size = 3, color = "#1F4E79", fontface = "bold") +
+  annotate("text", x = 1.3, y = 1.25, label = "# of Sales\nEmployees", color = "#1F4E79", fontface = "bold", size = 3.2, hjust = 0) +
+  annotate("text", x = 1.3, y = 0.72, label = "Revenue\n(Millions)", color = "#2B78C5", fontface = "bold", size = 3.2, hjust = 0) +
+  scale_y_continuous(limits = c(0, 1.45), breaks = seq(0, 1.2, 0.2)) +
+  labs(title = "Alternative 1: label directly", y = NULL, x = NULL) +
+  theme_minimal(base_size = 10) +
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333", size = 11, margin = margin(b = 10)),
+    panel.grid.minor = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.text.x = element_text(color = "#333333", face = "bold"),
+    axis.title.x = element_blank()
+  )
+
+# 4. [오른쪽 아래 상단: Alternative 2 라인 차트][cite: 8]
+p_good2_top <- ggplot(df, aes(x = Period, y = Salesforce, group = 1)) +
+  geom_line(color = "#1F4E79", linewidth = 1) +
+  geom_point(color = "#1F4E79", size = 2) +
+  scale_y_continuous(limits = c(60, 120), breaks = seq(60, 120, 20)) +
+  labs(title = "Alternative 2: pull apart vertically", y = "# of Sales\nEmployees", x = NULL) +
+  theme_minimal(base_size = 9) +
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333", size = 11, margin = margin(b = 10)),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.title.y = element_text(size = 8, color = "#555555"),
+    axis.title.x = element_blank()
+  )
+
+# 5. [오른쪽 아래 하단: Alternative 2 매출 막대 차트][cite: 8]
+p_good2_bottom <- ggplot(df, aes(x = Period, y = Revenue)) +
+  geom_bar(stat = "identity", fill = "#2B78C5", width = 0.6) +
+  scale_y_continuous(
+    limits = c(0, 1.2), 
+    breaks = seq(0, 1.2, 0.2),
+    labels = c("$0.0", "$0.2", "$0.4", "$0.6", "$0.8", "$1.0", "$1.2")
+  ) +
+  labs(y = "Revenue\n(Millions)", x = NULL) +
+  theme_minimal(base_size = 9) +
+  theme(
+    panel.grid.minor = element_blank(),
+    axis.title.y = element_text(size = 8, color = "#555555"),
+    axis.text.x = element_text(color = "#333333", face = "bold"),
+    axis.title.x = element_blank()
+  )
+
+# Alternative 2 상하 결합
+p_good2 <- p_good2_top / p_good2_bottom + plot_layout(heights = c(1, 1))
+
+# 6. 최종 3개 차트 조합 레이아웃
+layout_design <- "
+AABB
+AACC
+"
+final_layout <- p_bad + p_good1 + p_good2 + plot_layout(design = layout_design)
+
+# 출력
+print(final_layout)
+
+
