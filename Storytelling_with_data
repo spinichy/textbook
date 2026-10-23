@@ -2294,3 +2294,728 @@ final_layout <- p_bad + p_good1 + p_good2 + plot_layout(design = layout_design)
 print(final_layout)
 
 
+
+#-------------------------------------------------------------------------------
+## Proximity
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(patchwork)
+
+# -----------------------------------------------------------------------------
+# 1. Figure 3.1: Proximity Cluster
+# -----------------------------------------------------------------------------
+fig3_1_data <- data.frame(
+  x = c(
+    # Left cluster
+    1.0, 1.5, 1.0, 1.5,
+    # Top-right cluster
+    2.8, 3.1, 3.4,
+    # Bottom-right cluster
+    2.7, 3.2, 3.7, 3.9, 3.0
+  ),
+  y = c(
+    # Left cluster
+    2.5, 2.5, 1.8, 1.8,
+    # Top-right cluster
+    3.2, 3.8, 3.2,
+    # Bottom-right cluster
+    1.3, 1.0, 1.5, 0.7, 0.4
+  )
+)
+
+p1 <- ggplot(fig3_1_data, aes(x = x, y = y)) +
+  geom_point(size = 3.5, color = "#888888") +
+  scale_x_continuous(limits = c(0, 5)) +
+  scale_y_continuous(limits = c(0, 4.5)) +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# -----------------------------------------------------------------------------
+# 2. Figure 3.2 Left: Columns
+# -----------------------------------------------------------------------------
+fig3_2_left <- expand.grid(
+  x = seq(1, 4, by = 1.0), # Wider horizontal spacing
+  y = seq(1, 6, by = 0.6)  # Narrower vertical spacing
+)
+
+p2 <- ggplot(fig3_2_left, aes(x = x, y = y)) +
+  geom_point(size = 3.5, color = "#888888") +
+  scale_x_continuous(limits = c(0, 5)) +
+  scale_y_continuous(limits = c(0, 7)) +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# -----------------------------------------------------------------------------
+# 3. Figure 3.2 Right: Rows
+# -----------------------------------------------------------------------------
+fig3_2_right <- expand.grid(
+  x = seq(1, 6, by = 0.6), # Narrower horizontal spacing
+  y = seq(1, 4, by = 1.0)  # Wider vertical spacing
+)
+
+p3 <- ggplot(fig3_2_right, aes(x = x, y = y)) +
+  geom_point(size = 3.5, color = "#888888") +
+  scale_x_continuous(limits = c(0, 7)) +
+  scale_y_continuous(limits = c(0, 5)) +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# -----------------------------------------------------------------------------
+# Vertical Separator (Dotted Line)
+# -----------------------------------------------------------------------------
+p_sep <- ggplot() +
+  geom_vline(xintercept = 0, linetype = "dotted", color = "#CCCCCC", linewidth = 0.8) +
+  xlim(-0.5, 0.5) +
+  theme_void()
+
+# -----------------------------------------------------------------------------
+# Combine 3 Plots into 1 Row with Vertical Separators
+# -----------------------------------------------------------------------------
+final_plot <- p1 + p_sep + p2 + p_sep + p3 + 
+  plot_layout(nrow = 1, widths = c(1, 0.05, 1, 0.05, 1))
+
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Similarit
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(patchwork)
+
+# -----------------------------------------------------------------------------
+# 1. Figure 3.3 Left: Circles (Blue and Grey)
+# -----------------------------------------------------------------------------
+fig3_3_left_data <- data.frame(
+  x = c(
+    # Far-left cluster (4 dots)
+    1.0, 1.5, 1.0, 1.5,
+    # Middle-left cluster (8 dots)
+    2.8, 3.1, 3.4, 2.7, 3.2, 3.7, 3.9, 3.0
+  ),
+  y = c(
+    # Far-left cluster
+    2.5, 2.5, 1.8, 1.8,
+    # Middle-left cluster
+    3.2, 3.8, 3.2, 1.3, 1.0, 1.5, 0.7, 0.4
+  ),
+  color_group = c(
+    "blue", "grey", "grey", "blue",
+    "blue", "grey", "grey", "blue", "blue", "grey", "blue", "grey"
+  )
+)
+
+p1 <- ggplot(fig3_3_left_data, aes(x = x, y = y, color = color_group)) +
+  geom_point(size = 3.5) +
+  scale_color_manual(values = c("blue" = "#4A90E2", "grey" = "#888888")) +
+  scale_x_continuous(limits = c(0.5, 4.5)) +
+  scale_y_continuous(limits = c(0, 4.5)) +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(
+    legend.position = "none",
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# -----------------------------------------------------------------------------
+# 2. Figure 3.3 Right: Squares and "x" Marks
+# -----------------------------------------------------------------------------
+squares_data <- data.frame(
+  x = c(5.0, 5.5, 5.0, 6.8, 7.4, 6.7, 7.2, 7.7),
+  y = c(2.5, 2.5, 1.8, 3.2, 3.2, 1.3, 1.0, 1.5)
+)
+
+x_data <- data.frame(
+  x = c(5.5, 5.0, 7.1, 7.9, 7.0),
+  y = c(1.8, 1.8, 3.8, 0.7, 0.4)
+)
+
+p2 <- ggplot() +
+  geom_point(data = squares_data, aes(x = x, y = y), shape = 15, size = 3.5, color = "#777777") +
+  geom_text(data = x_data, aes(x = x, y = y, label = "x"), size = 4, color = "#777777", fontface = "bold") +
+  scale_x_continuous(limits = c(4.5, 8.5)) +
+  scale_y_continuous(limits = c(0, 4.5)) +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# -----------------------------------------------------------------------------
+# 3. Figure 3.4: Alternating Row Colors Grid
+# -----------------------------------------------------------------------------
+grid_data <- expand.grid(
+  x = 1:6,
+  y = 1:5
+)
+grid_data$color_group <- ifelse(grid_data$y %in% c(2, 4), "blue", "grey")
+
+p3 <- ggplot(grid_data, aes(x = x, y = y, color = color_group)) +
+  geom_point(size = 3.5) +
+  scale_color_manual(values = c("blue" = "#4A90E2", "grey" = "#B0B0B0")) +
+  scale_x_continuous(limits = c(0.5, 6.5)) +
+  scale_y_continuous(limits = c(0.5, 5.5)) +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(
+    legend.position = "none",
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# -----------------------------------------------------------------------------
+# Vertical Dotted Separator Line
+# -----------------------------------------------------------------------------
+p_sep <- ggplot() +
+  geom_vline(xintercept = 0, linetype = "dotted", color = "#B0B0B0", linewidth = 0.8) +
+  xlim(-0.5, 0.5) +
+  theme_void()
+
+# -----------------------------------------------------------------------------
+# Combine All 3 Graphs into 1 Row with Dotted Lines Between Them
+# -----------------------------------------------------------------------------
+final_plot <- p1 + p_sep + p2 + p_sep + p3 + 
+  plot_layout(nrow = 1, widths = c(1, 0.05, 1, 0.05, 1.2))
+
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Enclosure
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(patchwork)
+
+# -----------------------------------------------------------------------------
+# 1. Figure 3.5 Left: Dots with Border Box (Square Enclosure)
+# -----------------------------------------------------------------------------
+fig3_5_left_dots <- data.frame(
+  x = c(0.8, 0.8, 1.3, 1.3, 2.1, 2.0, 2.3, 2.5, 2.7, 2.4, 2.3, 2.8),
+  y = c(2.5, 1.8, 2.5, 1.8, 2.8, 1.5, 3.8, 2.8, 1.8, 1.2, 0.5, 1.0)
+)
+
+p1 <- ggplot() +
+  annotate("rect", xmin = 1.1, xmax = 2.2, ymin = 1.0, ymax = 3.1,
+           fill = NA, color = "#555555", linewidth = 0.8) +
+  geom_point(data = fig3_5_left_dots, aes(x = x, y = y), size = 3.5, color = "#555555") +
+  scale_x_continuous(limits = c(0.3, 3.5)) +
+  scale_y_continuous(limits = c(0, 4.5)) +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# -----------------------------------------------------------------------------
+# 2. Figure 3.5 Right: Grid Dots with Shaded Background Area
+# -----------------------------------------------------------------------------
+fig3_5_right_grid <- expand.grid(
+  x = 1:6,
+  y = 1:5
+)
+
+p2 <- ggplot() +
+  annotate("rect", xmin = 2.5, xmax = 6.5, ymin = 1.5, ymax = 3.5,
+           fill = "#E0E0E0", color = NA) +
+  geom_point(data = fig3_5_right_grid, aes(x = x, y = y), size = 3.5, color = "#555555") +
+  scale_x_continuous(limits = c(0.5, 7.0)) +
+  scale_y_continuous(limits = c(0.5, 5.5)) +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# -----------------------------------------------------------------------------
+# 3. Figure 3.6: Line Graph with "ACTUAL" and "FORECAST" Shading
+# -----------------------------------------------------------------------------
+line_data <- data.frame(
+  x = 1:9,
+  y = c(2.0, 1.4, 1.4, 0.8, 2.5, 3.0, 2.5, 4.2, 4.2)
+)
+
+p3 <- ggplot(line_data, aes(x = x, y = y)) +
+  annotate("rect", xmin = 4.5, xmax = 9.5, ymin = -0.2, ymax = 4.8,
+           fill = "#E2E2E2", color = NA) +
+  annotate("segment", x = 0.5, xend = 0.5, y = 0, yend = 4.8, color = "#A0A0A0", linewidth = 0.8) +
+  annotate("segment", x = 0.5, xend = 9.5, y = 0, yend = 0, color = "#A0A0A0", linewidth = 0.8) +
+  geom_line(color = "#555555", linewidth = 2) +
+  geom_point(color = "#555555", size = 5) +
+  annotate("text", x = 2.5, y = -0.6, label = "ACTUAL", color = "#666666", size = 4.5, fontface = "bold") +
+  annotate("text", x = 7.0, y = -0.6, label = "FORECAST", color = "#666666", size = 4.5, fontface = "bold") +
+  scale_x_continuous(limits = c(0, 10)) +
+  scale_y_continuous(limits = c(-1, 5)) +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# -----------------------------------------------------------------------------
+# Vertical Dotted Separator Line
+# -----------------------------------------------------------------------------
+p_sep <- ggplot() +
+  geom_vline(xintercept = 0, linetype = "dotted", color = "#B0B0B0", linewidth = 0.8) +
+  xlim(-0.5, 0.5) +
+  theme_void()
+
+# -----------------------------------------------------------------------------
+# Final Combined Plot Layout (1 Row: p1 + sep + p2 + sep + p3)
+# -----------------------------------------------------------------------------
+final_plot <- p1 + p_sep + p2 + p_sep + p3 + 
+  plot_layout(nrow = 1, widths = c(1, 0.05, 1.2, 0.05, 1))
+
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Closure
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(patchwork)
+
+# -----------------------------------------------------------------------------
+# 1. Figure 3.7: Gestalt Principle of Closure (Circle divided into 8 segments with wider gaps)
+# -----------------------------------------------------------------------------
+# Create 8 arc segments with wider gaps between them
+angles <- seq(0, 2 * pi, length.out = 9)
+arc_list <- lapply(1:8, function(i) {
+  # Shorten the arc length to increase the gap (leaving a larger empty space)
+  start_angle <- angles[i] + 0.15
+  end_angle <- angles[i+1] - 0.15
+  t <- seq(start_angle, end_angle, length.out = 25)
+  data.frame(
+    x = cos(t) * 2,
+    y = sin(t) * 2,
+    group = i
+  )
+})
+circle_8_parts <- do.call(rbind, arc_list)
+
+p1 <- ggplot(circle_8_parts, aes(x = x, y = y, group = group)) +
+  geom_path(linewidth = 3.5, lineend = "round", color = "#222222") +
+  scale_x_continuous(limits = c(-3.5, 3.5)) +
+  scale_y_continuous(limits = c(-3.5, 3.5)) +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# -----------------------------------------------------------------------------
+# 2. Figure 3.8 Left: Graph with Border and Shading
+# -----------------------------------------------------------------------------
+line_data <- data.frame(
+  x = 1:6,
+  y = c(2.0, 1.4, 1.4, 0.8, 2.5, 3.8)
+)
+
+p2 <- ggplot(line_data, aes(x = x, y = y)) +
+  annotate("rect", xmin = 0.2, xmax = 6.8, ymin = -0.2, ymax = 4.8,
+           fill = "#E0E0E0", color = "#222222", linewidth = 0.8) +
+  annotate("segment", x = 0.8, xend = 0.8, y = 0, yend = 4.3, color = "#666666", linewidth = 0.6) +
+  annotate("segment", x = 0.8, xend = 6.2, y = 0, yend = 0, color = "#666666", linewidth = 0.6) +
+  geom_line(color = "#222222", linewidth = 1.5) +
+  scale_x_continuous(limits = c(0, 7.5)) +
+  scale_y_continuous(limits = c(-1, 5.5)) +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# -----------------------------------------------------------------------------
+# 3. Figure 3.8 Right: Clean Graph (No Border, No Shading)
+# -----------------------------------------------------------------------------
+p3 <- ggplot(line_data, aes(x = x, y = y)) +
+  annotate("segment", x = 0.8, xend = 0.8, y = 0, yend = 4.3, color = "#666666", linewidth = 0.6) +
+  annotate("segment", x = 0.8, xend = 6.2, y = 0, yend = 0, color = "#666666", linewidth = 0.6) +
+  geom_line(color = "#222222", linewidth = 1.5) +
+  scale_x_continuous(limits = c(0, 7.5)) +
+  scale_y_continuous(limits = c(-1, 5.5)) +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# -----------------------------------------------------------------------------
+# Vertical Dotted Separator Line
+# -----------------------------------------------------------------------------
+p_sep <- ggplot() +
+  geom_vline(xintercept = 0, linetype = "dotted", color = "#B0B0B0", linewidth = 0.8) +
+  xlim(-0.5, 0.5) +
+  theme_void()
+
+# -----------------------------------------------------------------------------
+# Final Combined Plot Layout (1 Row: p1 + sep + p2 + sep + p3)
+# -----------------------------------------------------------------------------
+final_plot <- p1 + p_sep + p2 + p_sep + p3 + 
+  plot_layout(nrow = 1, widths = c(1, 0.05, 1, 0.05, 1))
+
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Contunuity
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(patchwork)
+
+# -----------------------------------------------------------------------------
+# 1. Figure 3.9: Continuity Principle (Showing shapes 1, 2, and 3 accurately)
+# -----------------------------------------------------------------------------
+p1_1 <- ggplot() +
+  annotate("rect", xmin = 0.5, xmax = 3.5, ymin = 1.0, ymax = 1.8, fill = NA, color = "#555555", linewidth = 1.2) +
+  annotate("rect", xmin = 1.5, xmax = 2.5, ymin = 1.5, ymax = 3.2, fill = "#FFFFFF", color = "#555555", linewidth = 1.0) +
+  annotate("text", x = 2.0, y = 3.8, label = "1", color = "#4A90E2", size = 5, fontface = "bold") +
+  scale_x_continuous(limits = c(0, 4)) + scale_y_continuous(limits = c(0.5, 4.2)) + coord_fixed(ratio = 1) + theme_void()
+
+p1_2 <- ggplot() +
+  annotate("rect", xmin = 0.5, xmax = 3.5, ymin = 1.0, ymax = 1.8, fill = NA, color = "#555555", linewidth = 1.2) +
+  annotate("rect", xmin = 1.5, xmax = 2.5, ymin = 2.2, ymax = 3.9, fill = "#FFFFFF", color = "#555555", linewidth = 1.0) +
+  annotate("text", x = 2.0, y = 4.2, label = "2", color = "#4A90E2", size = 5, fontface = "bold") +
+  scale_x_continuous(limits = c(0, 4)) + scale_y_continuous(limits = c(0.5, 4.5)) + coord_fixed(ratio = 1) + theme_void()
+
+# Refined shape 3: Same upper box as shape 2, but with lower parts of vertical sides masked white
+p1_3 <- ggplot() +
+  # Bottom horizontal rectangle
+  annotate("rect", xmin = 0.5, xmax = 3.5, ymin = 1.0, ymax = 1.8, fill = NA, color = "#555555", linewidth = 1.2) +
+  # Upper rectangle box (identical to shape 2)
+  annotate("rect", xmin = 1.5, xmax = 2.5, ymin = 2.2, ymax = 3.9, fill = "#FFFFFF", color = "#555555", linewidth = 1.0) +
+  # White masking rectangles to make only the lower parts of vertical sides white (hidden)
+  annotate("rect", xmin = 1.45, xmax = 1.55, ymin = 2.5, ymax = 2.75, fill = "#FFFFFF", color = NA) +
+  annotate("rect", xmin = 2.45, xmax = 2.55, ymin = 2.5, ymax = 2.75, fill = "#FFFFFF", color = NA) +
+  # Number label "3"
+  annotate("text", x = 2.0, y = 4.2, label = "3", color = "#4A90E2", size = 5, fontface = "bold") +
+  scale_x_continuous(limits = c(0, 4)) + scale_y_continuous(limits = c(0.5, 4.5)) + coord_fixed(ratio = 1) + theme_void()
+
+# Wrap sub-plots into a single panel element for Figure 3.9
+p1 <- wrap_elements(p1_1 + p1_2 + p1_3 + plot_layout(nrow = 1))
+
+# -----------------------------------------------------------------------------
+# 2. Figure 3.10: Horizontal Bar Chart in Descending Order (A at top, E at bottom)
+# -----------------------------------------------------------------------------
+bar_data <- data.frame(
+  category = factor(c("E", "D", "C", "B", "A"), levels = c("E", "D", "C", "B", "A")),
+  value = c(1, 2, 2.5, 3, 5)
+)
+
+p2 <- ggplot(bar_data, aes(x = category, y = value)) +
+  geom_col(fill = "#666666", width = 0.6) +
+  coord_flip() +
+  scale_y_continuous(limits = c(0, 6), breaks = NULL) +
+  theme_void() +
+  theme(
+    axis.text.y = element_text(color = "#333333", size = 11, face = "bold", hjust = 1),
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA),
+    plot.margin = margin(10, 10, 10, 10)
+  )
+
+# -----------------------------------------------------------------------------
+# Vertical Dotted Separator Line
+# -----------------------------------------------------------------------------
+p_sep <- ggplot() +
+  geom_vline(xintercept = 0, linetype = "dotted", color = "#B0B0B0", linewidth = 0.8) +
+  xlim(-0.5, 0.5) +
+  theme_void()
+
+# -----------------------------------------------------------------------------
+# Final Combined Plot Layout (1 Row: Figure 3.9 + Separator + Figure 3.10)
+# -----------------------------------------------------------------------------
+final_plot <- p1 + p_sep + p2 + 
+  plot_layout(nrow = 1, widths = c(2.5, 0.05, 1.2))
+
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Connection
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(patchwork)
+
+# -----------------------------------------------------------------------------
+# 1. Figure 3.3: Gestalt Principles (4 pairs of comparative dot patterns with larger dots)
+# -----------------------------------------------------------------------------
+p1 <- ggplot() +
+  # Pair 1: Blue highlighted dots on the left connected to gray dots
+  annotate("segment", x = 1, xend = 2, y = 4, yend = 4, color = "#666666", linewidth = 1.2) +
+  annotate("segment", x = 1, xend = 2, y = 3, yend = 3, color = "#666666", linewidth = 1.2) +
+  annotate("point", x = 1, y = c(4, 3), color = "#4A90E2", size = 6) +
+  annotate("point", x = 2, y = c(4, 3), color = "#666666", size = 6) +
+  
+  # Pair 2: Size contrast (large vs small dots connected)
+  annotate("segment", x = 3, xend = 4, y = 4, yend = 4, color = "#666666", linewidth = 1.2) +
+  annotate("segment", x = 3, xend = 4, y = 3, yend = 3, color = "#666666", linewidth = 1.2) +
+  annotate("point", x = 3, y = c(4, 3), color = "#666666", size = 6) +
+  annotate("point", x = 4, y = c(4, 3), color = "#666666", size = 3) +
+  
+  # Pair 3: Shape contrast (squares vs circles)
+  annotate("segment", x = 5, xend = 6, y = 4, yend = 4, color = "#666666", linewidth = 1.2) +
+  annotate("segment", x = 5, xend = 6, y = 3, yend = 3, color = "#666666", linewidth = 1.2) +
+  annotate("point", x = 5, y = c(4, 3), color = "#666666", size = 6, shape = 15) +
+  annotate("point", x = 6, y = c(4, 3), color = "#666666", size = 6) +
+  
+  # Pair 4: Connection/Enclosure (right pair enclosed in a box)
+  annotate("segment", x = 7, xend = 8, y = 4, yend = 4, color = "#666666", linewidth = 1.2) +
+  annotate("segment", x = 7, xend = 8, y = 3, yend = 3, color = "#666666", linewidth = 1.2) +
+  annotate("point", x = 7, y = c(4, 3), color = "#666666", size = 6) +
+  annotate("point", x = 8, y = c(4, 3), color = "#666666", size = 6) +
+  annotate("rect", xmin = 7.55, xmax = 8.45, ymin = 2.35, ymax = 4.65, fill = NA, color = "#222222", linewidth = 1.0) +
+  
+  scale_x_continuous(limits = c(0.5, 8.5)) +
+  scale_y_continuous(limits = c(1.5, 5.5)) +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# -----------------------------------------------------------------------------
+# 2. Figure 3.4 Left: Scatter Plot without connecting lines (Clutter)
+# -----------------------------------------------------------------------------
+scatter_data <- data.frame(
+  x = 1:9,
+  y = c(2.0, 1.4, 1.4, 0.8, 2.5, 3.0, 2.5, 4.2, 4.2)
+)
+
+p2 <- ggplot(scatter_data, aes(x = x, y = y)) +
+  annotate("segment", x = 0.5, xend = 0.5, y = 0, yend = 4.8, color = "#A0A0A0", linewidth = 0.8) +
+  annotate("segment", x = 0.5, xend = 9.5, y = 0, yend = 0, color = "#A0A0A0", linewidth = 0.8) +
+  geom_point(color = "#555555", size = 4) +
+  scale_x_continuous(limits = c(0, 10)) +
+  scale_y_continuous(limits = c(-1, 5)) +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# -----------------------------------------------------------------------------
+# 3. Figure 3.4 Right: Line Graph with connection principle applied
+# -----------------------------------------------------------------------------
+p3 <- ggplot(scatter_data, aes(x = x, y = y)) +
+  annotate("segment", x = 0.5, xend = 0.5, y = 0, yend = 4.8, color = "#A0A0A0", linewidth = 0.8) +
+  annotate("segment", x = 0.5, xend = 9.5, y = 0, yend = 0, color = "#A0A0A0", linewidth = 0.8) +
+  geom_line(color = "#555555", linewidth = 1.5) +
+  geom_point(color = "#555555", size = 4) +
+  scale_x_continuous(limits = c(0, 10)) +
+  scale_y_continuous(limits = c(-1, 5)) +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# -----------------------------------------------------------------------------
+# Vertical Dotted Separator Line
+# -----------------------------------------------------------------------------
+p_sep <- ggplot() +
+  geom_vline(xintercept = 0, linetype = "dotted", color = "#B0B0B0", linewidth = 0.8) +
+  xlim(-0.5, 0.5) +
+  theme_void()
+
+# -----------------------------------------------------------------------------
+# Final Combined Plot Layout (1 Row: p1 + sep + p2 + sep + p3)
+# -----------------------------------------------------------------------------
+final_plot <- p1 + p_sep + p2 + p_sep + p3 + 
+  plot_layout(nrow = 1, widths = c(2.2, 0.05, 1, 0.05, 1))
+
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Lack of visual order
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(patchwork)
+library(cowplot)
+library(ggtext)
+
+# -----------------------------------------------------------------------------
+# 1. Create Data for the Bar Chart
+# -----------------------------------------------------------------------------
+attr_levels <- c("Colleague recommendation", "Previous work together", "Affordability of services", 
+                 "National reputation", "Local knowledge", "Content expertise", "Demonstration of results")
+
+survey_data_bad <- data.frame(
+  attribute = factor(c("Demonstration of results", "Content expertise", "Local knowledge", 
+                       "National reputation", "Affordability of services", "Previous work together", 
+                       "Colleague recommendation"), levels = attr_levels),
+  percentage = c(72, 53, 41, 21, 19, 17, 4)
+)
+
+survey_data_good <- data.frame(
+  attribute = factor(c("Demonstration of results", "Content expertise", "Local knowledge", 
+                       "National reputation", "Affordability of services", "Previous work together", 
+                       "Colleague recommendation"), levels = attr_levels),
+  percentage = c(72, 53, 41, 21, 19, 17, 4),
+  highlight_group = c("highlight", "gray", "gray", "gray", "highlight", "highlight", "gray")
+)
+
+# -----------------------------------------------------------------------------
+# 2. "Bad" Version Plot (Figure 3.13 Style)
+# -----------------------------------------------------------------------------
+p_bad <- ggplot(survey_data_bad, aes(x = attribute, y = percentage)) +
+  geom_col(fill = "#B0B0B0", width = 0.6) +
+  coord_flip() +
+  scale_y_continuous(limits = c(0, 105), labels = function(x) paste0(x, "%")) +
+  theme_minimal() +
+  labs(
+    title = "Demonstrating effectiveness is most important consideration when\nselecting a provider",
+    subtitle = "In general, what attributes are the most important\nto you in selecting a service provider?\n(Choose up to 3)",
+    x = NULL,
+    y = "% selecting given attribute",
+    caption = "Data source: xyz; includes N number of survey respondents. Note that\nrespondents were able to choose up to 3 options."
+  ) +
+  annotate("segment", x = 7, xend = 6.2, y = 71, yend = 72, color = "#222222", linewidth = 0.5) +
+  annotate("text", x = 6.0, y = 73, 
+           label = "Survey shows that\ndemonstration of results is\nthe single most important\ndimension when choosing a\nservice provider.", 
+           size = 3.2, hjust = 0, lineheight = 1.1, color = "#222222") +
+  annotate("segment", x = 3, xend = 4.0, y = 19, yend = 68, color = "#222222", linewidth = 0.5) +
+  annotate("segment", x = 2, xend = 4.0, y = 17, yend = 68, color = "#222222", linewidth = 0.5) +
+  annotate("text", x = 3.6, y = 73, 
+           label = "Affordability and experience\nworking together previously,\nwhich were hypothesized to\nbe very important in the\ndecision making process,\nwere both cited less\nfrequently as important\nattributes.", 
+           size = 3.2, hjust = 0, lineheight = 1.1, color = "#222222") +
+  theme(
+    plot.title = element_text(face = "bold", size = 10, color = "#222222", hjust = 0.5),
+    plot.subtitle = element_text(size = 8.5, color = "#444444", hjust = 0.5),
+    plot.caption = element_text(size = 7.5, hjust = 0.5),
+    axis.text = element_text(size = 9, color = "#222222"),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "#888888")
+  )
+
+# -----------------------------------------------------------------------------
+# 3. "Good" Version Plot (Figure 3.14 Style with Fixed Axis Title Spacing)
+# -----------------------------------------------------------------------------
+p_good <- ggplot(survey_data_good, aes(x = attribute, y = percentage, fill = highlight_group)) +
+  geom_col(width = 0.6) +
+  scale_fill_manual(values = c("gray" = "#B0B0B0", "highlight" = "#333333")) +
+  coord_flip() +
+  scale_y_continuous(
+    limits = c(0, 110), 
+    breaks = NULL
+  ) +
+  theme_minimal() +
+  labs(
+    title = "**Demonstrating effectiveness** is most important consideration<br>when selecting a provider",
+    subtitle = "In general, **what attributes are the most important**<br>to you in selecting a service provider? (Choose up to 3)",
+    x = NULL,
+    y = NULL,
+    caption = "Data source: xyz; includes N number of survey respondents.<br>Note that respondents were able to choose up to 3 options."
+  ) +
+  # Manual Top Axis Line right above the first bar (x = 7.35)
+  annotate("segment", x = 7.35, xend = 7.35, y = 0, yend = 80, color = "#666666", linewidth = 0.5) +
+  # Ticks pointing upwards
+  annotate("segment", x = 7.35, xend = 7.47, y = c(0, 20, 40, 60, 80), yend = c(0, 20, 40, 60, 80), color = "#666666", linewidth = 0.5) +
+  # Percentage numbers placed above the line
+  annotate("text", x = 7.55, y = c(0, 20, 40, 60, 80), label = c("0%", "20%", "40%", "60%", "80%"), size = 2.8, color = "#555555", hjust = 0) +
+  # Axis title positioned safely at y = 40 and x = 8.1 to eliminate overlap with 0%
+  annotate("text", x = 7.1, y = 80, label = "% selecting given attribute", size = 2.9, color = "#555555", hjust = 0) +
+  
+  # Right-side annotations matching Figure 3.14 layout
+  annotate(
+    "richtext", x = 6.2, y = 53, 
+    label = "Survey shows that **demonstration<br>of results** is the single most<br>important dimension when<br>choosing a service provider.", 
+    size = 3.8, hjust = 0, lineheight = 1.1, color = "#333333",
+    fill = NA, label.color = NA
+  ) +
+  annotate(
+    "richtext", x = 2.4, y = 53, 
+    label = "**Affordability** and **experience<br>working together previously**,<br>which were hypothesized to be<br>very important in the decision<br>making process, were both cited<br>less frequently as important<br>attributes.", 
+    size = 4.1, hjust = 0, lineheight = 1.1, color = "#333333",
+    fill = NA, label.color = NA
+  ) +
+  theme(
+    plot.title = element_markdown(face = "bold", size = 10, color = "#222222", hjust = 0, lineheight = 1.2),
+    plot.subtitle = element_markdown(size = 8.5, color = "#444444", hjust = 0, lineheight = 1.2),
+    plot.caption = element_markdown(size = 7.5, hjust = 0, lineheight = 1.2),
+    axis.text.y = element_text(size = 9, color = "#222222"),
+    panel.grid = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_blank(),
+    axis.text.x = element_blank(),
+    legend.position = "none"
+  )
+
+# -----------------------------------------------------------------------------
+# 4. Combine Plots Side by Side using Patchwork
+# -----------------------------------------------------------------------------
+combined_plots <- p_bad + p_good + plot_layout(nrow = 1, widths = c(1, 1))
+
+# -----------------------------------------------------------------------------
+# 5. Add "Bad" and "Good" Labels using cowplot::ggdraw
+# -----------------------------------------------------------------------------
+final_plot <- ggdraw(combined_plots) +
+  draw_label("Bad", x = 0.47, y = 0.945, fontface = "bold", color = "#D9534F", size = 13, hjust = 1) +
+  draw_label("Good", x = 0.965, y = 0.945, fontface = "bold", color = "#1F4E79", size = 13, hjust = 1)
+
+# Print the final polished comparison plot
+print(final_plot)
+
+
+
+
+
+
+
