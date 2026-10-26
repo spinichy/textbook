@@ -3015,6 +3015,200 @@ print(final_plot)
 
 
 
+#-------------------------------------------------------------------------------
+## Contrast
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(cowplot)
+library(dplyr)
+
+# 1. Create data frame where Our Business values strictly align with the reference ranks
+set.seed(2026)
+categories <- c("Price", "Convenience", "Relationship", "Service", "Selection")
+competitors <- c("Our Business", "Competitor A", "Competitor B", "Competitor C", "Competitor D", "Competitor E")
+
+df <- expand.grid(Category = categories, Business = competitors)
+
+# Define values explicitly to match the exact visual lengths in the reference image
+df <- df %>% mutate(
+  Value = case_when(
+    # Our Business: Price is longest (1 of 6), Service/Selection are shortest (6 of 6)
+    Business == "Our Business" & Category == "Price" ~ 1.45,       # Rank 1
+    Business == "Our Business" & Category == "Convenience" ~ 1.15, # Rank 2
+    Business == "Our Business" & Category == "Relationship" ~ 0.7, # Rank 4
+    Business == "Our Business" & Category == "Service" ~ 0.25,     # Rank 6 (Very short)
+    Business == "Our Business" & Category == "Selection" ~ 0.2,    # Rank 6 (Very short)
+    
+    # Competitor values (randomized gray bars)
+    TRUE ~ runif(n(), 0.1, 1.4)
+  )
+)
+
+# Dynamically calculate the rank based on the assigned values within each category
+df <- df %>%
+  group_by(Category) %>%
+  mutate(
+    Rank = rank(-Value, ties.method = "min"),
+    RankText = ifelse(Business == "Our Business", paste0(Rank, " of 6"), "")
+  ) %>%
+  ungroup()
+
+# Ensure correct factor ordering (Price at top, Selection at bottom)
+df$Business <- factor(df$Business, levels = rev(competitors))
+df$Category <- factor(df$Category, levels = categories)
+
+# 2. Create the "Bad" plot (Scatter plot with a single-row horizontal legend)
+p_bad <- ggplot(df, aes(x = Category, y = Value, color = Business)) +
+  geom_point(size = 3) +
+  geom_hline(yintercept = 0, color = "darkgray", linetype = "solid") +
+  labs(title = "Weighted Performance Index", x = NULL, y = NULL) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 12, hjust = 0.5),
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.title = element_blank(),
+    legend.text = element_text(size = 7)
+  ) +
+  guides(color = guide_legend(nrow = 1))
+
+# 3. Create the "Good" plot matching the exact reference layout
+p_good <- ggplot(df, aes(x = Business, y = Value, fill = Business)) +
+  geom_col(width = 0.7) +
+  coord_flip() +
+  facet_grid(Category ~ ., switch = "y") + # Price on top, Selection at bottom
+  scale_fill_manual(values = c(
+    "Our Business" = "#1F4E79", 
+    "Competitor A" = "gray75", 
+    "Competitor B" = "gray75", 
+    "Competitor C" = "gray75", 
+    "Competitor D" = "gray75", 
+    "Competitor E" = "gray75"
+  )) +
+  # Display dynamic rank text matching the exact bar length
+  geom_text(
+    aes(label = RankText),
+    hjust = -0.2,
+    size = 3,
+    color = "#1F4E79",
+    fontface = "bold"
+  ) +
+  expand_limits(y = 1.7) + # Provide space for text labels at the end of the bars
+  labs(title = "Performance overview", subtitle = "Weighted performance index | relative rank", x = NULL, y = NULL) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 12, hjust = 0),
+    plot.subtitle = element_text(size = 9, color = "gray40", hjust = 0),
+    legend.position = "none",
+    strip.placement = "outside",
+    strip.text.y.left = element_text(angle = 0, face = "bold", size = 10, hjust = 1),
+    axis.text.y = element_blank(), 
+    axis.ticks.y = element_blank(),
+    panel.grid.major.y = element_blank()
+  )
+
+# 4. Combine both plots side-by-side using cowplot
+combined_plots <- plot_grid(p_bad, p_good, ncol = 2, rel_widths = c(1, 1.1))
+
+# 5. Add "Bad" and "Good" header labels onto the combined layout
+final_plot <- ggdraw(combined_plots) +
+  draw_label("Bad", x = 0.47, y = 0.945, fontface = "bold", color = "#D9534F", size = 13, hjust = 1) +
+  draw_label("Good", x = 0.965, y = 0.945, fontface = "bold", color = "#1F4E79", size = 13, hjust = 1)
+
+# Print the final arranged plot
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Eliminate clutter
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(cowplot)
+library(dplyr)
+
+# 1. Prepare data matching the provided image trend
+months <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+full_months <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+
+received_vals <- c(160, 184, 240, 148, 180, 160, 132, 202, 160, 139, 149, 177)
+processed_vals <- c(160, 184, 238, 148, 180, 150, 122, 155, 126, 104, 123, 140)
+
+df_good <- data.frame(
+  Month = factor(months, levels = months),
+  MonthIndex = 1:12,
+  Received = received_vals,
+  Processed = processed_vals
+)
+
+df_bad <- data.frame(
+  Month = factor(full_months, levels = full_months),
+  Received = received_vals,
+  Processed = processed_vals
+)
+
+# Convert to long format for ggplot
+df_bad_long <- tidyr::pivot_longer(df_bad, cols = c("Received", "Processed"), names_to = "Type", values_to = "Value")
+df_good_long <- tidyr::pivot_longer(df_good, cols = c("Received", "Processed"), names_to = "Type", values_to = "Value")
+
+# 2. Create the "Bad" plot
+p_bad <- ggplot(df_bad_long, aes(x = Month, y = Value, group = Type, color = Type, shape = Type)) +
+  geom_line(size = 1) +
+  geom_point(size = 2.5, fill = "white") +
+  scale_color_manual(values = c("Received" = "#4A7BB0", "Processed" = "#C00000"),
+                     labels = c("Received" = "Ticket Volume Received", "Processed" = "Ticket Volume Processed")) +
+  scale_shape_manual(values = c("Received" = 23, "Processed" = 22),
+                     labels = c("Received" = "Ticket Volume Received", "Processed" = "Ticket Volume Processed")) +
+  scale_y_continuous(limits = c(0, 300), breaks = seq(0, 300, 50), labels = sprintf("%.2f", seq(0, 300, 50))) +
+  theme_bw() +
+  theme(
+    axis.title = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, color = "black", size = 9),
+    axis.text.y = element_text(color = "black", size = 9),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(color = "gray60", fill = NA),
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    legend.key = element_blank()
+  )
+
+# 3. Create the "Good" plot with Direct Labeling
+p_good <- ggplot(df_good_long, aes(x = MonthIndex, y = Value, color = Type)) +
+  geom_line(size = 1.2) +
+  scale_color_manual(values = c("Received" = "#4A7BB0", "Processed" = "#C00000")) +
+  scale_x_continuous(breaks = 1:12, labels = months, limits = c(1, 13.5)) +
+  scale_y_continuous(limits = c(0, 300), breaks = seq(0, 300, 50)) +
+  # Direct labeling at the end of lines
+  annotate("text", x = 12.2, y = 177, label = "Received", color = "#4A7BB0", hjust = 0, fontface = "plain", size = 4) +
+  annotate("text", x = 12.2, y = 140, label = "Processed", color = "#C00000", hjust = 0, fontface = "plain", size = 4) +
+  theme_classic() +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_text(color = "gray30", size = 10),
+    axis.line = element_line(color = "gray60"),
+    axis.ticks = element_line(color = "gray60"),
+    legend.position = "none"
+  )
+
+# 4. Combine both plots side-by-side using cowplot
+combined_plots <- plot_grid(p_bad, p_good, ncol = 2, align = "h", rel_widths = c(1, 1))
+
+# 5. Add "Bad" and "Good" header labels onto the combined layout
+final_plot <- ggdraw(combined_plots) +
+  draw_label("Bad", x = 0.47, y = 0.95, fontface = "bold", color = "#D9534F", size = 13, hjust = 1) +
+  draw_label("Good", x = 0.965, y = 0.95, fontface = "bold", color = "#1F4E79", size = 13, hjust = 1)
+
+# Print the final arranged plot
+print(final_plot)
 
 
 
