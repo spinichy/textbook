@@ -3999,3 +3999,106 @@ print(final_dashboard)
 
 
 
+#-------------------------------------------------------------------------------
+## Highlight the important stuff
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(cowplot)
+
+# 1. Prepare data with correct factor levels
+education_levels <- c("All", "Less than high school", "High school graduate", "Some college", "Bachelor's degree or more")
+
+marriage_data <- data.frame(
+  education = factor(
+    rep(education_levels, each = 5),
+    levels = education_levels
+  ),
+  rate = c(
+    41.4, 40.5, 39.0, 38.2, 36.7,  # All
+    26.8, 24.5, 22.1, 22.3, 23.4,  # Less than high school
+    35.9, 34.0, 30.5, 30.2, 30.1,  # High school graduate
+    42.5, 41.0, 37.5, 37.2, 36.5,  # Some college
+    61.5, 61.2, 59.8, 55.0, 56.7   # Bachelor's degree or more
+  ),
+  year = rep(c("'08", "'09", "'10", "'11", "'12"), 5)
+)
+
+# Create label column: show text ONLY for the 1st ('08) and 5th ('12) bars of each group, NA otherwise
+marriage_data$display_label <- ifelse(
+  marriage_data$year %in% c("'08", "'12"), 
+  as.character(marriage_data$rate), 
+  NA
+)
+
+# For Good chart: Other groups use unified gray, Bachelor's group uses a single solid color
+marriage_data$good_fill <- ifelse(
+  marriage_data$education == "Bachelor's degree or more",
+  "SingleOrange",
+  "GrayBar"
+)
+
+# Color palettes
+color_palette <- c("'08" = "#F6C1A1", "'09" = "#E2B13C", "'10" = "#D27D2D", "'11" = "#5C4033", "'12" = "#3D2314")
+good_palette <- c(
+  "GrayBar" = "#999999",       
+  "SingleOrange" = "#E59400"   
+)
+
+# Common theme configuration
+common_theme <- theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 13, color = "#333333"),
+    plot.subtitle = element_text(size = 9, color = "#666666", face = "italic"),
+    axis.title.x = element_blank(), 
+    axis.text.x = element_text(size = 8.5, color = "#333333"),
+    plot.margin = margin(t = 15, r = 10, b = 45, l = 10)
+  )
+
+# 2. Left Graph (Bad)
+p_bad <- ggplot(marriage_data, aes(x = education, y = rate, fill = year)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7, color = "white", linewidth = 0.3) +
+  scale_fill_manual(values = color_palette) +
+  geom_text(aes(y = rate + 2.5, label = display_label), 
+            position = position_dodge(width = 0.8), size = 3, fontface = "bold", color = "#333333", na.rm = TRUE) +
+  common_theme +
+  labs(title = "New Marriage Rate by Education",
+       subtitle = "Number of newly married adults per 1,000 marriage eligible adults") +
+  theme(
+    legend.position = c(0, 0.88),
+    legend.justification = "left",
+    legend.direction = "horizontal",
+    legend.background = element_blank()
+  )
+
+# 3. Right Graph (Good)
+p_good <- ggplot(marriage_data, aes(x = education, y = rate, fill = good_fill, group = year)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7, color = "white", linewidth = 0.3) +
+  scale_fill_manual(values = good_palette) +
+  geom_text(aes(y = rate + 2.5, label = display_label), 
+            position = position_dodge(width = 0.8), size = 3, fontface = "bold", color = "#333333", na.rm = TRUE) +
+  annotate("text", x = 0.9, y = 50, label = "2008  .  .   .  2012", size = 3.5, color = "black", fontface = "italic", hjust = 0.5) +
+  common_theme +
+  labs(title = "New Marriage Rate by Education",
+       subtitle = "Number of newly married adults per 1,000 marriage eligible adults") +
+  theme(legend.position = "none")
+
+# 4. Combine and Annotate with matched Captions on both sides
+combined_graphs <- plot_grid(p_bad, p_good, ncol = 2, align = "hv")
+
+ggdraw(combined_graphs) +
+  geom_segment(aes(x = 0.5, y = 0.08, xend = 0.5, yend = 0.90), color = "#D0D5DD", linewidth = 1.2) +
+  draw_label("Bad", x = 0.47, y = 0.94, fontface = "bold", color = "#C00000", size = 14, hjust = 1) +
+  draw_label("Good", x = 0.96, y = 0.94, fontface = "bold", color = "#1F4E79", size = 14, hjust = 1) +
+  # Left side caption block
+  draw_label("Note: Marriage eligible includes the newly married plus those widowed, divorced,\nor never married at interview.", 
+             x = 0.03, y = 0.06, size = 7.5, color = "#666666", hjust = 0, fontface = "italic") +
+  draw_label("Source: U.S. Census | Adapted from PEW RESEARCH CENTER", 
+             x = 0.03, y = 0.02, size = 7.5, color = "#333333", hjust = 0, fontface = "bold") +
+  # Right side caption block (matching comparison purpose)
+  draw_label("Note: Marriage eligible includes the newly married plus those widowed, divorced,\nor never married at interview.", 
+             x = 0.53, y = 0.06, size = 7.5, color = "#666666", hjust = 0, fontface = "italic") +
+  draw_label("Source: U.S. Census | Adapted from PEW RESEARCH CENTER", 
+             x = 0.53, y = 0.02, size = 7.5, color = "#333333", hjust = 0, fontface = "bold")
