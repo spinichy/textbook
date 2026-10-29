@@ -4340,3 +4340,117 @@ print(final_plot)
 
 
 
+#-------------------------------------------------------------------------------
+## #Peaks Break-up Times
+#------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(cowplot)
+
+# 1. 시뮬레이션 데이터 생성 (1년 365일 기준)
+set.seed(42)
+days <- seq(as.Date("2023-01-01"), as.Date("2023-12-31"), by = "days")
+n <- length(days)
+
+# 원본 곡선 추세 모사
+base_trend  <- sin(seq(0, 2*pi, length.out = n)) * 15 + 40
+peak_spring <- exp(-((1:n - 70)^2) / 120) * 75       # 3월 초 (Spring Break)
+peak_summer <- exp(-((1:n - 190)^2) / 150) * 55      # 7월 초 (Summer holiday)
+peak_winter <- exp(-((1:n - 335)^2) / 100) * 85      # 12월 초 (Christmas season)
+dip_xmas    <- exp(-((1:n - 358)^2) / 8) * (-75)     # 크리스마스 당일 급감
+
+value <- base_trend + peak_spring + peak_summer + peak_winter + dip_xmas + rnorm(n, 0, 4)
+value <- pmax(value, 5)
+
+df <- data.frame(date = days, value = value)
+
+# 2. 주석 텍스트 (총 7개 항목 정확히 매칭)
+annotations_text <- data.frame(
+  label = c(
+    "Valentine's Day\nBoyfriend forgot\nto book the\nrestaurant?",
+    "Spring Break\nSpring clean?",
+    "April Fool's Day\nSome kind of\nterrible joke",
+    "Mondays\nPeople coming out of\nterrible weekends,\nposting their bad\nnews",
+    "Summer holiday\nWant to be young, free\nand single this holiday?",
+    "Two weeks before\nChristmas holidays\nClear your conscience?",
+    "Christmas Day\nToo Cruel?"
+  ),
+  # 텍스트 박스(시작점) X 좌표
+  x = as.Date(c("2023-01-01", "2023-02-01", "2023-04-01", "2023-05-01", "2023-07-01", "2023-10-01", "2023-12-01")),
+  y = c(120, 155, 145, 110, 155, 130, 65), # 상단 여백 공간 Y 좌표
+  hjust = c(0, 0, 0, 0, 0, 0, 0)
+)
+
+# 3-1. 수평 지시선/브래킷 (텍스트와 1:1 대응하는 총 7개)
+segments_h <- data.frame(
+  x    = as.Date(c("2023-02-01", "2023-02-25", "2023-04-01", "2023-05-15", "2023-07-10", "2023-11-30", "2023-12-25")),
+  xend = as.Date(c("2023-02-14", "2023-03-08", "2023-04-01", "2023-05-15", "2023-07-10", "2023-11-20", "2023-12-25")),
+  y    = c(115, 150, 140, 105, 150, 125, 90)
+)
+
+# 3-2. 수직 지시선 (그래프의 실제 피크/바닥 지점을 가리키는 7개)
+segments_v <- data.frame(
+  x    = as.Date(c("2023-02-14", "2023-03-08", "2023-04-01", "2023-05-15", "2023-07-10", "2023-11-30", "2023-12-25")),
+  xend = as.Date(c("2023-02-14", "2023-03-08", "2023-04-01", "2023-05-15", "2023-07-10", "2023-11-30", "2023-12-25")),
+  y    = c(115, 150, 130, 90, 130, 125, 60),
+  yend = c(50,  130,  70,  60,  90, 120,  20)  # 각 피크 및 크리스마스 급감 바닥 위치
+)
+
+# X축 월 눈금 및 레이블 동기화 (12개)
+month_breaks <- seq(as.Date("2023-01-15"), as.Date("2023-12-15"), by = "1 month")
+month_labels <- c("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
+
+# 4. 메인 면적 그래프 생성
+p_trend <- ggplot(df, aes(x = date, y = value)) +
+  # 면적 및 선 그래프
+  geom_area(fill = "#D0E1F9", alpha = 0.6) +
+  geom_line(color = "#4A709C", linewidth = 0.7) +
+  
+  # 월별 수직 격자선
+  geom_vline(xintercept = seq(as.Date("2023-01-01"), as.Date("2023-12-01"), by = "month"), 
+             color = "#E5E5E5", linewidth = 0.5) +
+  
+  # 지시선 (수평 및 수직)
+  geom_segment(data = segments_h, aes(x = x, y = y, xend = xend, yend = y), color = "#333333", linewidth = 0.4) +
+  geom_segment(data = segments_v, aes(x = x, y = y, xend = xend, yend = yend), color = "#333333", linewidth = 0.4) +
+  
+  # 주석 텍스트 (7개 정확히 배치)
+  geom_text(data = annotations_text, aes(x = x, y = y, label = label), 
+            size = 3.2, fontface = "bold", color = "#222222", hjust = 0, lineheight = 1.05) +
+  
+  # X축 설정
+  scale_x_date(
+    breaks = month_breaks,
+    labels = month_labels,
+    limits = c(as.Date("2023-01-01"), as.Date("2023-12-31")),
+    expand = c(0.01, 0.01)
+  ) +
+  
+  # Y축 범위 확장
+  scale_y_continuous(limits = c(0, 180), expand = c(0, 0)) +
+  
+  theme_minimal() +
+  theme(
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(size = 9.5, face = "bold", color = "#666666", margin = margin(t = 5)),
+    panel.grid = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.line.x = element_line(color = "#CCCCCC", linewidth = 0.5),
+    plot.margin = margin(t = 120, r = 40, b = 25, l = 40)
+  ) +
+  coord_cartesian(clip = "off")
+
+# 5. cowplot으로 상단 타이틀 배치
+final_plot <- ggdraw(p_trend) +
+  draw_label("Peak Break-up Times", x = 0.04, y = 0.96, fontface = "bold", size = 18, color = "#222222", hjust = 0) +
+  draw_label("According to Facebook status updates", x = 0.04, y = 0.92, fontface = "plain", size = 12, color = "#666666", hjust = 0)
+
+# 출력 창 크기를 넓게 확장해서 실행
+windows(width = 13, height = 7)
+print(final_plot)
+
+
+
