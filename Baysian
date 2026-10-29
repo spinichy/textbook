@@ -1,0 +1,234 @@
+#################################################################################
+## Prior vs. Posterior
+################################################################################
+
+
+
+# Load required libraries
+library(ggplot2)
+library(patchwork)
+
+# 1. Define data for Prior and Posterior plots
+x_seq <- seq(0.5, 4.5, length.out = 200)
+
+# Prior data frame for density curves
+prior_curves <- data.frame(
+  x = rep(x_seq, 4),
+  y = c(dnorm(x_seq, mean = 1, sd = 0.6) * 0.38,
+        dnorm(x_seq, mean = 2, sd = 0.6) * 0.38,
+        dnorm(x_seq, mean = 3, sd = 0.6) * 0.38,
+        dnorm(x_seq, mean = 4, sd = 0.6) * 0.38),
+  group = rep(factor(1:4), each = length(x_seq))
+)
+
+# Prior bar data
+prior_bars <- data.frame(pos = 1:4, cred = rep(0.25, 4))
+
+# Posterior data frame for density curves
+post_curves <- data.frame(
+  x = rep(x_seq, 3),
+  y = c(dnorm(x_seq, mean = 2, sd = 0.5) * 0.7,
+        dnorm(x_seq, mean = 2.8, sd = 0.6) * 0.45,
+        dnorm(x_seq, mean = 1.2, sd = 0.5) * 0.15),
+  group = rep(factor(1:3), each = length(x_seq))
+)
+
+# Posterior bar data
+post_bars <- data.frame(pos = 1:4, cred = c(0.1, 0.55, 0.3, 0.02))
+
+# Observed data points for posterior
+data_points <- data.frame(x = c(1.8, 2.2, 2.7), y = 0)
+
+
+# ==========================================
+# 2. Create Left Plot (Prior / 사전)
+# ==========================================
+p_prior <- ggplot() +
+  # Draw prior bars
+  geom_col(data = prior_bars, aes(x = pos, y = cred), fill = "steelblue", width = 0.2, alpha = 0.8) +
+  # Draw prior curves
+  geom_line(data = prior_curves, aes(x = x, y = y, group = group), color = "black", linewidth = 0.6) +
+  # Add labels and title
+  labs(title = "Prior", x = "Possibilities", y = "Credibility") +
+  # Set scales and limits
+  scale_x_continuous(breaks = 1:4, limits = c(0.5, 4.5)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  theme_classic() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+    axis.title = element_text(size = 11)
+  )
+
+
+# ==========================================
+# 3. Create Right Plot (Posterior / 사후)
+# ==========================================
+p_post <- ggplot() +
+  # Draw posterior bars
+  geom_col(data = post_bars, aes(x = pos, y = cred), fill = "steelblue", width = 0.2, alpha = 0.8) +
+  # Draw posterior curves
+  geom_line(data = post_curves, aes(x = x, y = y, group = group), color = "black", linewidth = 0.6) +
+  # Draw observed data points
+  geom_point(data = data_points, aes(x = x, y = y), shape = 1, size = 5, stroke = 1.2) +
+  # Add text label indicating observed data points ("관찰값") near the points
+  annotate("text", x = 3.7, y = 1, label = "O : Observed Data", size = 5, fontface = "bold", color = "black") +
+  # Add labels and title
+  labs(title = "Posterior", x = "Possibilities", y = "Credibility") +
+  # Set scales and limits
+  scale_x_continuous(breaks = 1:4, limits = c(0.5, 4.5)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  theme_classic() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+    axis.title = element_text(size = 11)
+  )
+
+
+# ==========================================
+# 4. Combine Plots using Patchwork
+# ==========================================
+combined_plot <- p_prior + p_post
+
+# Display the final combined plot
+print(combined_plot)
+
+
+
+#################################################################################
+## Bayesian example 
+################################################################################
+
+
+
+# Load required libraries
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(gridExtra)
+library(ggplotify)
+library(patchwork)
+
+# Set seed for reproducibility
+set.seed(42)
+
+# Define possible values of theta (probability of getting Heads)
+theta_candidates <- c(0.3, 0.5, 0.7)
+
+# Initial prior distribution (Step 0)
+initial_prior <- c(0.2, 0.6, 0.2)
+
+# True parameter used to generate data
+true_theta <- 0.7
+
+# Number of total steps
+n_steps <- 10
+
+# 1. Generate a fixed sequence of data for all 10 steps in advance
+set_data_sequence <- replicate(n_steps, {
+  sample(c('H', 'T'), size = 3, replace = TRUE, prob = c(true_theta, 1 - true_theta))
+}, simplify = FALSE)
+
+# 2. Define function g(t) that computes the cumulative posterior up to step t
+g <- function(t, data_seq, prior, theta_vals) {
+  if (t == 0) {
+    return(prior)
+  }
+  
+  current_prior <- prior
+  
+  for (i in 1:t) {
+    step_data <- data_seq[[i]]
+    
+    num_heads <- sum(step_data == 'H')
+    num_tails <- sum(step_data == 'T')
+    
+    likelihood <- (theta_vals^num_heads) * ((1 - theta_vals)^num_tails)
+    unnormalized_posterior <- current_prior * likelihood
+    posterior <- unnormalized_posterior / sum(unnormalized_posterior)
+    
+    current_prior <- posterior
+  }
+  
+  return(current_prior)
+}
+
+# 3. Generate history data from step 0 to n_steps using function g(t)
+history_matrix <- t(sapply(0:n_steps, g, data_seq = set_data_sequence, prior = initial_prior, theta_vals = theta_candidates))
+colnames(history_matrix) <- paste0("theta_", theta_candidates)
+
+# Convert matrix to data frame and add Step column
+df_history <- as.data.frame(history_matrix)
+df_history$Step <- 0:n_steps
+
+# Reshape data from wide to long format for ggplot2
+df_long <- df_history %>%
+  pivot_longer(cols = starts_with("theta_"), 
+               names_to = "Theta", 
+               values_to = "Probability")
+
+# Prepare a separate data frame for direct line labels at Step 10
+df_labels <- df_long %>%
+  filter(Step == n_steps) %>%
+  mutate(Label = case_when(
+    Theta == "theta_0.3" ~ "θ = 0.3",
+    Theta == "theta_0.5" ~ "θ = 0.5",
+    Theta == "theta_0.7" ~ "θ = 0.7"
+  ))
+
+# 4. Create ggplot visualization (Right side) - Added gray dashed vertical grid lines
+p_right <- ggplot(df_long, aes(x = Step, y = Probability, color = Theta, group = Theta)) +
+  geom_line(linewidth = 1.2) +
+  geom_text(data = df_labels, aes(x = Step + 0.3, y = Probability, label = Label, color = Theta),
+            hjust = 0, fontface = "bold", show.legend = FALSE) +
+  labs(
+    title = "Sequential Bayesian Updating",
+    subtitle = "x: Experiment Step, y: Posterior Probability",
+    x = NULL,
+    y = NULL
+  ) +
+  theme_minimal(base_size = 12) +
+  scale_color_manual(
+    values = c("theta_0.3" = "#E74C3C", 
+               "theta_0.5" = "#3498DB", 
+               "theta_0.7" = "#2ECC71")
+  ) +
+  scale_x_continuous(breaks = 0:n_steps, limits = c(0, n_steps + 1.2)) +
+  ylim(0, 1) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, color = "gray40"),
+    legend.position = "none",
+    panel.grid.major.x = element_line(color = "gray85", linetype = "dashed"), # Added gray dashed vertical grid lines
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.y = element_blank(),                                    # Kept horizontal grid lines clean
+    panel.grid.minor.y = element_blank()
+  )
+
+# 5. Create a professional styled table with increased font size and row padding
+df_table <- df_history %>%
+  mutate(across(starts_with("theta_"), ~ round(.x, 3)))
+
+colnames(df_table) <- c("θ = 0.3", "θ = 0.5", "θ = 0.7", "Step")
+df_table <- df_table %>% select(Step, everything())
+
+table_theme <- ttheme_minimal(
+  base_size = 14,
+  core = list(
+    bg_params = list(fill = c("white", "#F8F9FA"), col = NA),
+    fg_params = list(hjust = 0.5, x = 0.5),
+    padding = unit(c(10, 10), "mm")
+  ),
+  colhead = list(
+    bg_params = list(fill = "#E9ECEF", col = NA),
+    fg_params = list(fontface = "bold", hjust = 0.5, x = 0.5),
+    padding = unit(c(12, 10), "mm")
+  )
+)
+
+p_left <- as.ggplot(tableGrob(df_table, rows = NULL, theme = table_theme))
+
+# 6. Combine table and plot side by side using patchwork
+combined_plot <- wrap_plots(p_left, p_right, ncol = 2, widths = c(1, 1.5))
+
+# Print the final combined layout
+print(combined_plot)
