@@ -4454,3 +4454,159 @@ print(final_plot)
 
 
 
+
+#-------------------------------------------------------------------------------
+## Text is your friend
+#------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(patchwork)
+library(cowplot)
+
+# 1. Create the ticket volume dataset
+ticket_data <- data.frame(
+  Month = factor(
+    c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
+    levels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+  ),
+  Received = c(160, 184, 241, 149, 180, 161, 132, 202, 160, 139, 149, 177),
+  Processed = c(160, 184, 237, 148, 181, 150, 123, 156, 126, 104, 124, 140)
+)
+
+# Reshape data from wide to long format
+ticket_long <- ticket_data %>%
+  pivot_longer(
+    cols = c(Received, Processed),
+    names_to = "Metric",
+    values_to = "Volume"
+  )
+
+# Add conditional flags for labels (Show numbers from August onward)
+ticket_long <- ticket_long %>%
+  mutate(
+    show_num = ifelse(Month %in% c("Aug", "Sep", "Oct", "Nov", "Dec"), as.character(Volume), NA_character_)
+  )
+
+# Separate end-point data for 'Received' and 'Processed' text annotations
+end_labels <- ticket_long %>%
+  filter(Month == "Dec")
+
+# ==========================================
+# 1. GOOD PLOT
+# ==========================================
+p_good <- ggplot(ticket_long, aes(x = Month, y = Volume, group = Metric, color = Metric)) +
+  geom_line(linewidth = 1.1) +
+  geom_point(size = 2.5) +
+  geom_text(aes(label = show_num), vjust = -0.8, size = 2.8, show.legend = FALSE, na.rm = TRUE) +
+  geom_text(
+    data = end_labels,
+    aes(x = Month, y = Volume, label = Metric, color = Metric),
+    hjust = -0.2, fontface = "bold", size = 3.2, show.legend = FALSE
+  ) +
+  scale_color_manual(values = c("Received" = "#888888", "Processed" = "#1F4E79")) +
+  scale_y_continuous(limits = c(0, 320), breaks = seq(0, 300, 50)) +
+  scale_x_discrete(expand = expansion(mult = c(0.05, 0.2))) +
+  coord_cartesian(clip = "off") +
+  labs(title = NULL, subtitle = NULL, x = NULL, y = NULL, color = NULL) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 8), # X축 기울기 제거 (0도)
+    plot.margin = margin(t = 15, r = 10, b = 35, l = 10, unit = "pt")
+  )
+
+# ==========================================
+# 2. BETTER PLOT
+# ==========================================
+p_better <- ggplot(ticket_long, aes(x = Month, y = Volume, group = Metric, color = Metric)) +
+  geom_line(linewidth = 1.1) +
+  geom_point(size = 2.5) +
+  geom_text(aes(label = show_num), vjust = -0.8, size = 2.8, show.legend = FALSE, na.rm = TRUE) +
+  geom_text(
+    data = end_labels,
+    aes(x = Month, y = Volume, label = Metric, color = Metric),
+    hjust = -0.2, fontface = "bold", size = 3.2, show.legend = FALSE
+  ) +
+  scale_color_manual(values = c("Received" = "#888888", "Processed" = "#1F4E79")) +
+  scale_y_continuous(limits = c(0, 320), breaks = seq(0, 300, 50)) +
+  scale_x_discrete(expand = expansion(mult = c(0.05, 0.2))) +
+  coord_cartesian(clip = "off") +
+  labs(title = "Ticket volume over time", subtitle = "", x = "2014", y = NULL, color = NULL) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    plot.title = element_text(face = "bold", size = 15, color = "#333333"),
+    axis.title.x = element_text(hjust = 0, color = "#555555", size = 8.5),
+    legend.position = "none",
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 8), # X축 기울기 제거 (0도)
+    plot.margin = margin(t = 15, r = 10, b = 35, l = 10, unit = "pt")
+  )
+
+# ==========================================
+# 3. BEST PLOT
+# ==========================================
+p_best <- ggplot(ticket_long, aes(x = Month, y = Volume, group = Metric, color = Metric)) +
+  geom_line(linewidth = 1.1) +
+  geom_point(size = 2.5) +
+  geom_text(aes(label = show_num), vjust = -0.8, size = 2.8, show.legend = FALSE, na.rm = TRUE) +
+  geom_text(
+    data = end_labels,
+    aes(x = Month, y = Volume, label = Metric, color = Metric),
+    hjust = -0.2, fontface = "bold", size = 3.2, show.legend = FALSE
+  ) +
+  geom_vline(xintercept = "May", linetype = "solid", color = "grey60", linewidth = 0.7) +
+  annotate(
+    "text", x = 5.3, y = 300, 
+    label = "2 employees quit in May.\nWe nearly kept up with incoming volume\nin the following two months,\nbut fell behind with the increase in Aug \nand haven't been able to catch up since.",
+    hjust = 0, vjust = 1, size = 4, color = "#333333", lineheight = 1.1
+  ) +
+  scale_color_manual(values = c("Received" = "#888888", "Processed" = "#1F4E79")) +
+  scale_y_continuous(limits = c(0, 320), breaks = seq(0, 300, 50)) +
+  scale_x_discrete(expand = expansion(mult = c(0.05, 0.35))) +
+  coord_cartesian(clip = "off") +
+  labs(
+    title = "Please approve the hire of 2 FTEs",
+    subtitle = "to backfill those who quit in the past year\n\nTicket volume over time",
+    x = "2014",
+    y = NULL,
+    color = NULL
+  ) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    plot.title = element_text(face = "bold", size = 15, color = "#333333"),
+    plot.subtitle = element_text(size = 13, color = "#555555", lineheight = 1.1),
+    axis.title.x = element_text(hjust = 0, color = "#555555", size = 8.5),
+    legend.position = "none",
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 8), # X축 기울기 제거 (0도)
+    plot.margin = margin(t = 15, r = 10, b = 35, l = 10, unit = "pt")
+  )
+
+# ==========================================
+# Combine using patchwork & precise cowplot coordinates
+# ==========================================
+combined_all <- p_good | p_better | p_best
+
+final_output <- ggdraw(combined_all, clip = FALSE) +
+  draw_label("Good", x = 0.31, y = 0.95, fontface = "bold", color = "#1F4E79", size = 12, hjust = 1) +
+  draw_label("Better", x = 0.64, y = 0.95, fontface = "bold", color = "#1F4E79", size = 12, hjust = 1) +
+  draw_label("Best", x = 0.97, y = 0.95, fontface = "bold", color = "#1F4E79", size = 12, hjust = 1) +
+  
+  draw_label("Number of tickets", x = 0.32, y = 0.75, angle = 90, size = 13, color = "#555555") +
+  
+  draw_label(
+    "Data source: XYZ Dashboard, as of 12/31/2014  |  A detailed analysis on tickets processed\n per person and time to resolve issues was undertaken to inform this request\n and can be provided if needed.",
+    x = 0.69, y = 0.04, hjust = 0, size = 7, color = "#555555", lineheight = 1.1
+  )
+
+# Display the final comparison plot
+print(final_output)
