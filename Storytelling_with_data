@@ -4610,3 +4610,151 @@ final_output <- ggdraw(combined_all, clip = FALSE) +
 
 # Display the final comparison plot
 print(final_output)
+
+
+
+
+#-------------------------------------------------------------------------------
+## asthetic
+#------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+library(patchwork)
+
+# ==========================================
+# 1. BAD CHART SETUP
+# ==========================================
+us_data_bad <- data.frame(
+  Group = "US Population",
+  Segment = paste0("Segment ", 1:7),
+  Percentage = c(16, 7, 10, 10, 10, 32, 15),
+  ymin = c(0, 16, 23, 33, 43, 53, 85),
+  ymax = c(16, 23, 33, 43, 53, 85, 100),
+  fill_color = c("#E74C3C", "#6B8E23", "#1B4F72", "#95A5A6", "#5DADE2", "#F1C40F", "#82E0AA")
+)
+
+our_data_bad <- data.frame(
+  Group = "Our Customers",
+  Segment = paste0("Segment ", 1:7),
+  Percentage = c(9, 10, 15, 18, 17, 20, 11),
+  ymin = c(0, 9, 19, 34, 52, 69, 89),
+  ymax = c(9, 19, 34, 52, 69, 89, 100),
+  fill_color = c("#E74C3C", "#6B8E23", "#1B4F72", "#95A5A6", "#5DADE2", "#F1C40F", "#82E0AA")
+)
+
+plot_df_bad <- rbind(us_data_bad, our_data_bad)
+plot_df_bad$ymid <- (plot_df_bad$ymin + plot_df_bad$ymax) / 2
+plot_df_bad$xpos <- ifelse(plot_df_bad$Group == "US Population", 1, 1.6)
+
+p_bad <- ggplot(plot_df_bad) +
+  geom_rect(aes(xmin = xpos - 0.20, xmax = xpos + 0.20, ymin = ymin, ymax = ymax, fill = fill_color),
+            color = "white", linewidth = 0.6) +
+  geom_text(aes(x = xpos, y = ymid, label = paste0(Percentage, "%")),
+            color = "white", size = 3.0, fontface = "bold") +
+  scale_fill_identity() +
+  scale_x_continuous(breaks = c(1, 1.6), labels = c("US Population", "Our Customers"), limits = c(0.5, 2.1)) +
+  scale_y_continuous(limits = c(0, 100), expand = c(0, 0)) +
+  labs(title = "Distribution by customer segment", x = NULL, y = NULL) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    plot.title = element_text(face = "bold", size = 11, color = "#E74C3C", hjust = 0.5, margin = margin(b = 15)),
+    axis.text.x = element_text(face = "bold", size = 9, color = "#333333"),
+    plot.margin = margin(t = 15, r = 15, b = 25, l = 15, unit = "pt")
+  )
+
+# ==========================================
+# 2. GOOD CHART SETUP
+# ==========================================
+us_data_good <- data.frame(
+  Group = "US Population",
+  Segment = paste0("Segment ", 1:7),
+  Percentage = c(16, 7, 10, 10, 10, 32, 15),
+  ymin = c(0, 16, 23, 33, 43, 53, 85),
+  ymax = c(16, 23, 33, 43, 53, 85, 100),
+  fill_color = c("#B0B0B0", "#B0B0B0", "#1F4E79", "#1F4E79", "#1F4E79", "#B0B0B0", "#B0B0B0")
+)
+
+our_data_good <- data.frame(
+  Group = "Our Customers",
+  Segment = paste0("Segment ", 1:7),
+  Percentage = c(9, 10, 15, 18, 17, 20, 11),
+  ymin = c(0, 9, 19, 34, 52, 69, 89),
+  ymax = c(9, 19, 34, 52, 69, 89, 100),
+  fill_color = c("#B0B0B0", "#B0B0B0", "#1F4E79", "#1F4E79", "#1F4E79", "#B0B0B0", "#B0B0B0")
+)
+
+plot_df_good <- rbind(us_data_good, our_data_good)
+plot_df_good$ymid <- (plot_df_good$ymin + plot_df_good$ymax) / 2
+plot_df_good$xpos <- ifelse(plot_df_good$Group == "US Population", 1, 1.6)
+
+p_good <- ggplot(plot_df_good) +
+  geom_rect(aes(xmin = xpos - 0.20, xmax = xpos + 0.20, ymin = ymin, ymax = ymax, fill = fill_color),
+            color = "white", linewidth = 0.6) +
+  geom_text(aes(x = xpos, y = ymid, label = paste0(Percentage, "%")),
+            color = "white", size = 3.0, fontface = "bold") +
+  scale_fill_identity() +
+  scale_x_continuous(breaks = c(1, 1.6), labels = c("US Population", "Our Customers"), limits = c(0.5, 2.1)) +
+  scale_y_continuous(limits = c(0, 100), expand = c(0, 0)) +
+  labs(title = "Distribution by customer segment", x = NULL, y = NULL) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    plot.title = element_text(face = "bold", size = 11, color = "#1F4E79", hjust = 0, margin = margin(b = 15)),
+    axis.text.x = element_text(face = "bold", size = 9, color = "#333333"),
+    plot.margin = margin(t = 15, r = 15, b = 25, l = 15, unit = "pt")
+  )
+
+# ==========================================
+# 3. COMBINE SIDE-BY-SIDE USING PATCHWORK & ANNOTATE WITH COWPLOT
+# ==========================================
+combined_charts <- p_bad | p_good
+
+final_output <- ggdraw(combined_charts, clip = FALSE) +
+  # Section Headers
+  draw_label("Bad", x = 0.45, y = 0.96, fontface = "bold", color = "#E74C3C", size = 12, hjust = 0.5) +
+  draw_label("Good", x = 0.95, y = 0.96, fontface = "bold", color = "#1F4E79", size = 12, hjust = 0.5) +
+  
+  # --- BAD CHART ANNOTATIONS (Left side) ---
+  draw_label("Segment 1", x = 0.05, y = 0.13, size = 8.5, color = "#333333", hjust = 0) +
+  draw_label("Segment 2", x = 0.05, y = 0.22, size = 8, color = "#333333", hjust = 0) +
+  draw_label("Segment 3", x = 0.05, y = 0.33, size = 8, color = "#333333", hjust = 0) +
+  draw_label("Segment 4", x = 0.05, y = 0.38, size = 8, color = "#333333", hjust = 0) +
+  draw_label("Segment 5", x = 0.05, y = 0.47, size = 8, color = "#333333", hjust = 0) +
+  draw_label("Segment 6", x = 0.05, y = 0.64, size = 8, color = "#333333", hjust = 0) +
+  draw_label("Segment 7", x = 0.05, y = 0.85, size = 8, color = "#333333", hjust = 0) +
+  
+  # Red Box & 50% for Bad Chart
+  draw_grob(grid::rectGrob(x = 0.33, y = 0.45, width = 0.14, height = 0.42, 
+                           gp = grid::gpar(col = "#E74C3C", fill = NA, lwd = 1.5))) +
+  draw_label("50%", x = 0.425, y = 0.465, fontface = "bold", color = "#111111", size = 10, hjust = 0) +
+  
+  # --- GOOD CHART ANNOTATIONS (Right side) ---
+  draw_label("Segment 1", x = 0.55, y = 0.13, size = 8.5, color = "#777777", hjust = 0) +
+  draw_label("Segment 2", x = 0.55, y = 0.22, size = 8, color = "#777777", hjust = 0) +
+  draw_label("Segment 3", x = 0.55, y = 0.33, size = 8, fontface = "bold", color = "#1F4E79", hjust = 0) +
+  draw_label("Segment 4", x = 0.55, y = 0.38, size = 8, fontface = "bold", color = "#1F4E79", hjust = 0) +
+  draw_label("Segment 5", x = 0.55, y = 0.47, size = 8, fontface = "bold", color = "#1F4E79", hjust = 0) +
+  draw_label("Segment 6", x = 0.55, y = 0.64, size = 8, color = "#777777", hjust = 0) +
+  draw_label("Segment 7", x = 0.55, y = 0.85, size = 8, color = "#777777", hjust = 0) +
+  
+  # 30% Vertical Line (Good Chart - US Population)
+  draw_grob(grid::linesGrob(x = c(0.725, 0.725), y = c(0.27, 0.5), gp = grid::gpar(col = "#1F4E79", lwd = 1.2))) + 
+  draw_label("30%", x = 0.735, y = 0.38, fontface = "bold", color = "#1F4E79", size = 9.5, hjust = 0) +
+  
+  # 50% Vertical Line (Good Chart - Our Customers)
+  draw_grob(grid::linesGrob(x = c(0.88, 0.88), y = c(0.24, 0.64), gp = grid::gpar(col = "#1F4E79", lwd = 1.5))) + 
+  draw_label("50%", x = 0.885, y = 0.445, fontface = "bold", color = "#1F4E79", size = 10.5, hjust = 0)
+
+# Display final comparison plot in a new window
+windows(width = 12, height = 8)
+print(final_output)
