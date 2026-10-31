@@ -1,3 +1,8 @@
+#Part1 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
 #################################################################################
 ## Prior vs. Posterior
 ################################################################################
@@ -377,3 +382,760 @@ table_result
 
 # Print the final combined layout
 print(combined_plot)
+
+
+
+#Part2 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+################################################################################
+# Running Proportion of Heads
+################################################################################
+
+
+
+library(ggplot2)
+library(dplyr)
+
+# Set seed for reproducibility
+set.seed(42)
+
+# Total number of coin flips
+n_flips <- 500
+
+# Simulate coin flips (1 for Heads, 0 for Tails, assuming a fair coin p = 0.5)
+flip_data <- data.frame(
+  flip_num = 1:n_flips,
+  outcome = sample(c(0, 1), size = n_flips, replace = TRUE, prob = c(0.5, 0.5))
+)
+
+# Calculate running proportion of heads
+flip_data <- flip_data %>%
+  mutate(
+    cum_heads = cumsum(outcome),
+    running_prop = cum_heads / flip_num,
+    flip_char = ifelse(outcome == 1, "H", "T")
+  )
+
+# Create a sample flip sequence text for annotation (first 10 flips)
+seq_preview <- paste(head(flip_data$flip_char, 10), collapse = "")
+seq_text <- paste0("Flip Sequence = ", seq_preview, "...")
+end_prop_text <- paste0("End Proportion = ", round(flip_data$running_prop[n_flips], 3))
+
+# Plot using ggplot2 with logarithmic x-axis
+ggplot(flip_data, aes(x = flip_num, y = running_prop)) +
+  # Keep the reference horizontal dashed line at y = 0.5
+  geom_hline(yintercept = 0.5, linetype = "dotted", color = "black") +
+  geom_line(color = "steelblue", alpha = 0.6) +
+  geom_point(color = "steelblue", fill = "skyblue", shape = 21, size = 2) +
+  # Add a large '0.5' text label to the far left, vertically centered at y = 0.5
+  annotate("text", x = 0.8, y = 0.5, label = "0.5", size = 6, fontface = "bold", hjust = 1, vjust = 0.5) +
+  scale_x_log10(
+    breaks = c(1, 2, 5, 10, 20, 50, 100, 200, 500),
+    labels = c("1", "2", "5", "10", "20", "50", "100", "200", "500"),
+    limits = c(0.7, 500) # Slightly expanded lower limit to fit the '0.5' text nicely
+  ) +
+  scale_y_continuous(limits = c(0.0, 1.0), breaks = seq(0.0, 1.0, 0.2)) +
+  labs(
+    title = "Running Proportion of Heads",
+    x = "Flip Number (Log Scale)",
+    y = "Proportion Heads"
+  ) +
+  annotate("text", x = 15, y = 0.85, label = seq_text, hjust = 0, size = 3.5) +
+  annotate("text", x = 15, y = 0.78, label = end_prop_text, hjust = 0, size = 3.5) +
+  theme_bw() +
+  theme(
+    # Remove all background grid lines completely
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 14),
+    # Position xlab to the left and ylab to the bottom
+    axis.title.x = element_text(hjust = 0),
+    axis.title.y = element_text(hjust = 0)
+  )
+
+
+
+################################################################################
+# Probability Density
+################################################################################
+
+
+
+# Load necessary libraries
+library(ggplot2)
+library(gridExtra)
+
+# Set seed for reproducibility and generate 10000 normal distribution data
+set.seed(42)
+n <- 10000
+heights <- rnorm(n, mean = 67, sd = 4)
+df <- data.frame(height = heights)
+
+# Define bin breaks (from 50 to 82 by 2 inches)
+bin_breaks <- seq(50, 82, by = 2)
+df$bin <- cut(df$height, breaks = bin_breaks, include.lowest = TRUE)
+
+# Calculate frequency counts for each bin
+bin_counts <- as.data.frame(table(df$bin))
+bin_centers <- bin_breaks[-length(bin_breaks)] + diff(bin_breaks) / 2
+count_df <- data.frame(
+  x = bin_centers,
+  y = 5000,
+  count = bin_counts$Freq
+)
+
+# 1. Top Plot: Person distribution and bin counts (Expanded limits to prevent warnings)
+p1 <- ggplot(df, aes(x = height)) +
+  geom_jitter(aes(y = runif(nrow(df), 0, 10000)), alpha = 0.4, color = "skyblue", size = 0.8) +
+  geom_vline(xintercept = bin_breaks, linetype = "dashed", color = "gray40") +
+  geom_text(data = count_df, aes(x = x, y = y, label = count), angle = 90, size = 3, fontface = "bold") +
+  scale_x_continuous(limits = c(45, 89)) +
+  scale_y_continuous(limits = c(0, 10000), breaks = c(0, 4000, 8000)) +
+  labs(title = "Total N = 10000",
+       x = "",
+       y = "Person #") +
+  theme_classic() +
+  theme(
+    axis.text.x = element_blank(), 
+    axis.ticks.x = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(hjust = 0.5)
+  )
+
+# Formula label adjusted for plotmath parsing
+formula_text <- "frac(prob.~mass, bin~width) == frac(1473 / 10000, 65 - 63) * ' = 0.074'"
+
+# 2. Bottom Plot: Probability Density Histogram with text on top-left
+p2 <- ggplot(df, aes(x = height)) +
+  geom_histogram(aes(y = ..density..), 
+                 breaks = bin_breaks, 
+                 fill = "skyblue", 
+                 color = "white", 
+                 alpha = 0.7) +
+  geom_vline(xintercept = bin_breaks, linetype = "dashed", color = "gray40", alpha = 0.5) +
+  # Add formula text in top-left position
+  annotate("text", x = 47, y = 0.09, label = formula_text, 
+           parse = TRUE, hjust = 0, size = 3.5, color = "black") +
+  scale_x_continuous(limits = c(45, 89), breaks = seq(50, 80, by = 5)) +
+  scale_y_continuous(limits = c(0, 0.10)) +
+  labs(x = "Height (inches)",
+       y = "Probability Density") +
+  theme_classic() +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+# Combine both plots vertically into a single view
+grid.arrange(p1, p2, ncol = 1, heights = c(1.2, 1))
+
+
+
+################################################################################
+# HDI(Highest Density Interval)
+################################################################################
+
+
+
+# Load necessary libraries
+library(ggplot2)
+library(gridExtra)
+
+# ==========================================
+# 1. Top Plot: Standard Normal Distribution (95% HDI)
+# ==========================================
+
+# Generate x values for standard normal distribution
+x_norm <- seq(-3.2, 3.2, length.out = 1000)
+y_norm <- dnorm(x_norm, mean = 0, sd = 1)
+df_norm <- data.frame(x = x_norm, y = y_norm)
+
+# Define HDI bounds for standard normal (approx -1.96 to 1.96)
+hdi_lower_norm <- -1.96
+hdi_upper_norm <- 1.96
+
+# Filter data for shaded area under the curve
+df_norm_shade <- subset(df_norm, x >= hdi_lower_norm & x <= hdi_upper_norm)
+
+# Create top plot
+p1 <- ggplot(df_norm, aes(x = x, y = y)) +
+  # Shaded area for 95% HDI
+  geom_area(data = df_norm_shade, fill = "gray80", alpha = 0.8) +
+  # Density curve
+  geom_line(color = "#5B92E5", linewidth = 1.2) +
+  # Dashed vertical lines at HDI bounds using annotate
+  annotate("segment", x = hdi_lower_norm, xend = hdi_lower_norm, y = 0, yend = dnorm(hdi_lower_norm), 
+           linetype = "dashed", color = "black") +
+  annotate("segment", x = hdi_upper_norm, xend = hdi_upper_norm, y = 0, yend = dnorm(hdi_upper_norm), 
+           linetype = "dashed", color = "black") +
+  # Double-headed arrow for 95% HDI span
+  annotate("segment", x = hdi_lower_norm, xend = hdi_upper_norm, y = 0.06, yend = 0.06,
+           arrow = arrow(ends = "both", length = unit(0.15, "cm")), color = "black", linewidth = 0.8) +
+  # Text annotations for bounds and label
+  annotate("text", x = hdi_lower_norm - 0.25, y = 0.06, label = "-1.96", size = 3.5) +
+  annotate("text", x = hdi_upper_norm + 0.25, y = 0.06, label = "1.96", size = 3.5) +
+  annotate("text", x = 0, y = 0.12, label = "95% HDI", size = 4.5, fontface = "bold") +
+  # Scales and theme settings
+  scale_x_continuous(limits = c(-3.2, 3.2), breaks = seq(-3, 3, by = 1)) +
+  scale_y_continuous(limits = c(0, 0.44), breaks = seq(0, 0.4, by = 0.1)) +
+  labs(x = "x", y = "p(x)") +
+  theme_classic() +
+  theme(
+    axis.line = element_line(color = "black"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+
+# ==========================================
+# 2. Bottom Plot: Skewed Beta Distribution (95% HDI)
+# ==========================================
+
+# Generate x values for Beta distribution (e.g., Beta(shape1 = 8, shape2 = 2))
+x_beta <- seq(0.38, 1.02, length.out = 1000)
+y_beta <- dbeta(x_beta, shape1 = 8, shape2 = 2)
+df_beta <- data.frame(x = x_beta, y = y_beta)
+
+# Define HDI bounds for this beta distribution layout (approx 0.61 to 0.95)
+hdi_lower_beta <- 0.61
+hdi_upper_beta <- 0.95
+
+# Filter data for shaded area under the curve
+df_beta_shade <- subset(df_beta, x >= hdi_lower_beta & x <= hdi_upper_beta)
+
+# Create bottom plot
+p2 <- ggplot(df_beta, aes(x = x, y = y)) +
+  # Shaded area for 95% HDI
+  geom_area(data = df_beta_shade, fill = "gray80", alpha = 0.8) +
+  # Density curve
+  geom_line(color = "#5B92E5", linewidth = 1.2) +
+  # Dashed vertical lines at HDI bounds using annotate
+  annotate("segment", x = hdi_lower_beta, xend = hdi_lower_beta, y = 0, yend = dbeta(hdi_lower_beta, 8, 2), 
+           linetype = "dashed", color = "black") +
+  annotate("segment", x = hdi_upper_beta, xend = hdi_upper_beta, y = 0, yend = dbeta(hdi_upper_beta, 8, 2), 
+           linetype = "dashed", color = "black") +
+  # Double-headed arrow for 95% HDI span
+  annotate("segment", x = hdi_lower_beta, xend = hdi_upper_beta, y = 0.7, yend = 0.7,
+           arrow = arrow(ends = "both", length = unit(0.15, "cm")), color = "black", linewidth = 0.8) +
+  # Text annotations for bounds and label
+  annotate("text", x = hdi_lower_beta - 0.01, y = 0.95, label = "0.61", size = 3.5) +
+  annotate("text", x = hdi_upper_beta + 0.01, y = 0.95, label = "0.95", size = 3.5) +
+  annotate("text", x = 0.78, y = 1.4, label = "95% HDI", size = 4.5, fontface = "bold") +
+  # Scales and theme settings
+  scale_x_continuous(limits = c(0.38, 1.02), breaks = seq(0.4, 1.0, by = 0.1)) +
+  scale_y_continuous(limits = c(-0.2, 4.6), breaks = seq(0, 4, by = 1)) +
+  labs(x = "x", y = "p(x)") +
+  theme_classic() +
+  theme(
+    axis.line = element_line(color = "black"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+
+# ==========================================
+# 3. Combine both plots vertically
+# ==========================================
+grid.arrange(p1, p2, ncol = 1)
+
+
+
+################################################################################
+# Exercise 4.1 - Marginal
+################################################################################
+
+
+
+# Load required libraries
+library(gt)
+
+# ==========================================
+# 1. Prepare Data (Table 4.1 Structure)
+# ==========================================
+# Sum across sex to get the 2D contingency table
+eye_hair_freq <- apply(HairEyeColor, c("Eye", "Hair"), sum)
+
+# Convert frequencies to joint proportions and round to 2 decimal places
+eye_hair_prop <- round(eye_hair_freq / sum(eye_hair_freq), 2)
+
+# Convert matrix directly to a data frame (preserving row names as columns)
+df_final <- as.data.frame.matrix(eye_hair_prop)
+df_final
+# Add Eye color as a proper column from row names
+df_final$Eye_color <- rownames(df_final)
+rownames(df_final) <- NULL
+
+# Rename "Brown" to "Brunette" to match Table 4.1 notation
+names(df_final)[names(df_final) == "Brown"] <- "Brunette"
+
+# Reorder columns to put Eye_color first
+df_final <- df_final[, c("Eye_color", "Black", "Brunette", "Red", "Blond")]
+df_final
+# Compute marginal proportions for rows (Eye) and columns (Hair)
+marginal_eye <- round(apply(eye_hair_prop, 1, sum), 2)
+marginal_hair <- round(apply(eye_hair_prop, 2, sum), 2)
+
+# Add Marginal (eye color) column
+df_final$`Marginal (eye color)` <- marginal_eye
+df_final
+# Create Marginal (hair color) row (Note: marginal_hair uses original name "Brown")
+marginal_row <- data.frame(
+  Eye_color = "Marginal (hair color)",
+  Black = marginal_hair["Black"],
+  Brunette = marginal_hair["Brown"],
+  Red = marginal_hair["Red"],
+  Blond = marginal_hair["Blond"],
+  `Marginal (eye color)` = 1.0,
+  check.names = FALSE
+)
+
+# Bind rows to complete the table
+df_final <- rbind(df_final, marginal_row)
+
+
+# ==========================================
+# 2. Create Publication-Ready Table using gt
+# ==========================================
+df_final %>%
+  gt() %>%
+  # Set main table title and subtitle mimicking Table 4.1 style
+  tab_header(
+    title = md("**Table 4.1** Proportions of combinations of hair color and eye color"),
+    subtitle = md("Data adapted from Snee (1974)")
+  ) %>%
+  # Group column headers logically under "Hair color"
+  tab_spanner(
+    label = "Hair color",
+    columns = c(Black, Brunette, Red, Blond)
+  ) %>%
+  # Customize column labels
+  cols_label(
+    Eye_color = "Eye color"
+  ) %>%
+  # Align text nicely
+  cols_align(
+    align = "center",
+    columns = everything()
+  ) %>%
+  cols_align(
+    align = "left",
+    columns = Eye_color
+  ) %>%
+  # Apply professional styling and borders
+  opt_table_lines(extent = "default") %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels(everything())
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(rows = Eye_color == "Marginal (hair color)")
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(columns = `Marginal (eye color)`)
+  ) %>%
+  # Add source note at the bottom
+  tab_source_note(
+    source_note = "Note: Some rows or columns may not sum exactly to 1.0 because of rounding error."
+  )
+
+
+
+################################################################################
+# Exercise 4.2 - Biased Coin Flipping Simulation
+################################################################################
+
+
+
+# Load necessary library
+library(ggplot2)
+
+# ==========================================
+# Exercise 4.2: Biased Coin Flipping Simulation (ggplot2 version)
+# ==========================================
+
+# 1. Set parameters for the simulation
+# Total number of coin flips
+N <- 500  
+
+# Probability of getting Heads (H) is 0.8, Tails (T) is 0.2
+p_head <- 0.8  
+
+# Set seed for reproducibility (optional)
+set.seed(42)
+
+# 2. Generate random numbers (coin flips) using sample()
+# '1' represents Head (H) and '0' represents Tail (T)
+flip_sequence <- sample(x = c(1, 0), size = N, replace = TRUE, prob = c(p_head, 1 - p_head))
+
+# 3. Create a data frame for ggplot
+sim_data <- data.frame(
+  FlipNumber = 1:N,
+  RunningProp = cumsum(flip_sequence) / (1:N)
+)
+
+# 4. Create ggplot visualization
+windows()
+ggplot(sim_data, aes(x = FlipNumber, y = RunningProp)) +
+  # Add horizontal reference line at the true probability p(H) = 0.8
+  geom_hline(yintercept = p_head, color = "grey", linetype = "dashed", linewidth = 1) +
+  # Add running proportion line
+  geom_line(color = "#2980B9", linewidth = 1) +
+  # Set axis limits and labels
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, by = 0.2)) +
+  labs(
+    title = "Running Proportion of Heads",
+    subtitle = "Simulating a biased coin with p(H) = 0.8",
+    x = "Flip Number",
+    y = "Proportion of Heads"
+  ) +
+  # Apply clean classic theme
+  theme_classic() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(size = 10, color = "gray30"),
+    axis.line = element_line(color = "black"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+
+
+################################################################################
+# Exercise 4.3 - Drawing 10, 10 or Jack of 48 cards
+################################################################################
+
+
+
+# Load required libraries
+library(ggplot2)
+library(gridExtra)
+
+# Set seed for reproducibility
+set.seed(123)
+
+# ==========================================
+# 1. Simulation Setup (Pinochle Deck)
+# ==========================================
+# 48 cards total: 8 cards for each rank (9, 10, Jack, Queen, King, Ace)
+deck <- c(rep("9", 8), rep("10", 8), rep("Jack", 8), 
+          rep("Queen", 8), rep("King", 8), rep("Ace", 8))
+
+N <- 2000  # Total number of empirical draws (with replacement)
+draws <- sample(deck, size = N, replace = TRUE)
+
+# Mathematical (Theoretical) Probabilities
+true_p_10 <- 8 / 48              # 1/6 = 0.1667
+true_p_10_or_jack <- 16 / 48     # 1/3 = 0.3333
+
+# Empirical Running Proportions
+emp_p_10 <- cumsum(draws == "10") / (1:N)
+emp_p_10_or_jack <- cumsum(draws %in% c("10", "Jack")) / (1:N)
+
+df_sim <- data.frame(
+  Draw = 1:N,
+  Empirical_10 = emp_p_10,
+  Empirical_10_Jack = emp_p_10_or_jack
+)
+
+
+# ==========================================
+# 2. Plot (A): P(10) Empirical vs Theoretical
+# ==========================================
+p1 <- ggplot(df_sim, aes(x = Draw, y = Empirical_10)) +
+  # Empirical running proportion line in BLACK
+  geom_line(color = "black", linewidth = 1) +
+  # Theoretical value reference line in GRAY (dashed)
+  geom_hline(yintercept = true_p_10, color = "gray50", linetype = "dashed", linewidth = 1.1) +
+  # Annotate theoretical value
+  annotate("label", x = N * 0.75, y = true_p_10 + 0.05, 
+           label = paste0("Theoretical P(10) = 8/48 ≈ ", round(true_p_10, 4)),
+           color = "gray30", fill = "white", fontface = "bold", size = 3.8) +
+  # Annotate final empirical estimate
+  annotate("label", x = N * 0.75, y = tail(emp_p_10, 1) - 0.05, 
+           label = paste0("Empirical (N=", N, ") = ", round(tail(emp_p_10, 1), 4)),
+           color = "black", fill = "white", fontface = "bold", size = 3.8) +
+  scale_y_continuous(limits = c(0, 0.4), breaks = seq(0, 0.4, by = 0.1)) +
+  labs(
+    title = "(A) Probability of Drawing a 10",
+    subtitle = "Empirical convergence vs. Theoretical exact value",
+    x = "Number of Draws (N)",
+    y = "Proportion"
+  ) +
+  theme_classic() +
+  theme(
+    plot.title = element_text(face = "bold", size = 13),
+    axis.line = element_line(color = "black")
+  )
+
+
+# ==========================================
+# 3. Plot (B): P(10 or Jack) Empirical vs Theoretical
+# ==========================================
+p2 <- ggplot(df_sim, aes(x = Draw, y = Empirical_10_Jack)) +
+  # Empirical running proportion line in BLACK
+  geom_line(color = "black", linewidth = 1) +
+  # Theoretical value reference line in GRAY (dashed)
+  geom_hline(yintercept = true_p_10_or_jack, color = "gray50", linetype = "dashed", linewidth = 1.1) +
+  # Annotate theoretical value
+  annotate("label", x = N * 0.75, y = true_p_10_or_jack + 0.05, 
+           label = paste0("Theoretical P(10 or Jack) = 16/48 ≈ ", round(true_p_10_or_jack, 4)),
+           color = "gray30", fill = "white", fontface = "bold", size = 3.8) +
+  # Annotate final empirical estimate
+  annotate("label", x = N * 0.75, y = tail(emp_p_10_or_jack, 1) - 0.05, 
+           label = paste0("Empirical (N=", N, ") = ", round(tail(emp_p_10_or_jack, 1), 4)),
+           color = "black", fill = "white", fontface = "bold", size = 3.8) +
+  # Expanded y-limits to start from 0 to prevent cutting off early values
+  scale_y_continuous(limits = c(0, 0.5), breaks = seq(0, 0.5, by = 0.1)) +
+  labs(
+    title = "(B) Probability of Drawing a 10 or Jack",
+    subtitle = "Empirical convergence vs. Theoretical exact value",
+    x = "Number of Draws (N)",
+    y = "Proportion"
+  ) +
+  theme_classic() +
+  theme(
+    plot.title = element_text(face = "bold", size = 13),
+    axis.line = element_line(color = "black")
+  )
+
+
+# ==========================================
+# 4. Combine both plots vertically
+# ==========================================
+grid.arrange(p1, p2, ncol = 1)
+
+
+
+################################################################################
+# Exercise 4.4 - integral PDF
+################################################################################
+
+
+
+# Load required library
+library(ggplot2)
+
+# Define the probability density function
+p <- function(x) {
+  return(6 * x * (1 - x))
+}
+
+# Set the interval boundaries
+xlow <- 0
+xhigh <- 1
+
+# Define a small step size for numerical approximation
+dx <- 0.001
+
+# Create a data frame for plotting
+x_vals <- seq(xlow, xhigh, by = dx)
+df <- data.frame(x = x_vals, y = p(x_vals))
+
+# Calculate approximate integral and maximum value
+approx_integral <- sum(df$y * dx)
+max_val <- max(df$y)
+
+# Create text label to display inside the plot
+label_text <- paste0(
+  "Approx. Integral = ", round(approx_integral, 4), "\n",
+  "Max p(x) = ", round(max_val, 2)
+)
+
+# Plot using ggplot2 with text annotation and removed internal grid lines
+ggplot(df, aes(x = x, y = y)) +
+  geom_line(color = "forestgreen", linewidth = 1.2) +
+  geom_area(fill = "forestgreen", alpha = 0.2) +
+  # Add annotation box at upper-left position
+  annotate(
+    "label",
+    x = 0.05,             # X position (left side)
+    y = 1.45,             # Y position (top side)
+    label = label_text,
+    hjust = 0,            # Left-align text
+    vjust = 1,            # Top-align text
+    fill = "white",
+    color = "black",
+    size = 4,
+    label.padding = unit(0.5, "lines")
+  ) +
+  labs(
+    title = "Probability Density Function: p(x) = 6x(1 - x)",
+    x = "x",
+    y = "p(x)"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.major = element_blank(), # Remove major grid lines
+    panel.grid.minor = element_blank()  # Remove minor grid lines
+  )
+
+
+
+################################################################################
+# Exercise 4.5 - normal dist
+################################################################################
+
+
+
+# Load required library
+library(ggplot2)
+
+# Set parameters for the normal distribution (e.g., standard normal: mu = 0, sd = 1)
+mu <- 0
+sigma <- 1
+
+# Define the normal probability density function
+p <- function(x) {
+  return(dnorm(x, mean = mu, sd = sigma))
+}
+
+# Set the interval boundaries from mu - sigma to mu + sigma
+xlow <- mu - sigma
+xhigh <- mu + sigma
+
+# Define a small step size for numerical approximation
+dx <- 0.001
+
+# Create a data frame for plotting over a wider range (mu - 3*sigma to mu + 3*sigma)
+x_vals <- seq(mu - 3 * sigma, mu + 3 * sigma, by = dx)
+df <- data.frame(x = x_vals, y = p(x_vals))
+
+# Subset data for shading the area between mu - sigma and mu + sigma
+df_shaded <- subset(df, x >= xlow & x <= xhigh)
+
+# Calculate approximate integral (probability mass) using the rectangle rule
+approx_integral <- sum(df_shaded$y * dx)
+max_val <- max(df$y)
+
+# Create text label to display inside the plot
+label_text <- paste0(
+  "Interval: [mu - sigma, mu + sigma]\n",
+  "Approx. Probability = ", round(approx_integral, 4), "\n",
+  "Max p(x) = ", round(max_val, 4)
+)
+
+# Plot using ggplot2 with text annotation and removed internal grid lines
+ggplot(df, aes(x = x, y = y)) +
+  geom_line(color = "forestgreen", linewidth = 1.2) +
+  # Shade the target area between mu - sigma and mu + sigma
+  geom_area(data = df_shaded, aes(x = x, y = y), fill = "forestgreen", alpha = 0.3) +
+  # Add annotation box on the upper-right side to avoid overlapping the peak
+  annotate(
+    "label",
+    x = mu + 1.2 * sigma, 
+    y = max_val * 0.7,
+    label = label_text,
+    hjust = 0,
+    vjust = 0.5,
+    fill = "white",
+    color = "black",
+    size = 4,
+    label.padding = unit(0.5, "lines")
+  ) +
+  labs(
+    title = "Normal Probability Density Function: N(mu, sigma^2)",
+    x = "x",
+    y = "p(x)"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.major = element_blank(), # Remove major grid lines
+    panel.grid.minor = element_blank()  # Remove minor grid lines
+  )
+
+
+
+################################################################################
+# Exercise 4.6 - Joint PDF
+################################################################################
+
+
+
+# Load required libraries
+library(dplyr)
+library(gt)
+
+# 1. Define Prior probabilities: p(Grade)
+prior <- c(
+  "1st"  = 0.20,
+  "6th"  = 0.20,
+  "11th" = 0.60
+)
+
+# 2. Define Likelihood matrix: p(Food | Grade)
+likelihood_matrix <- matrix(
+  c(0.3, 0.6, 0.1,  # 1st graders
+    0.6, 0.3, 0.1,  # 6th graders
+    0.3, 0.1, 0.6), # 11th graders
+  nrow = 3,
+  byrow = TRUE,
+  dimnames = list(
+    Grade = c("1st", "6th", "11th"),
+    Food  = c("Ice_cream", "Fruit", "French_fries")
+  )
+)
+
+# 3. Calculate Joint Probability table: p(Grade, Food) = p(Food | Grade) * p(Grade)
+joint_matrix <- likelihood_matrix * prior
+
+# 4. Add marginal probabilities (Row sums and Column sums)
+joint_df <- as.data.frame(joint_matrix)
+joint_df$p_grade <- rowSums(joint_matrix) # Marginal probability of Grade: p(Grade)
+
+# Calculate column sums for food marginals: p(Food)
+col_totals <- colSums(joint_matrix)
+col_totals["p_grade"] <- sum(col_totals) # Total sum should be 1.0
+
+# Combine row-wise and column-wise marginals into a single data frame
+final_table_df <- rbind(joint_df, Total_food = col_totals)
+final_table_df <- final_table_df %>% 
+  tibble::rownames_to_column(var = "Grade / Food")
+
+# 5. Create a professional table using the 'gt' package with larger fonts and bold subtitle
+gt_table <- final_table_df %>%
+  gt() %>%
+  tab_header(
+    title = md("<span style='font-size:22px;'>Joint Probability Table: p(Grade, Food)</span>"),
+    subtitle = md("<span style='font-size:18px;'><b>Calculated by Likelihood * Prior (p(Food | Grade) * p(Grade))</b></span>")
+  ) %>%
+  tab_options(
+    table.font.size = px(14) # Overall table font size increased
+  ) %>%
+  cols_label(
+    `Grade / Food` = "Grade",
+    p_grade = "p(Grade)"
+  ) %>%
+  fmt_number(
+    columns = -`Grade / Food`,
+    decimals = 2
+  ) %>%
+  # Highlight the bottom marginal row (Total_food)
+  tab_style(
+    style = cell_fill(color = "#e8f5e9"),
+    locations = cells_body(rows = 4)
+  ) %>%
+  # Highlight the rightmost marginal column (p_grade)
+  tab_style(
+    style = cell_fill(color = "#e8f5e9"),
+    locations = cells_body(columns = p_grade)
+  ) %>%
+  # Apply bold style to both marginal rows and columns
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(rows = 4)
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(columns = p_grade)
+  ) %>%
+  tab_source_note(
+    source_note = "Note: Marginal probabilities p(Grade) and p(Food) are highlighted."
+  )
+
+# Print the gt table
+gt_table
