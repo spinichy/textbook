@@ -230,5 +230,150 @@ p_left <- as.ggplot(tableGrob(df_table, rows = NULL, theme = table_theme))
 # 6. Combine table and plot side by side using patchwork
 combined_plot <- wrap_plots(p_left, p_right, ncol = 2, widths = c(1, 1.5))
 
+
+
+################################################################################
+#exercise-1.1
+################################################################################
+
+
+
+library(gt)
+library(dplyr)
+
+# Create dataset
+x_vals <- 1:4
+
+df <- data.frame(
+  x = factor(x_vals, labels = c("x = 1", "x = 2", "x = 3", "x = 4")),
+  Model_A = rep(1/4, 4),
+  Model_B = x_vals / 10,
+  Model_C = 12 / (25 * x_vals)
+)
+
+# Build a formatted table using gt
+table_result <- df %>%
+  gt() %>%
+  tab_header(
+    title = md("**Probability Distributions of Tetrahedral Die Models**"),
+    subtitle = "Comparison of Fair (Model A) vs Biased Models (Model B & C)"
+  ) %>%
+  cols_label(1
+    x = md("**Outcome ($x$)**"),
+    Model_A = md("**Model A**<br>($p(x) = 1/4$)"),
+    Model_B = md("**Model B**<br>($p(x) = x/10$)"),
+    Model_C = md("**Model C**<br>($p(x) = 12/25x$)")
+  ) %>%
+  fmt_number(
+    columns = c(Model_A, Model_B, Model_C),
+    decimals = 2
+  ) %>%
+  data_color(
+    columns = c(Model_A, Model_B, Model_C),
+    palette = "Blues"
+  ) %>%
+  cols_align(
+    align = "center",
+    columns = everything()
+  ) %>%
+  tab_source_note(
+    source_note = md("*Note: Model A is unbiased, Model B is biased toward higher values, and Model C is biased toward lower values.*")
+  )
+
+# Render table
+table_result
+
+
+
+################################################################################
+#exercise-1.2
+################################################################################
+
+
+
+library(gt)
+library(dplyr)
+
+# Define possible values of x
+x_vals <- 1:4
+
+# Define probability models for the tetrahedral die
+# Model A: Fair, Model B: Biased toward higher numbers, Model C: Biased toward lower numbers
+p_matrix <- data.frame(
+  x = x_vals,
+  Model_A = rep(1/4, 4),
+  Model_B = x_vals / 10,
+  Model_C = 12 / (25 * x_vals)
+)
+
+# Define observed data cases
+# Case 1: Each outcome (1-4) appears 25 times out of 100 rolls
+data_1 <- c(25, 25, 25, 25)
+
+# Case 2: Smaller numbers appear more frequently (48, 24, 16, 12)
+data_2 <- c(48, 24, 16, 12)
+
+# Function to calculate the likelihood of observed data given a probability vector
+calc_likelihood <- function(obs, p_col) {
+  prod(p_col^obs)
+}
+
+# Define initial prior probabilities for each model: p(A) = p(B) = p(C) = 1/3
+prior <- c(Model_A = 1/3, Model_B = 1/3, Model_C = 1/3)
+
+# --- [Calculate for Case 1] ---
+lik_1 <- c(
+  Model_A = calc_likelihood(data_1, p_matrix$Model_A),
+  Model_B = calc_likelihood(data_1, p_matrix$Model_B),
+  Model_C = calc_likelihood(data_1, p_matrix$Model_C)
+)
+unnormalized_posterior_1 <- lik_1 * prior
+posterior_1 <- unnormalized_posterior_1 / sum(unnormalized_posterior_1)
+
+# --- [Calculate for Case 2] ---
+lik_2 <- c(
+  Model_A = calc_likelihood(data_2, p_matrix$Model_A),
+  Model_B = calc_likelihood(data_2, p_matrix$Model_B),
+  Model_C = calc_likelihood(data_2, p_matrix$Model_C)
+)
+unnormalized_posterior_2 <- lik_2 * prior
+posterior_2 <- unnormalized_posterior_2 / sum(unnormalized_posterior_2)
+
+# Summarize the results into a data frame
+result_summary <- data.frame(
+  Model = c("Model A (Fair)", "Model B (High Bias)", "Model C (Low Bias)"),
+  Prior = as.numeric(prior),
+  Posterior_Case1 = as.numeric(posterior_1),
+  Posterior_Case2 = as.numeric(posterior_2)
+)
+
+# Build a formatted gt table with 2 decimal places
+table_result <- result_summary %>%
+  gt() %>%
+  tab_header(
+    title = md("**Posterior Probabilities of Models**"),
+    subtitle = "Comparison across different observed datasets"
+  ) %>%
+  cols_label(
+    Model = md("**Model**"),
+    Prior = md("**Prior**"),
+    Posterior_Case1 = md("**Case 1 Posterior**<br>(Equal Frequencies)"),
+    Posterior_Case2 = md("**Case 2 Posterior**<br>(Skewed Frequencies)")
+  ) %>%
+  fmt_number(
+    columns = c(Prior, Posterior_Case1, Posterior_Case2),
+    decimals = 2
+  ) %>%
+  cols_align(
+    align = "center",
+    columns = everything()
+  ) %>%
+  tab_source_note(
+    source_note = md("*Note: Values are rounded to two decimal places.*")
+  )
+
+# Render the table
+table_result
+
 # Print the final combined layout
 print(combined_plot)
