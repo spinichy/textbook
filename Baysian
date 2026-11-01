@@ -1139,3 +1139,487 @@ gt_table <- final_table_df %>%
 
 # Print the gt table
 gt_table
+
+
+
+#Part3 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+################################################################################
+# Estimating the bias of a coin
+################################################################################
+
+
+
+library(ggplot2)
+library(gridExtra)
+
+# Define candidate values of theta (parameter values)
+theta <- seq(0, 1, by = 0.1)
+
+# Define the prior distribution (triangular shape centered at 0.5, matching the image)
+prior <- c(0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.20, 0.15, 0.10, 0.05, 0.00)
+prior <- prior / sum(prior) # Normalize to make it a valid probability distribution
+
+# Define the data: z = 1 (heads), N = 1 (flips)
+z <- 1
+N <- 1
+
+# Calculate the likelihood function: p(D | theta) = theta^z * (1 - theta)^(N - z)
+likelihood <- theta^z * (1 - theta)^(N - z)
+
+# Calculate the unnormalized posterior: prior * likelihood
+unnormalized_posterior <- prior * likelihood
+
+# Calculate the posterior distribution by normalizing
+posterior <- unnormalized_posterior / sum(unnormalized_posterior)
+
+# Create a data frame for plotting
+df <- data.frame(
+  theta = rep(theta, 3),
+  value = c(prior, likelihood, posterior),
+  type = rep(c("Prior", "Likelihood", "Posterior"), each = length(theta))
+)
+
+# Set factor levels to maintain the order in plots
+df$type <- factor(df$type, levels = c("Prior", "Likelihood", "Posterior"))
+
+# Plot 1: Prior
+p1 <- ggplot(subset(df, type == "Prior"), aes(x = theta, y = value)) +
+  geom_segment(aes(xend = theta, yend = 0), color = "skyblue", linewidth = 1.2) +
+  geom_point(color = "skyblue", size = 2.5) +
+  labs(title = "Prior", x = "", y = "p(theta)") +
+  ylim(0, 0.3) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+# Plot 2: Likelihood
+p2 <- ggplot(subset(df, type == "Likelihood"), aes(x = theta, y = value)) +
+  geom_segment(aes(xend = theta, yend = 0), color = "skyblue", linewidth = 1.2) +
+  geom_point(color = "skyblue", size = 2.5) +
+  annotate("text", x = 0.3, y = 0.8, label = "Data: z=1, N=1", size = 4) +
+  labs(title = "Likelihood", x = "", y = "p(D | theta)") +
+  ylim(0, 1.2) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+# Plot 3: Posterior
+p3 <- ggplot(subset(df, type == "Posterior"), aes(x = theta, y = value)) +
+  geom_segment(aes(xend = theta, yend = 0), color = "skyblue", linewidth = 1.2) +
+  geom_point(color = "skyblue", size = 2.5) +
+  labs(title = "Posterior", x = expression(theta), y = "p(theta | D)") +
+  ylim(0, 0.3) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+# Arrange plots vertically using gridExtra
+grid.arrange(p1, p2, p3, ncol = 1)
+
+
+
+################################################################################
+# The influence of sample size and prior on the posterior
+################################################################################
+
+
+
+library(ggplot2)
+library(gridExtra)
+
+# Define 1000 discrete candidate values of theta
+theta <- seq(0, 1, length.out = 1001)
+
+# Define triangular prior matching the book (mode = 0.5)
+prior <- pmin(theta, 1 - theta)
+prior <- prior / sum(prior) # Sum equals 1 (Discrete PMF)
+
+# Compute function matching exact book scale
+compute_bayes_exact <- function(z, N, prior) {
+  # Exact binomial likelihood formula
+  likelihood <- (theta^z) * ((1 - theta)^(N - z))
+  
+  # Unnormalized posterior
+  unnorm_posterior <- prior * likelihood
+  
+  # Normalized posterior (Sum equals 1)
+  posterior <- unnorm_posterior / sum(unnorm_posterior)
+  
+  return(data.frame(
+    theta = theta,
+    Prior = prior,
+    Likelihood = likelihood,
+    Posterior = posterior
+  ))
+}
+
+# Left column: z=1, N=4
+df_left <- compute_bayes_exact(z = 1, N = 4, prior = prior)
+
+# Right column: z=10, N=40
+df_right <- compute_bayes_exact(z = 10, N = 40, prior = prior)
+
+# Plotting function
+plot_book_style <- function(df, y_col, title_text, y_label) {
+  ggplot(df, aes(x = theta, y = !!sym(y_col))) +
+    geom_area(fill = "skyblue", alpha = 0.7) +
+    labs(title = title_text, x = expression(theta), y = y_label) +
+    theme_bw() +
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 11),
+      axis.title.x = element_text(size = 9),
+      axis.title.y = element_text(size = 9)
+    )
+}
+
+# Grid display
+grid.arrange(
+  plot_book_style(df_left, "Prior", "Prior\nmode=0.5", "p(theta)"),
+  plot_book_style(df_right, "Prior", "Prior\nmode=0.5", "p(theta)"),
+  plot_book_style(df_left, "Likelihood", "Likelihood", "p(D | theta)"),
+  plot_book_style(df_right, "Likelihood", "Likelihood", "p(D | theta)"),
+  plot_book_style(df_left, "Posterior", "Posterior\nmode=0.4", "p(theta | D)"),
+  plot_book_style(df_right, "Posterior", "Posterior\nmode=0.268", "p(theta | D)"),
+  ncol = 2
+)
+
+
+
+################################################################################
+# Exercise 5.1
+################################################################################
+
+
+
+library(ggplot2)
+
+# Define a function for sequential Bayesian updating in medical testing
+sequential_bayes_update <- function(initial_prior, test_sequence, hit_rate, false_alarm) {
+  current_prior <- initial_prior
+  history <- c(current_prior)
+  
+  for (i in seq_along(test_sequence)) {
+    test_result <- test_sequence[i]
+    
+    # Set likelihoods based on whether the test result is positive or negative
+    if (test_result == "+") {
+      p_given_present <- hit_rate
+      p_given_absent  <- false_alarm
+    } else if (test_result == "-") {
+      p_given_present <- 1 - hit_rate
+      p_given_absent  <- 1 - false_alarm
+    } else {
+      stop("Invalid test result. Use '+' or '-'.")
+    }
+    
+    # Calculate joint probabilities
+    joint_present <- p_given_present * current_prior
+    joint_absent  <- p_given_absent * (1 - current_prior)
+    
+    # Calculate marginal evidence (denominator)
+    evidence <- joint_present + joint_absent
+    
+    # Compute the new posterior probability
+    current_prior <- joint_present / evidence
+    
+    # Store the updated posterior
+    history <- c(history, current_prior)
+  }
+  
+  return(history)
+}
+
+# --- Execution Example (Table 5.4 & Exercise 5.1) ---
+# Base rate (initial prior) for the disease[cite: 5, 6]
+base_rate <- 0.001
+
+# Test kit performance specifications[cite: 5]
+hit_rate <- 0.99     # Sensitivity: P(+ | present)[cite: 5]
+false_alarm <- 0.05  # False positive rate: P(+ | absent)[cite: 5]
+
+# Sequential test results: 1st test is Positive, 2nd test is Negative[cite: 5, 6]
+tests <- c("+", "-")
+
+# Run the simulation
+posterior_trajectory <- sequential_bayes_update(base_rate, tests, hit_rate, false_alarm)
+
+# Display results step by step
+cat("Initial Prior:", posterior_trajectory[1], "\n")
+for (step in seq_along(tests)) {
+  cat(sprintf("After Test %d (%s): Posterior = %.10f\n", 
+              step, tests[step], posterior_trajectory[step + 1]))
+}
+
+# --- Create Data Frame for Visualization ---
+labels <- c("Prior (Start)", paste0("Test ", seq_along(tests), " (", tests, ")"))
+df_plot <- data.frame(
+  Step = factor(labels, levels = labels),
+  Step_Index = 0:length(tests),
+  Posterior = posterior_trajectory
+)
+
+# --- Visualization using ggplot2 (Grid lines removed & Text position adjusted) ---
+ggplot(df_plot, aes(x = Step, y = Posterior, group = 1)) +
+  geom_line(color = "steelblue", linewidth = 1) +
+  geom_point(color = "firebrick", size = 3) +
+  geom_text(aes(label = sprintf("%.5f", Posterior)), 
+            vjust = -1.2, size = 3.5, fontface = "bold") + # vjust를 더 주어 점과 텍스트 간격 확보
+  scale_y_continuous(limits = c(0, max(df_plot$Posterior) * 1.35)) + # 상단 여유 공간 확장
+  labs(
+    title = "Sequential Bayesian Update Trajectory",
+    subtitle = "Tracking Posterior Probability Across Sequential Medical Tests",
+    x = "Testing Stage",
+    y = "Posterior Probability P(Disease | Data)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, color = "gray40"),
+    panel.grid.major = element_blank(), # 주 격자선 제거
+    panel.grid.minor = element_blank()  # 보조 격자선 제거
+  )
+
+
+
+################################################################################
+# Exercise 5.2
+################################################################################
+
+
+
+library(gt)
+library(dplyr)
+
+# --- 1. Data Preparation with Explicit Line Breaks ---
+df_table <- data.frame(
+  Test_Result = c("D = +", "D = -", "Total"),
+  
+  Theta_Present = c(
+    "freq(D = +, θ = ☺)<br>= p(D = +, θ = ☺) N<br>= p(D = + | θ = ☺) p(θ = ☺) N<br>= 99",
+    "freq(D = -, θ = ☺)<br>= p(D = -, θ = ☺) N<br>= p(D = - | θ = ☺) p(θ = ☺) N<br>= 1",
+    "freq(θ = ☺)<br>= p(θ = ☺) N<br>= 100"
+  ),
+  
+  Theta_Absent = c(
+    "freq(D = +, θ = ☹)<br>= p(D = +, θ = ☹) N<br>= p(D = + | θ = ☹) p(θ = ☹) N<br>= 4,995",
+    "freq(D = -, θ = ☹)<br>= p(D = -, θ = ☹) N<br>= p(D = - | θ = ☹) p(θ = ☹) N<br>= 94,905",
+    "freq(θ = ☹)<br>= p(θ = ☹) N<br>= 99,900"
+  ),
+  
+  Total = c(
+    "freq(D = +)<br>= p(D = +) N<br>= 5,094",
+    "freq(D = -)<br>= p(D = -) N<br>= 94,906",
+    "N<br>= 100,000"
+  )
+)
+
+# --- 2. Build Table using gt Package ---
+df_table %>%
+  gt() %>%
+  # Column headers
+  cols_label(
+    Test_Result = "",
+    Theta_Present = html("<b>&theta; = ☺</b><br>(Disease Present)"),
+    Theta_Absent = html("<b>&theta; = ☹</b><br>(Disease Absent)"),
+    Total = html("<b>Total</b>")
+  ) %>%
+  # Render cell contents as Markdown/HTML to preserve line breaks (<br>)
+  fmt_markdown(columns = everything()) %>%
+  # Table headers and styling options
+  tab_header(
+    title = html("<b>Exercise 5.2: Natural Frequency Table</b>"),
+    subtitle = "Population Size (N) = 100,000 | Base rate = 0.001"
+  ) %>%
+  tab_options(
+    table.font.names = "sans-serif",
+    heading.align = "center",
+    column_labels.background.color = "#f0f2f5"
+  ) %>%
+  cols_align(
+    align = "left",
+    columns = c(Theta_Present, Theta_Absent, Total)
+  ) %>%
+  cols_align(
+    align = "center",
+    columns = Test_Result
+  ) %>%
+  opt_row_striping()
+
+
+
+################################################################################
+# Exercise 5.3
+################################################################################
+
+
+
+library(ggplot2)
+library(dplyr)
+
+# --- 1. Define Sequential Bayesian Updating Function ---
+sequential_bayes_update <- function(initial_prior, test_sequence, hit_rate, false_alarm) {
+  current_prior <- initial_prior
+  history <- c(current_prior)
+  
+  for (i in seq_along(test_sequence)) {
+    test_result <- test_sequence[i]
+    
+    # Set likelihoods based on test result
+    if (test_result == "+") {
+      p_given_present <- hit_rate
+      p_given_absent  <- false_alarm
+    } else if (test_result == "-") {
+      p_given_present <- 1 - hit_rate
+      p_given_absent  <- 1 - false_alarm
+    } else {
+      stop("Invalid test result. Use '+' or '-'.")
+    }
+    
+    # Calculate joint probabilities and evidence
+    joint_present <- p_given_present * current_prior
+    joint_absent  <- p_given_absent * (1 - current_prior)
+    evidence      <- joint_present + joint_absent
+    
+    # Update current prior to new posterior
+    current_prior <- joint_present / evidence
+    history       <- c(history, current_prior)
+  }
+  
+  return(history)
+}
+
+# --- 2. Model Parameters ---
+base_rate   <- 0.001  # Initial prior: P(Disease)
+hit_rate    <- 0.99   # Sensitivity: P(+ | present)
+false_alarm <- 0.05   # False positive rate: P(+ | absent)
+
+# --- 3. Compute Posterior Trajectories for Both Orders ---
+# Exercise 5.1 Order: Positive (+) -> Negative (-)
+seq_5_1 <- c("+", "-")
+traj_5_1 <- sequential_bayes_update(base_rate, seq_5_1, hit_rate, false_alarm)
+
+# Exercise 5.3 Order: Negative (-) -> Positive (+)
+seq_5_3 <- c("-", "+")
+traj_5_3 <- sequential_bayes_update(base_rate, seq_5_3, hit_rate, false_alarm)
+
+# --- 4. Print Step-by-step Results to Console ---
+cat("=== Exercise 5.1 (+ then -) ===\n")
+cat(sprintf("Step 0 (Prior)     : %.10f\n", traj_5_1[1]))
+cat(sprintf("Step 1 (Test 1 +)  : %.10f\n", traj_5_1[2]))
+cat(sprintf("Step 2 (Test 2 -)  : %.10f\n\n", traj_5_1[3]))
+
+cat("=== Exercise 5.3 (- then +) ===\n")
+cat(sprintf("Step 0 (Prior)     : %.10f\n", traj_5_3[1]))
+cat(sprintf("Step 1 (Test 1 -)  : %.10f\n", traj_5_3[2]))
+cat(sprintf("Step 2 (Test 2 +)  : %.10f\n\n", traj_5_3[3]))
+
+cat(sprintf("Difference in Final Posterior: %.15f\n", abs(traj_5_1[3] - traj_5_3[3])))
+
+# --- 5. Prepare Data Frame for Visualization ---
+df_plot <- data.frame(
+  Step = factor(rep(c("Start (Prior)", "Step 1", "Step 2"), 2), 
+                levels = c("Start (Prior)", "Step 1", "Step 2")),
+  Posterior = c(traj_5_1, traj_5_3),
+  Sequence = rep(c("Ex 5.1: (+ -> -)", "Ex 5.3: (- -> +)"), each = 3)
+)
+
+# --- 6. Visualization Using ggplot2 ---
+ggplot(df_plot, aes(x = Step, y = Posterior, color = Sequence, group = Sequence)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_text(aes(label = sprintf("%.5f", Posterior)), 
+            vjust = -1.2, size = 3.5, fontface = "bold", show.legend = FALSE) +
+  scale_y_continuous(limits = c(0, max(df_plot$Posterior) * 1.35)) +
+  scale_color_manual(values = c("Ex 5.1: (+ -> -)" = "steelblue", 
+                                "Ex 5.3: (- -> +)" = "darkorange")) +
+  labs(
+    title = "Data-Order Invariance in Bayesian Updating (Ex 5.1 vs Ex 5.3)",
+    subtitle = "Different intermediate trajectories converge to the exact same final posterior probability",
+    x = "Testing Stage",
+    y = "Posterior Probability P(Disease | Data)",
+    color = "Test Sequence"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, color = "gray40"),
+    legend.position = "bottom",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+
+
+################################################################################
+# Exercise 5.4
+################################################################################
+
+
+
+# Load required library
+library(ggplot2)
+library(gridExtra)
+
+# --- 1. Define BernGrid Function for Grid Approximation ---
+BernGrid <- function(Theta, Prior, Data, plotTitle = "Bernoulli Grid Updating") {
+  # Compute Likelihood for given Bernoulli data
+  # Data: vector of 1s (Heads) and 0s (Tails)
+  z <- sum(Data == 1)
+  N <- length(Data)
+  
+  # Likelihood = Theta^z * (1 - Theta)^(N - z)
+  Likelihood <- (Theta^z) * ((1 - Theta)^(N - z))
+  
+  # Unnormalized posterior & Evidence (Marginal Likelihood)
+  pData <- sum(Likelihood * Prior)
+  Posterior <- (Likelihood * Prior) / pData
+  
+  # Build Data Frame for visualization
+  df <- data.frame(
+    Theta = rep(Theta, 3),
+    Probability = c(Prior, Likelihood / max(Likelihood), Posterior),
+    Type = factor(rep(c("1. Prior", "2. Likelihood (Normalized)", "3. Posterior"), 
+                      each = length(Theta)))
+  )
+  
+  # Plot using ggplot2
+  p <- ggplot(df, aes(x = Theta, y = Probability)) +
+    geom_bar(stat = "identity", fill = "steelblue", width = 1/length(Theta)) +
+    facet_wrap(~Type, ncol = 1, scales = "free_y") +
+    labs(title = plotTitle, x = expression(theta), y = "P(theta)") +
+    theme_minimal(base_size = 11) +
+    theme(
+      plot.title = element_text(face = "bold", size = 11, hjust = 0.5),
+      strip.background = element_rect(fill = "gray95", color = NA),
+      panel.grid = element_blank()
+    )
+  
+  return(list(Posterior = Posterior, Plot = p))
+}
+
+# Define Theta grid resolution (e.g., 100 points)
+theta_grid <- seq(0.005, 0.995, by = 0.01)
+
+# ==============================================================================
+# Example A: Single Flip (N=1, y=1) with Uniform Prior (Vague Prior)
+# ==============================================================================
+prior_uniform <- rep(1, length(theta_grid))
+prior_uniform <- prior_uniform / sum(prior_uniform)
+data_single <- c(1) # Single Head
+
+res_A <- BernGrid(Theta = theta_grid, Prior = prior_uniform, Data = data_single,
+                  plotTitle = "Ex 5.4 (A): Uniform Prior + Single Datum (N=1, y=1)")
+
+# ==============================================================================
+# Example B: Single Flip (N=1, y=1) with Two-Extreme Options Prior
+# ==============================================================================
+# Prior has probability only at theta = 0.1 and theta = 0.9
+prior_extreme <- rep(0, length(theta_grid))
+prior_extreme[which.min(abs(theta_grid - 0.1))] <- 0.5
+prior_extreme[which.min(abs(theta_grid - 0.9))] <- 0.5
+
+res_B <- BernGrid(Theta = theta_grid, Prior = prior_extreme, Data = data_single,
+                  plotTitle = "Ex 5.4 (B): Two-Extreme Prior + Single Datum (N=1, y=1)")
+
+# Display Plots Side-by-Side
+grid.arrange(res_A$Plot, res_B$Plot, ncol = 2)
