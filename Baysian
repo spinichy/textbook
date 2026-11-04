@@ -1623,3 +1623,860 @@ res_B <- BernGrid(Theta = theta_grid, Prior = prior_extreme, Data = data_single,
 
 # Display Plots Side-by-Side
 grid.arrange(res_A$Plot, res_B$Plot, ncol = 2)
+
+
+
+################################################################################
+# Beta dist
+################################################################################
+
+
+
+library(ggplot2)
+library(dplyr)
+
+# 1. Generate grid data with requested parameter values (0.1, 2, 4)
+# a increases left-to-right (columns)
+# b increases top-to-bottom (rows)
+grid_params <- expand.grid(
+  a = c(0.1, 2, 4),
+  b = c(0.1, 2, 4)
+)
+
+# 2. Compute Beta density curves for each parameter pair
+x_vals <- seq(0.001, 0.999, length.out = 300)
+plot_data <- do.call(rbind, lapply(1:nrow(grid_params), function(i) {
+  alpha_val <- grid_params$a[i]
+  beta_val <- grid_params$b[i]
+  data.frame(
+    x = x_vals,
+    density = dbeta(x_vals, shape1 = alpha_val, shape2 = beta_val),
+    a_label = factor(paste0("alpha = ", alpha_val), levels = c("alpha = 0.1", "alpha = 2", "alpha = 4")),
+    b_label = factor(paste0("beta = ", beta_val), levels = c("beta = 0.1", "beta = 2", "beta = 4"))
+  )
+}))
+
+# 3. Plot Beta distributions in a 3x3 facet grid with fixed axis limits
+ggplot(plot_data, aes(x = x, y = density)) +
+  geom_line(color = "#2E7D32", linewidth = 1.1) +
+  geom_area(fill = "#A5D6A7", alpha = 0.4) +
+  facet_grid(b_label ~ a_label) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 3)) +
+  scale_x_continuous(breaks = c(0, 0.5, 1)) +
+  labs(
+    title = "Beta Distribution",
+    x = "x",
+    y = "Density"
+  ) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 10, hjust = 0.5, color = "gray40"),
+    strip.text = element_text(face = "bold", size = 10),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(color = "gray80", fill = NA, linewidth = 0.5)
+  )
+
+
+
+################################################################################
+# Beta dist - posterior = liklihood X prior
+################################################################################
+
+
+
+library(ggplot2)
+library(patchwork)
+
+# Define theta sequence for plotting
+theta <- seq(0, 1, length.out = 1000)
+
+# Data for Bernoulli likelihood: z = 17 successes out of N = 20 trials
+z <- 17
+N <- 20
+y_lik <- dbinom(z, size = N, prob = theta)
+df_lik <- data.frame(theta = theta, y = y_lik)
+
+# Helper function to calculate HDI (Highest Density Interval) for Beta distribution
+calc_hdi <- function(shape1, shape2, credMass = 0.95) {
+  x <- seq(0, 1, length.out = 10000)
+  dens <- dbeta(x, shape1, shape2)
+  dx <- x[2] - x[1]
+  ord <- order(dens, decreasing = TRUE)
+  cum_prob <- cumsum(dens[ord]) * dx
+  hdi_x <- x[ord[cum_prob <= credMass]]
+  return(c(min(hdi_x), max(hdi_x)))
+}
+
+# Define parameters for the 3 columns (priors)
+prior_params <- list(
+  list(a = 100, b = 100, ylab_prior = "dbeta(theta|100, 100)", mode_prior = "mode=0.5"),
+  list(a = 18.25, b = 6.75, ylab_prior = "dbeta(theta|18.25, 6.75)", mode_prior = "mode=0.75"),
+  list(a = 1, b = 1, ylab_prior = "dbeta(theta|1, 1)", mode_prior = "mode=1.0")
+)
+
+# Pre-calculate data frames to dynamically find the maximum y-value for each row
+prior_dfs <- list()
+post_dfs <- list()
+
+for (i in seq_along(prior_params)) {
+  p_info <- prior_params[[i]]
+  prior_dfs[[i]] <- data.frame(theta = theta, y = dbeta(theta, p_info$a, p_info$b))
+  
+  a_post <- p_info$a + z
+  b_post <- p_info$b + N - z
+  post_dfs[[i]] <- data.frame(theta = theta, y = dbeta(theta, a_post, b_post))
+}
+
+# Determine unified max y-axis limits for each row across all columns (with 10% padding)
+max_y_prior <- max(sapply(prior_dfs, function(df) max(df$y))) * 1.1
+max_y_lik   <- max(df_lik$y) * 1.1
+max_y_post  <- max(sapply(post_dfs, function(df) max(df$y))) * 1.1
+
+col_plots <- list()
+
+for (i in seq_along(prior_params)) {
+  p_info <- prior_params[[i]]
+  
+  # --- 1. Prior Plot ---
+  p_prior <- ggplot(prior_dfs[[i]], aes(x = theta, y = y)) +
+    geom_area(fill = "#A3E4D7", alpha = 0.6) + # Soft light green / mint tone
+    geom_line(color = "#27AE60", linewidth = 0.8) + # Darker green line
+    scale_y_continuous(limits = c(0, max_y_prior)) +
+    annotate("text", x = 0.7, y = max_y_prior * 0.8, label = p_info$mode_prior, size = 3.5) +
+    labs(title = "Prior (beta)", x = expression(theta), y = p_info$ylab_prior) +
+    theme_bw() +
+    theme(panel.grid = element_blank(), plot.title = element_text(size = 10, face = "bold"))
+  
+  # --- 2. Likelihood Plot ---
+  p_lik <- ggplot(df_lik, aes(x = theta, y = y)) +
+    geom_area(fill = "#A3E4D7", alpha = 0.6) +
+    geom_line(color = "#27AE60", linewidth = 0.8) +
+    scale_y_continuous(limits = c(0, max_y_lik)) +
+    annotate("text", x = 0.05, y = max_y_lik * 0.75, label = "Data: z=17, N=20", hjust = 0, size = 3.2) +
+    annotate("text", x = 0.05, y = max_y_lik * 0.55, label = "max at 0.85", hjust = 0, size = 3.2) +
+    labs(title = "Likelihood (Bernoulli)", x = expression(theta), y = "p(D|theta)") +
+    theme_bw() +
+    theme(panel.grid = element_blank(), plot.title = element_text(size = 10, face = "bold"))
+  
+  # --- 3. Posterior Plot ---
+  a_post <- p_info$a + z
+  b_post <- p_info$b + N - z
+  mode_post_val <- (a_post - 1) / (a_post + b_post - 2)
+  post_ylab <- sprintf("dbeta(theta|%g, %g)", a_post, b_post)
+  post_mode_lab <- sprintf("mode=%.3f", mode_post_val)
+  
+  p_post <- ggplot(post_dfs[[i]], aes(x = theta, y = y)) +
+    geom_area(fill = "#A3E4D7", alpha = 0.6) +
+    geom_line(color = "#27AE60", linewidth = 0.8) +
+    scale_y_continuous(limits = c(0, max_y_post)) +
+    annotate("text", x = 0.05, y = max_y_post * 0.8, label = post_mode_lab, hjust = 0, size = 3.2) +
+    labs(title = "Posterior (beta)", x = expression(theta), y = post_ylab) +
+    theme_bw() +
+    theme(panel.grid = element_blank(), plot.title = element_text(size = 10, face = "bold"))
+  
+  # Store column plots (Row 1: Prior, Row 2: Likelihood, Row 3: Posterior)
+  col_plots[[i]] <- p_prior / p_lik / p_post
+}
+
+# Combine columns side-by-side using patchwork to form a 3x3 layout
+final_grid <- col_plots[[1]] | col_plots[[2]] | col_plots[[3]]
+
+# Display the final plot
+print(final_grid)
+
+
+
+# ==============================================================================
+# Exercise 6.1: Manual Beta-Bernoulli Conjugate Updating (Without BernBeta.R)
+# ==============================================================================
+
+
+
+# Define a custom function for Beta-Binomial updating
+# prior: vector of length 2 representing c(alpha, beta)
+# data_flips: vector of outcomes (1 for Head/Success, 0 for Tail/Failure)
+update_beta_binomial <- function(prior, data_flips) {
+  alpha_old <- prior[1]
+  beta_old  <- prior[2]
+  
+  # Count successes (heads) and failures (tails) from the data
+  successes <- sum(data_flips == 1)
+  failures  <- sum(data_flips == 0)
+  
+  # Conjugate update rules:
+  # Posterior alpha = prior alpha + number of successes (heads)
+  # Posterior beta  = prior beta  + number of failures (tails)
+  alpha_new <- alpha_old + successes
+  beta_new  <- beta_old + failures
+  
+  return(c(alpha_new, beta_new))
+}
+
+# --- Part (A), (B), & (C): Sequential Updates with Order (H, H, T) ---
+
+# Initial prior: Beta(4, 4)
+prior_initial <- c(4, 4)
+
+# 1st flip: Head (H) -> value 1
+post_1 <- update_beta_binomial(prior_initial, c(1))
+cat("Posterior after 1st flip (H):", post_1, "\n")
+
+# 2nd flip: Head (H) -> value 1 (using previous posterior as the new prior)
+post_2 <- update_beta_binomial(post_1, c(1))
+cat("Posterior after 2nd flip (H):", post_2, "\n")
+
+# 3rd flip: Tail (T) -> value 0
+post_3 <- update_beta_binomial(post_2, c(0))
+cat("Posterior after 3rd flip (T):", post_3, "\n\n")
+
+
+# --- Part (D): Re-ordered Updates with Order (T, H, H) ---
+
+# Reset to the same initial prior: Beta(4, 4)
+prior_alt <- c(4, 4)
+
+# 1st flip: Tail (T) -> value 0
+alt_post_1 <- update_beta_binomial(prior_alt, c(0))
+cat("Posterior after 1st flip (T):", alt_post_1, "\n")
+
+# 2nd flip: Head (H) -> value 1
+alt_post_2 <- update_beta_binomial(alt_post_1, c(1))
+cat("Posterior after 2nd flip (H):", alt_post_2, "\n")
+
+# 3rd flip: Head (H) -> value 1
+alt_post_3 <- update_beta_binomial(alt_post_2, c(1))
+cat("Posterior after 3rd flip (H):", alt_post_3, "\n\n")
+
+
+# --- Comparison ---
+cat("Final posterior for (H, H, T):", post_3, "\n")
+cat("Final posterior for (T, H, H):", alt_post_3, "\n")
+cat("Are the final posteriors identical?", identical(post_3, alt_post_3), "\n")
+
+
+
+# --- 1. Sequential Updates for Order (H, H, T) ---
+prior_initial <- c(4, 4)
+post_1 <- update_beta_binomial(prior_initial, c(1)) # After 1st flip: H
+post_2 <- update_beta_binomial(post_1, c(1))       # After 2nd flip: H
+post_3 <- update_beta_binomial(post_2, c(0))       # After 3rd flip: T
+
+# --- 2. Prepare Data for ggplot ---
+# Create a grid of theta values between 0 and 1
+theta_grid <- seq(0, 1, length.out = 500)
+
+# Calculate Beta probability densities for each stage
+df_densities <- data.frame(
+  theta = theta_grid,
+  Prior  = dbeta(theta_grid, prior_initial[1], prior_initial[2]),
+  Post_1 = dbeta(theta_grid, post_1[1], post_1[2]),
+  Post_2 = dbeta(theta_grid, post_2[1], post_2[2]),
+  Post_3 = dbeta(theta_grid, post_3[1], post_3[2])
+) %>%
+  pivot_longer(cols = -theta, names_to = "Stage", values_to = "Density")
+
+# Set factor levels to maintain correct chronological order in the legend
+df_densities$Stage <- factor(df_densities$Stage, 
+                             levels = c("Prior", "Post_1", "Post_2", "Post_3"),
+                             labels = c("Prior: Beta(4,4)", 
+                                        "After 1st H: Beta(5,4)", 
+                                        "After 2nd H: Beta(6,4)", 
+                                        "After 3rd T: Beta(6,5)"))
+
+# --- 3. Plotting with ggplot2 ---
+ggplot(df_densities, aes(x = theta, y = Density, color = Stage, linetype = Stage)) +
+  geom_line(linewidth = 1.1) +  # Updated size to linewidth
+  labs(
+    title = "Sequential Bayesian Updating of Beta Distributions",
+    subtitle = "Data sequence: Head -> Head -> Tail",
+    x = expression(theta),
+    y = "Probability Density",
+    color = "Update Stage",
+    linetype = "Update Stage"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    plot.title = element_text(face = "bold", size = 12)
+  )
+
+
+
+# ==============================================================================
+# Exercise 6.2: Sequential Bayesian Updating & Custom HDI Shading with Clean Text Placement
+# ==============================================================================
+
+
+
+library(ggplot2)
+
+# 1. Custom function to calculate the Highest Density Interval (HDI) for Beta distribution
+beta_hdi <- function(alpha, beta, credMass = 0.95) {
+  
+  # Objective function: computes interval length (u - l) for a given lower bound (l)
+  obj_func <- function(l) {
+    p_l <- pbeta(l, alpha, beta)
+    
+    # Ensure the upper bound does not exceed 1.0
+    if (p_l + credMass > 1.0) {
+      return(Inf)
+    }
+    
+    u <- qbeta(p_l + credMass, alpha, beta)
+    return(u - l)
+  }
+  
+  # Set the maximum possible lower bound using qbeta for (1 - credMass)
+  max_lower <- qbeta(1 - credMass, alpha, beta)
+  
+  # Find the optimal lower bound using Golden Section Search (optimize)
+  res <- optimize(obj_func, interval = c(0, max_lower))
+  optimal_lower <- res$minimum
+  
+  # Determine the corresponding upper bound
+  optimal_upper <- qbeta(pbeta(optimal_lower, alpha, beta) + credMass, alpha, beta)
+  
+  return(c(lower = optimal_lower, upper = optimal_upper))
+}
+
+# ==============================================================================
+# 2. Sequential Updating Parameters based on Exercise 6.2
+# ==============================================================================
+
+# Stage 0: Uniform Prior -> Beta(1, 1)
+alpha_0 <- 1
+beta_0  <- 1
+
+# Stage 1: Poll 1 Data (58 successes out of 100 trials)
+z1 <- 58; n1 <- 100
+alpha_1 <- alpha_0 + z1                   # 59
+beta_1  <- beta_0 + (n1 - z1)             # 43
+
+# Stage 2: Poll 2 Data (57 successes out of 100 trials)
+z2 <- 57; n2 <- 100
+alpha_2 <- alpha_1 + z2                   # 116
+beta_2  <- beta_1 + (n2 - z2)             # 86
+
+# Calculate 95% HDIs for all stages
+hdi_prior <- beta_hdi(alpha_0, beta_0)
+hdi_post1 <- beta_hdi(alpha_1, beta_1)
+hdi_post2 <- beta_hdi(alpha_2, beta_2)
+
+# Print results to console
+cat("--- 95% HDI Results ---\n")
+cat(sprintf("Prior (Beta 1,1):       [%.4f, %.4f]\n", hdi_prior['lower'], hdi_prior['upper']))
+cat(sprintf("Posterior 1 (58/100):   [%.4f, %.4f]\n", hdi_post1['lower'], hdi_post1['upper']))
+cat(sprintf("Posterior 2 (57/100):   [%.4f, %.4f]\n", hdi_post2['lower'], hdi_post2['upper']))
+
+# ==============================================================================
+# 3. Visualization: Multi-stage Faceted Comparison with Clean Text Placement
+# ==============================================================================
+
+x_vals <- seq(0, 1, length.out = 1000)
+
+# Stage labels with parameters
+label_stage1 <- "1. Prior: Beta(1,1)"
+label_stage2 <- paste0("2. Posterior 1 (", alpha_1, "/", alpha_1 + beta_1 - alpha_0, ")")
+label_stage3 <- paste0("3. Posterior 2 (", alpha_2, "/", alpha_2 + beta_2 - alpha_1, ")")
+
+# Create a combined data frame for all three stages
+df_all <- rbind(
+  data.frame(Theta = x_vals, Density = dbeta(x_vals, alpha_0, beta_0), Stage = label_stage1),
+  data.frame(Theta = x_vals, Density = dbeta(x_vals, alpha_1, beta_1), Stage = label_stage2),
+  data.frame(Theta = x_vals, Density = dbeta(x_vals, alpha_2, beta_2), Stage = label_stage3)
+)
+
+# Subset data for HDI shading in each facet
+df_hdi_shaded <- rbind(
+  subset(df_all, Stage == label_stage1 & Theta >= hdi_prior['lower'] & Theta <= hdi_prior['upper']),
+  subset(df_all, Stage == label_stage2 & Theta >= hdi_post1['lower'] & Theta <= hdi_post1['upper']),
+  subset(df_all, Stage == label_stage3 & Theta >= hdi_post2['lower'] & Theta <= hdi_post2['upper'])
+)
+
+# Create a data frame for HDI vertical boundary lines per stage
+df_hdi_bounds <- data.frame(
+  Stage = c(rep(label_stage1, 2), rep(label_stage2, 2), rep(label_stage3, 2)),
+  Bound = c(hdi_prior['lower'], hdi_prior['upper'],
+            hdi_post1['lower'], hdi_post1['upper'],
+            hdi_post2['lower'], hdi_post2['upper'])
+)
+
+# Calculate max densities for placing text in the upper-right open space
+max_d_prior <- max(dbeta(x_vals, alpha_0, beta_0))
+max_d_post1 <- max(dbeta(x_vals, alpha_1, beta_1))
+max_d_post2 <- max(dbeta(x_vals, alpha_2, beta_2))
+
+# Create a data frame for text labels placed neatly in the upper-right area
+df_hdi_text <- data.frame(
+  Stage = c(label_stage1, label_stage2, label_stage3),
+  Theta = c(0.78, 0.78, 0.78), # Positioned toward the right side
+  Density = c(max_d_prior * 0.85, max_d_post1 * 0.85, max_d_post2 * 0.85), # Near the top
+  Label = c(
+    sprintf("95%% HDI\n[%.3f, %.3f]", hdi_prior['lower'], hdi_prior['upper']),
+    sprintf("95%% HDI\n[%.3f, %.3f]", hdi_post1['lower'], hdi_post1['upper']),
+    sprintf("95%% HDI\n[%.3f, %.3f]", hdi_post2['lower'], hdi_post2['upper'])
+  )
+)
+
+# Plot using ggplot2 with non-overlapping text placement
+ggplot(df_all, aes(x = Theta, y = Density)) +
+  geom_line(linewidth = 1.2, color = "steelblue") +
+  geom_area(data = df_hdi_shaded, aes(x = Theta, y = Density), fill = "skyblue", alpha = 0.5) +
+  geom_vline(data = df_hdi_bounds, aes(xintercept = Bound), linetype = "dashed", color = "darkred", linewidth = 0.8) +
+  geom_text(data = df_hdi_text, aes(x = Theta, y = Density, label = Label), 
+            color = "darkblue", fontface = "bold", size = 3.5, hjust = 0) +
+  facet_wrap(~ Stage, scales = "free_y") +
+  labs(
+    title = "Sequential Bayesian Updating with Clean HDI Labels",
+    subtitle = "Prior -> Posterior 1 (58/100) -> Posterior 2 (57/100)",
+    x = expression(theta),
+    y = "Probability Density"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 12),
+    strip.text = element_text(face = "bold", size = 10),
+    panel.spacing = unit(1, "lines")
+  )
+
+
+# ==============================================================================
+# Visualization of the U-Shaped Interval Length Function for HDI
+# ==============================================================================
+
+library(ggplot2)
+
+# Define shape parameters for Beta(59, 43) from Exercise 6.2 (Poll 1)
+alpha_shape <- 59
+beta_shape  <- 43
+cred_mass   <- 0.95
+
+# Generate a sequence of potential lower bounds (L)
+# The lower bound ranges from 0 up to the point where CDF is (1 - cred_mass)
+max_lower <- qbeta(1 - cred_mass, alpha_shape, beta_shape)
+lower_vals <- seq(0.001, max_lower - 0.0001, length.out = 500)
+lower_vals
+# Calculate upper bound (U) and interval length (U - L) for each L
+lengths <- sapply(lower_vals, function(l) {
+  u <- qbeta(pbeta(l, alpha_shape, beta_shape) + cred_mass, alpha_shape, beta_shape)
+  return(u - l)
+})
+
+# Create a data frame for plotting
+df_curve <- data.frame(Lower = lower_vals, Length = lengths)
+
+# Find the exact minimum length point (optimal lower bound)
+min_idx <- which.min(df_curve$Length)
+optimal_lower <- df_curve$Lower[min_idx]
+min_length    <- df_curve$Length[min_idx]
+
+# Plot the U-shaped convex curve using ggplot2
+ggplot(df_curve, aes(x = Lower, y = Length)) +
+  geom_line(linewidth = 1.2, color = "steelblue") +
+  geom_point(data = data.frame(Lower = optimal_lower, Length = min_length),
+             aes(x = Lower, y = Length), color = "red", size = 3) +
+  annotate("text", x = optimal_lower, y = min_length + 0.003, 
+           label = paste0("Optimal L* = ", round(optimal_lower, 4)),
+           color = "red", fontface = "bold") +
+  labs(
+    title = "U-Shaped Convex Curve of HDI Interval Length",
+    subtitle = "Lower Bound (L) vs. Interval Length (U - L) for Beta(59, 43)",
+    x = "Lower Bound (L)",
+    y = "Interval Length (U - L)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 12)
+  )
+
+
+
+# ==============================================================================
+# Exercise 6.3: Objective: Infer Binomial Probability & Evaluate Biases via 95% HDI
+# ==============================================================================
+
+
+
+library(ggplot2)
+
+# 1. Custom function to calculate the Highest Density Interval (HDI) for Beta distribution
+beta_hdi <- function(alpha, beta, credMass = 0.95) {
+  
+  # Objective function: computes interval length (u - l) for a given lower bound (l)
+  obj_func <- function(l) {
+    p_l <- pbeta(l, alpha, beta)
+    
+    # Ensure the upper bound does not exceed 1.0
+    if (p_l + credMass > 1.0) {
+      return(Inf)
+    }
+    
+    u <- qbeta(p_l + credMass, alpha, beta)
+    return(u - l)
+  }
+  
+  # Set the maximum possible lower bound using qbeta for (1 - credMass)
+  max_lower <- qbeta(1 - credMass, alpha, beta)
+  
+  # Find the optimal lower bound using Golden Section Search (optimize)
+  res <- optimize(obj_func, interval = c(0, max_lower))
+  optimal_lower <- res$minimum
+  
+  # Determine the corresponding upper bound
+  optimal_upper <- qbeta(pbeta(optimal_lower, alpha, beta) + credMass, alpha, beta)
+  
+  return(c(lower = optimal_lower, upper = optimal_upper))
+}
+
+# ==============================================================================
+# 2. Experimental Data & Beta Parameter Formulation (Uniform Prior: Beta(1,1))
+# ==============================================================================
+
+alpha_prior <- 1
+beta_prior  <- 1
+
+# Test 1: "radio" alone -> 40 chose F, 10 chose J out of 50[cite: 1]
+z1 <- 40; n1 <- 50
+alpha_t1 <- alpha_prior + z1              # 41
+beta_t1  <- beta_prior + (n1 - z1)        # 11
+
+# Test 2: "ocean" & "mountain" -> 15 chose F, 35 chose J out of 50[cite: 1]
+z2 <- 15; n2 <- 50
+alpha_t2 <- alpha_prior + z2              # 16
+beta_t2  <- beta_prior + (n2 - z2)        # 36
+
+# Calculate exact 95% HDIs
+hdi_t1 <- beta_hdi(alpha_t1, beta_t1)
+hdi_t2 <- beta_hdi(alpha_t2, beta_t2)
+
+# Calculate HDI widths (interval lengths)
+width_t1 <- hdi_t1['upper'] - hdi_t1['lower']
+width_t2 <- hdi_t2['upper'] - hdi_t2['lower']
+
+# ==============================================================================
+# 3. Visualization: Faceted Posterior Distributions with Bias Judgments
+# ==============================================================================
+
+x_vals <- seq(0, 1, length.out = 1000)
+
+label_t1 <- paste0("Test 1: 'radio' alone\nBeta(", alpha_t1, ", ", beta_t1, ")")
+label_t2 <- paste0("Test 2: 'ocean' + 'mountain'\nBeta(", alpha_t2, ", ", beta_t2, ")")
+
+# Data frame for density curves
+df_ex63 <- rbind(
+  data.frame(Theta = x_vals, Density = dbeta(x_vals, alpha_t1, beta_t1), Test = label_t1),
+  data.frame(Theta = x_vals, Density = dbeta(x_vals, alpha_t2, beta_t2), Test = label_t2)
+)
+
+# Subsets for HDI shading
+df_shaded <- rbind(
+  subset(df_ex63, Test == label_t1 & Theta >= hdi_t1['lower'] & Theta <= hdi_t1['upper']),
+  subset(df_ex63, Test == label_t2 & Theta >= hdi_t2['lower'] & Theta <= hdi_t2['upper'])
+)
+
+# Vertical dashed lines for HDI bounds
+df_bounds <- data.frame(
+  Test = c(rep(label_t1, 2), rep(label_t2, 2)),
+  Bound = c(hdi_t1['lower'], hdi_t1['upper'], hdi_t2['lower'], hdi_t2['upper'])
+)
+
+max_d_t1 <- max(dbeta(x_vals, alpha_t1, beta_t1))
+max_d_t2 <- max(dbeta(x_vals, alpha_t2, beta_t2))
+
+# Text labels including bias evaluation and 0.5 exclusion check
+df_text <- data.frame(
+  Test = c(label_t1, label_t2),
+  Theta = c(0.12, 0.88),
+  Density = c(max_d_t1 * 0.80, max_d_t2 * 0.80),
+  Label = c(
+    sprintf("95%% HDI: [%.3f, %.3f]\nWidth: %.3f\n-> Biased toward F (Excludes 0.5)", hdi_t1['lower'], hdi_t1['upper'], width_t1),
+    sprintf("95%% HDI: [%.3f, %.3f]\nWidth: %.3f\n-> Biased toward J (Excludes 0.5)", hdi_t2['lower'], hdi_t2['upper'], width_t2)
+  )
+)
+
+# Plot using ggplot2
+ggplot(df_ex63, aes(x = Theta, y = Density)) +
+  geom_line(linewidth = 1.2, color = "steelblue") +
+  geom_area(data = df_shaded, aes(x = Theta, y = Density), fill = "skyblue", alpha = 0.5) +
+  geom_vline(data = df_bounds, aes(xintercept = Bound), linetype = "dashed", color = "darkred", linewidth = 0.8) +
+  geom_vline(xintercept = 0.5, linetype = "dotted", color = "black", linewidth = 0.9) +
+  geom_text(data = df_text, aes(x = Theta, y = Density, label = Label), 
+            color = "darkblue", fontface = "bold", size = 3.2, hjust = 0.5) +
+  facet_wrap(~ Test, scales = "free_y") +
+  labs(
+    title = "Response Bias Evaluation via 95% HDI",
+    subtitle = "Dotted line at theta = 0.5 is excluded from both intervals, confirming significant bias",
+    x = expression(paste("Response Probability (", theta, " = P(F))")),
+    y = "Probability Density"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 12),
+    strip.text = element_text(face = "bold", size = 10),
+    panel.spacing = unit(1, "lines")
+  )
+
+
+
+# ==============================================================================
+# Exercise 6.4:  Prior: Beta(0.1, 0.1) | Data: 4 Heads out of 5 Flip
+# ==============================================================================
+
+
+
+library(ggplot2)
+
+# 1. Custom function to calculate the Highest Density Interval (HDI) for Beta distribution
+beta_hdi <- function(alpha, beta, credMass = 0.95) {
+  
+  # Objective function: computes interval length (u - l) for a given lower bound (l)
+  obj_func <- function(l) {
+    p_l <- pbeta(l, alpha, beta)
+    
+    # Ensure the upper bound does not exceed 1.0
+    if (p_l + credMass > 1.0) {
+      return(Inf)
+    }
+    
+    u <- qbeta(p_l + credMass, alpha, beta)
+    return(u - l)
+  }
+  
+  # Set the maximum possible lower bound using qbeta for (1 - credMass)
+  max_lower <- qbeta(1 - credMass, alpha, beta)
+  
+  # Find the optimal lower bound using Golden Section Search (optimize)
+  res <- optimize(obj_func, interval = c(0, max_lower))
+  optimal_lower <- res$minimum
+  
+  # Determine the corresponding upper bound
+  optimal_upper <- qbeta(pbeta(optimal_lower, alpha, beta) + credMass, alpha, beta)
+  
+  return(c(lower = optimal_lower, upper = optimal_upper))
+}
+
+# ==============================================================================
+# 2. Parameter Formulation for Exercise 6.4
+# ==============================================================================
+
+# Prior: U-shaped Beta(0.1, 0.1) representing strong belief in extreme bias[cite: 2]
+alpha_prior <- 0.1
+beta_prior  <- 0.1
+
+# Data: 5 flips, 4 heads (z = 4, n = 5)[cite: 2]
+z <- 4
+n <- 5
+
+# Posterior calculation: Beta(0.1 + 4, 0.1 + 1) = Beta(4.1, 1.1)[cite: 2]
+alpha_post <- alpha_prior + z             # 4.1
+beta_post  <- beta_prior + (n - z)        # 1.1
+
+# Calculate 95% HDIs for Prior and Posterior
+hdi_prior <- beta_hdi(alpha_prior, beta_prior)
+hdi_post  <- beta_hdi(alpha_post, beta_post)
+
+# Print metrics to console
+cat("========================================================\n")
+cat("          Exercise 6.4: Beta Posterior Analysis         \n")
+cat("========================================================\n")
+cat(sprintf("Prior Distribution:     Beta(%.1f, %.1f)\n", alpha_prior, beta_prior))
+cat(sprintf("  - 95%% HDI:    [%.4f, %.4f]\n\n", hdi_prior['lower'], hdi_prior['upper']))
+
+cat(sprintf("Posterior Distribution: Beta(%.1f, %.1f)\n", alpha_post, beta_post))
+cat(sprintf("  - 95%% HDI:    [%.4f, %.4f]\n", hdi_post['lower'], hdi_post['upper']))
+cat(sprintf("  - HDI Width:   %.4f\n", hdi_post['upper'] - hdi_post['lower']))
+cat("========================================================\n")
+
+# ==============================================================================
+# 3. Visualization: Prior vs. Posterior Distributions
+# ==============================================================================
+
+x_vals <- seq(0.001, 0.999, length.out = 1000)
+
+label_prior <- paste0("1. Prior: Beta(", alpha_prior, ", ", beta_prior, ")\nStrong Extreme Bias")
+label_post  <- paste0("2. Posterior: Beta(", alpha_post, ", ", beta_post, ")\nUpdated after 4H/5T")
+
+# Data frame for density curves
+df_ex64 <- rbind(
+  data.frame(Theta = x_vals, Density = dbeta(x_vals, alpha_prior, beta_prior), Stage = label_prior),
+  data.frame(Theta = x_vals, Density = dbeta(x_vals, alpha_post, beta_post), Stage = label_post)
+)
+
+# Subset for Posterior HDI shading
+df_shaded_post <- subset(df_ex64, Stage == label_post & Theta >= hdi_post['lower'] & Theta <= hdi_post['upper'])
+df_bounds_post
+# Vertical lines for Posterior HDI bounds
+df_bounds_post <- data.frame(
+  Stage = rep(label_post, 2),
+  Bound = c(hdi_post['lower'], hdi_post['upper'])
+)
+
+max_d_post <- max(dbeta(x_vals, alpha_post, beta_post))
+
+# Text annotation inside the posterior plot
+df_text_post <- data.frame(
+  Stage = label_post,
+  Theta = 0.25,
+  Density = max_d_post * 0.85,
+  Label = sprintf("95%% HDI: [%.3f, %.3f]\nWidth: %.3f", 
+                  hdi_post['lower'], hdi_post['upper'], hdi_post['upper'] - hdi_post['lower'])
+)
+
+# Plot using ggplot2
+ggplot(df_ex64, aes(x = Theta, y = Density)) +
+  geom_line(linewidth = 1.2, color = "steelblue") +
+  geom_area(data = df_shaded_post, aes(x = Theta, y = Density), fill = "skyblue", alpha = 0.5) +
+  geom_vline(data = df_bounds_post, aes(xintercept = Bound), linetype = "dashed", color = "darkred", linewidth = 0.8) +
+  geom_text(data = df_text_post, aes(x = Theta, y = Density, label = Label), 
+            color = "darkblue", fontface = "bold", size = 3.5, hjust = 0) +
+  facet_wrap(~ Stage, scales = "free_y") +
+  labs(
+    title = "Updating a U-shaped Extreme Prior with 5 Coin Flips",
+    subtitle = "Prior Beta(0.1, 0.1) -> Posterior Beta(4.1, 1.1) after 4 Heads out of 5",
+    x = expression(paste("Coin Bias Parameter (", theta, " = P(Heads))")),
+    y = "Probability Density"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 12),
+    strip.text = element_text(face = "bold", size = 10),
+    panel.spacing = unit(1, "lines")
+  )
+
+
+
+# ==============================================================================
+# Exercise 6.5: Predicting the Next Datum under Different Priors
+# ==============================================================================
+
+
+
+library(ggplot2)
+
+# 1. Custom function to calculate Highest Density Interval (HDI)
+beta_hdi <- function(alpha, beta, credMass = 0.95) {
+  obj_func <- function(l) {
+    p_l <- pbeta(l, alpha, beta)
+    if (p_l + credMass > 1.0) return(Inf)
+    u <- qbeta(p_l + credMass, alpha, beta)
+    return(u - l)
+  }
+  max_lower <- qbeta(1 - credMass, alpha, beta)
+  res <- optimize(obj_func, interval = c(0, max_lower))
+  optimal_lower <- res$minimum
+  optimal_upper <- qbeta(pbeta(optimal_lower, alpha, beta) + credMass, alpha, beta)
+  return(c(lower = optimal_lower, upper = optimal_upper))
+}
+
+# ==============================================================================
+# 2. Case (A): Government Coin with Strong Fair Prior - Beta(100, 100)
+# ==============================================================================
+
+alpha_prior_A <- 100
+beta_prior_A  <- 100
+
+z <- 9; n <- 10
+
+alpha_post_A <- alpha_prior_A + z              # 109
+beta_post_A  <- beta_prior_A + (n - z)         # 101
+
+# Posterior predictive probability for 11th flip
+pred_prob_A <- alpha_post_A / (alpha_post_A + beta_post_A)
+hdi_A <- beta_hdi(alpha_post_A, beta_post_A)
+
+# ==============================================================================
+# 3. Case (B): Magic Store Coin with Extreme Prior - Beta(0.1, 0.1)
+# ==============================================================================
+
+alpha_prior_B <- 0.1
+beta_prior_B  <- 0.1
+
+alpha_post_B <- alpha_prior_B + z              # 9.1
+beta_post_B  <- beta_prior_B + (n - z)         # 1.1
+
+# Posterior predictive probability for 11th flip
+pred_prob_B <- alpha_post_B / (alpha_post_B + beta_post_B)
+hdi_B <- beta_hdi(alpha_post_B, beta_post_B)
+
+# Print Summary
+cat("========================================================\n")
+cat("          Exercise 6.5 Analysis & Predictions           \n")
+cat("========================================================\n")
+cat(sprintf("Case (A) Government Coin [Fair Prior Beta(100,100)]:\n"))
+cat(sprintf("  - Posterior Distribution: Beta(%d, %d)\n", alpha_post_A, beta_post_A))
+cat(sprintf("  - 95%% HDI:                [%.4f, %.4f]\n", hdi_A['lower'], hdi_A['upper']))
+cat(sprintf("  - Predicted P(11th = H):   %.4f (%.1f%%)\n\n", pred_prob_A, pred_prob_A * 100))
+
+cat(sprintf("Case (B) Magic Store Coin [Extreme Prior Beta(0.1,0.1)]:\n"))
+cat(sprintf("  - Posterior Distribution: Beta(%.1f, %.1f)\n", alpha_post_B, beta_post_B))
+cat(sprintf("  - 95%% HDI:                [%.4f, %.4f]\n", hdi_B['lower'], hdi_B['upper']))
+cat(sprintf("  - Predicted P(11th = H):   %.4f (%.1f%%)\n", pred_prob_B, pred_prob_B * 100))
+cat("========================================================\n")
+
+# ==============================================================================
+# 4. Visualization: Comparison of Posteriors and Predictions
+# ==============================================================================
+
+x_vals <- seq(0.001, 0.999, length.out = 1000)
+
+label_A <- sprintf("Case (A): Government Coin\nBeta(%d, %d)\nPred P(H) = %.3f", 
+                   alpha_post_A, beta_post_A, pred_prob_A)
+label_B <- sprintf("Case (B): Magic Store Coin\nBeta(%.1f, %.1f)\nPred P(H) = %.3f", 
+                   alpha_post_B, beta_post_B, pred_prob_B)
+
+df_ex65 <- rbind(
+  data.frame(Theta = x_vals, Density = dbeta(x_vals, alpha_post_A, beta_post_A), Case = label_A),
+  data.frame(Theta = x_vals, Density = dbeta(x_vals, alpha_post_B, beta_post_B), Case = label_B)
+)
+
+df_shaded <- rbind(
+  subset(df_ex65, Case == label_A & Theta >= hdi_A['lower'] & Theta <= hdi_A['upper']),
+  subset(df_ex65, Case == label_B & Theta >= hdi_B['lower'] & Theta <= hdi_B['upper'])
+)
+
+df_bounds <- data.frame(
+  Case = c(rep(label_A, 2), rep(label_B, 2)),
+  Bound = c(hdi_A['lower'], hdi_A['upper'], hdi_B['lower'], hdi_B['upper'])
+)
+
+df_preds <- data.frame(
+  Case = c(label_A, label_B),
+  Pred = c(pred_prob_A, pred_prob_B)
+)
+
+# Text placement for open spaces
+max_dA <- max(dbeta(x_vals, alpha_post_A, beta_post_A))
+max_dB <- max(dbeta(x_vals, alpha_post_B, beta_post_B))
+
+df_text <- data.frame(
+  Case = c(label_A, label_B),
+  Theta = c(0.15, 0.15),
+  Density = c(max_dA * 0.85, max_dB * 0.85),
+  Label = c(
+    sprintf("95%% HDI: [%.3f, %.3f]\nPred P(11th=H): %.1f%%", hdi_A['lower'], hdi_A['upper'], pred_prob_A * 100),
+    sprintf("95%% HDI: [%.3f, %.3f]\nPred P(11th=H): %.1f%%", hdi_B['lower'], hdi_B['upper'], pred_prob_B * 100)
+  )
+)
+
+# Plot using ggplot2
+ggplot(df_ex65, aes(x = Theta, y = Density)) +
+  geom_line(linewidth = 1.2, color = "steelblue") +
+  geom_area(data = df_shaded, aes(x = Theta, y = Density), fill = "skyblue", alpha = 0.5) +
+  geom_vline(data = df_bounds, aes(xintercept = Bound), linetype = "dashed", color = "darkred", linewidth = 0.8) +
+  geom_vline(data = df_preds, aes(xintercept = Pred), linetype = "solid", color = "darkgreen", linewidth = 0.9) +
+  geom_text(data = df_text, aes(x = Theta, y = Density, label = Label), 
+            color = "darkblue", fontface = "bold", size = 3.5, hjust = 0) +
+  facet_wrap(~ Case, scales = "free_y") +
+  labs(
+    title = "Posterior Distributions & 11th Flip Predictions",
+    subtitle = "Solid green line = Predicted Probability for 11th flip | Dashed red lines = 95% HDI",
+    x = expression(paste("Coin Bias Parameter (", theta, " = P(Heads))")),
+    y = "Probability Density"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 12),
+    strip.text = element_text(face = "bold", size = 10),
+    panel.spacing = unit(1, "lines")
+  )
