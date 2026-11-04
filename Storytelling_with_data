@@ -5365,3 +5365,509 @@ ggdraw(p) +
   # Draw a single clean solid grey horizontal line using ggdraw::draw_line
   draw_line(x = c(0.04, 0.99), y = c(0.93, 0.93), color = "#cccccc", linewidth = 1)
 
+
+
+#-------------------------------------------------------------------------------
+## Pulling it all together - Original visual
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+
+# 1. Prepare dummy data matching the chart structure
+df_chart <- expand.grid(
+  Product = c("Product A", "Product B", "Product C", "Product D", "Product E"),
+  Year = 2008:2014
+)
+
+# Assign approximate average retail prices based on the image visual reference
+df_chart <- df_chart %>%
+  mutate(Price = case_when(
+    Product == "Product A" & Year == 2008 ~ 395,
+    Product == "Product A" & Year == 2009 ~ 420,
+    Product == "Product A" & Year == 2010 ~ 425,
+    Product == "Product A" & Year == 2011 ~ 390,
+    Product == "Product A" & Year == 2012 ~ 300,
+    Product == "Product A" & Year == 2013 ~ 270,
+    Product == "Product A" & Year == 2014 ~ 260,
+    
+    Product == "Product B" & Year == 2008 ~ 360,
+    Product == "Product B" & Year == 2009 ~ 400,
+    Product == "Product B" & Year == 2010 ~ 410,
+    Product == "Product B" & Year == 2011 ~ 375,
+    Product == "Product B" & Year == 2012 ~ 290,
+    Product == "Product B" & Year == 2013 ~ 260,
+    Product == "Product B" & Year == 2014 ~ 250,
+    
+    Product == "Product C" & Year == 2010 ~ 100,
+    Product == "Product C" & Year == 2011 ~ 180,
+    Product == "Product C" & Year == 2012 ~ 200,
+    Product == "Product C" & Year == 2013 ~ 240,
+    Product == "Product C" & Year == 2014 ~ 180,
+    
+    Product == "Product D" & Year == 2011 ~ 160,
+    Product == "Product D" & Year == 2012 ~ 260,
+    Product == "Product D" & Year == 2013 ~ 220,
+    Product == "Product D" & Year == 2014 ~ 215,
+    
+    Product == "Product E" & Year == 2013 ~ 100,
+    Product == "Product E" & Year == 2014 ~ 210,
+    
+    TRUE ~ NA_real_
+  ))
+
+# Ensure Year is treated as a factor for discrete grouping
+df_chart$Year <- as.factor(df_chart$Year)
+
+# 2. Define custom color palette matching the legend in the image
+year_colors <- c(
+  "2008" = "#2b70b7", # Blue
+  "2009" = "#cc3333", # Red
+  "2010" = "#77b338", # Green
+  "2011" = "#7b4b94", # Purple
+  "2012" = "#2098b8", # Teal
+  "2013" = "#ea7b21", # Orange
+  "2014" = "#7daad9"  # Light Blue
+)
+
+# 3. Create the main ggplot object (without default legend)
+p_main <- ggplot(df_chart, aes(x = Product, y = Price, fill = Year)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7, na.rm = TRUE) +
+  scale_y_continuous(
+    limits = c(0, 500),
+    breaks = seq(0, 500, by = 100),
+    labels = function(x) paste0("$", x)
+  ) +
+  scale_fill_manual(values = year_colors) +
+  labs(
+    title = "Average Retail Product Price Per Year",
+    x = NULL,
+    y = NULL
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 15, margin = margin(t = 15, b = 10)),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(color = "grey80", linewidth = 0.5),
+    axis.ticks.x = element_blank(),
+    legend.position = "none" # Remove default legend
+  )
+
+# 4. Create the top banner using a lightweight ggplot object
+banner_plot <- ggplot() +
+  theme_void() +
+  geom_rect(aes(xmin = 0, xmax = 1, ymin = 0, ymax = 1), fill = "#d2e7f5") +
+  annotate(
+    "text", x = 0.5, y = 0.5, 
+    label = "Price has declined for all products on the market\n since the launch of Product C in 2010",
+    fontface = "bold", color = "#1b4f72", size = 3.6
+  ) +
+  theme(plot.margin = margin(0, 0, 0, 0))
+
+# 5. Create a truly full-width distributed custom legend strip
+# Mapping 7 legend items evenly across coordinates 1 to 5 (matching 5 products width)
+df_leg <- data.frame(
+  Year = factor(2008:2014, levels = 2008:2014),
+  x_pos = seq(1, 5, length.out = 7)
+)
+
+p_legend <- ggplot(df_leg, aes(x = x_pos, y = 1)) +
+  geom_point(aes(color = Year), size = 3.5, shape = 15) +
+  geom_text(aes(label = Year), nudge_x = 0.15, size = 3.2, fontface = "bold", hjust = 0, color = "grey30") +
+  scale_color_manual(values = year_colors) +
+  # Match x-axis limits precisely with the 5 products (0.6 to 5.4) to span the full width
+  scale_x_continuous(limits = c(0.6, 5.4), expand = c(0, 0)) +
+  scale_y_continuous(limits = c(0.5, 1.5)) +
+  theme_void() +
+  theme(
+    legend.position = "none",
+    plot.margin = margin(t = 2, b = 10, l = 45, r = 45) # Match left/right alignment with main plot panel
+  )
+
+# 6. Combine all components using cowplot::plot_grid with aligned axes
+final_plot <- cowplot::plot_grid(
+  banner_plot, 
+  p_main, 
+  p_legend,
+  ncol = 1, 
+  rel_heights = c(0.08, 0.83, 0.09),
+  align = "v",
+  axis = "lr"
+)
+
+# Print final composed plot
+windows()
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Pulling it all together - Remove the variance in color
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+
+# 1. Prepare dummy data matching the chart structure
+df_chart <- expand.grid(
+  Product = c("Product A", "Product B", "Product C", "Product D", "Product E"),
+  Year = 2008:2014
+)
+
+# Assign approximate average retail prices based on the image visual reference
+df_chart <- df_chart %>%
+  mutate(Price = case_when(
+    Product == "Product A" & Year == 2008 ~ 395,
+    Product == "Product A" & Year == 2009 ~ 420,
+    Product == "Product A" & Year == 2010 ~ 425,
+    Product == "Product A" & Year == 2011 ~ 390,
+    Product == "Product A" & Year == 2012 ~ 300,
+    Product == "Product A" & Year == 2013 ~ 270,
+    Product == "Product A" & Year == 2014 ~ 260,
+    
+    Product == "Product B" & Year == 2008 ~ 360,
+    Product == "Product B" & Year == 2009 ~ 400,
+    Product == "Product B" & Year == 2010 ~ 410,
+    Product == "Product B" & Year == 2011 ~ 375,
+    Product == "Product B" & Year == 2012 ~ 290,
+    Product == "Product B" & Year == 2013 ~ 260,
+    Product == "Product B" & Year == 2014 ~ 250,
+    
+    Product == "Product C" & Year == 2010 ~ 100,
+    Product == "Product C" & Year == 2011 ~ 180,
+    Product == "Product C" & Year == 2012 ~ 200,
+    Product == "Product C" & Year == 2013 ~ 240,
+    Product == "Product C" & Year == 2014 ~ 180,
+    
+    Product == "Product D" & Year == 2011 ~ 160,
+    Product == "Product D" & Year == 2012 ~ 260,
+    Product == "Product D" & Year == 2013 ~ 220,
+    Product == "Product D" & Year == 2014 ~ 215,
+    
+    Product == "Product E" & Year == 2013 ~ 100,
+    Product == "Product E" & Year == 2014 ~ 210,
+    
+    TRUE ~ NA_real_
+  ))
+
+# Ensure Year is treated as a factor for discrete grouping
+df_chart$Year <- as.factor(df_chart$Year)
+
+# 2. Define uniform gray color for all years
+gray_shades <- c(
+  "2008" = "gray75", 
+  "2009" = "gray75", 
+  "2010" = "gray75", 
+  "2011" = "gray75", 
+  "2012" = "gray75", 
+  "2013" = "gray75", 
+  "2014" = "gray75"  
+)
+
+# 3. Create the main ggplot object
+p_main <- ggplot(df_chart, aes(x = Product, y = Price, fill = Year)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.8, colour = NA, na.rm = TRUE) +
+  scale_y_continuous(
+    limits = c(0, 500),
+    breaks = seq(0, 500, by = 100),
+    labels = function(x) paste0("$", x)
+  ) +
+  scale_fill_manual(values = gray_shades) +
+  labs(
+    title = "Average Retail Product Price Per Year",
+    x = NULL,
+    y = NULL
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 15, margin = margin(t = 15, b = 15)),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(color = "grey80", linewidth = 0.5),
+    axis.ticks.x = element_blank(),
+    legend.position = "none" # Remove default legend
+  )
+
+# 4. Create a truly full-width distributed custom legend strip (Using user's original structure)
+df_leg <- data.frame(
+  Year = factor(2008:2014, levels = 2008:2014),
+  x_pos = seq(1, 5, length.out = 7)
+)
+
+p_legend <- ggplot(df_leg, aes(x = x_pos, y = 1)) +
+  geom_point(aes(color = Year), size = 3.5, shape = 15) +
+  geom_text(aes(label = Year), nudge_x = 0.15, size = 3.2, fontface = "bold", hjust = 0, color = "grey30") +
+  scale_color_manual(values = gray_shades) +
+  scale_x_continuous(limits = c(0.6, 5.4), expand = c(0, 0)) +
+  scale_y_continuous(limits = c(0.5, 1.5)) +
+  theme_void() +
+  theme(
+    legend.position = "none",
+    plot.margin = margin(t = 2, b = 10, l = 45, r = 45)
+  )
+
+# 5. Combine main chart and full-width legend
+final_plot <- cowplot::plot_grid(
+  p_main, 
+  p_legend,
+  ncol = 1, 
+  rel_heights = c(0.90, 0.10),
+  align = "v",
+  axis = "lr"
+)
+
+# Print final composed plot
+windows()
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Pulling it all together - Emphasize 2010 forward
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+
+# 1. Prepare dummy data matching the chart structure
+df_chart <- expand.grid(
+  Product = c("Product A", "Product B", "Product C", "Product D", "Product E"),
+  Year = 2008:2014
+)
+
+# Assign approximate average retail prices based on the image visual reference
+df_chart <- df_chart %>%
+  mutate(Price = case_when(
+    Product == "Product A" & Year == 2008 ~ 395,
+    Product == "Product A" & Year == 2009 ~ 420,
+    Product == "Product A" & Year == 2010 ~ 425,
+    Product == "Product A" & Year == 2011 ~ 390,
+    Product == "Product A" & Year == 2012 ~ 300,
+    Product == "Product A" & Year == 2013 ~ 270,
+    Product == "Product A" & Year == 2014 ~ 260,
+    
+    Product == "Product B" & Year == 2008 ~ 360,
+    Product == "Product B" & Year == 2009 ~ 400,
+    Product == "Product B" & Year == 2010 ~ 410,
+    Product == "Product B" & Year == 2011 ~ 375,
+    Product == "Product B" & Year == 2012 ~ 290,
+    Product == "Product B" & Year == 2013 ~ 260,
+    Product == "Product B" & Year == 2014 ~ 250,
+    
+    Product == "Product C" & Year == 2010 ~ 100,
+    Product == "Product C" & Year == 2011 ~ 180,
+    Product == "Product C" & Year == 2012 ~ 200,
+    Product == "Product C" & Year == 2013 ~ 240,
+    Product == "Product C" & Year == 2014 ~ 180,
+    
+    Product == "Product D" & Year == 2011 ~ 160,
+    Product == "Product D" & Year == 2012 ~ 260,
+    Product == "Product D" & Year == 2013 ~ 220,
+    Product == "Product D" & Year == 2014 ~ 215,
+    
+    Product == "Product E" & Year == 2013 ~ 100,
+    Product == "Product E" & Year == 2014 ~ 210,
+    
+    TRUE ~ NA_real_
+  ))
+
+# Ensure Year is treated as a factor for discrete grouping
+df_chart$Year <- as.factor(df_chart$Year)
+
+# 2. Define colors: 2008-2009 as gray, 2010-2014 as black
+year_colors <- c(
+  "2008" = "gray75",
+  "2009" = "gray75",
+  "2010" = "black",
+  "2011" = "black",
+  "2012" = "black",
+  "2013" = "black",
+  "2014" = "black"
+)
+
+# 3. Create the main ggplot object
+p_main <- ggplot(df_chart, aes(x = Product, y = Price, fill = Year)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.8, colour = NA, na.rm = TRUE) +
+  scale_y_continuous(
+    limits = c(0, 500),
+    breaks = seq(0, 500, by = 100),
+    labels = function(x) paste0("$", x)
+  ) +
+  scale_fill_manual(values = year_colors) +
+  labs(
+    title = "Average Retail Product Price per Year",
+    x = NULL,
+    y = NULL
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 15, margin = margin(t = 15, b = 15)),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(color = "grey80", linewidth = 0.5),
+    axis.ticks.x = element_blank(),
+    legend.position = "none" # Remove default legend
+  )
+
+# 4. Create a truly full-width distributed custom legend strip
+df_leg <- data.frame(
+  Year = factor(2008:2014, levels = 2008:2014),
+  x_pos = seq(1, 5, length.out = 7)
+)
+
+p_legend <- ggplot(df_leg, aes(x = x_pos, y = 1)) +
+  geom_point(aes(color = Year), size = 3.5, shape = 15) +
+  geom_text(aes(label = Year), nudge_x = 0.15, size = 3.2, fontface = "bold", hjust = 0, color = "grey30") +
+  scale_color_manual(values = year_colors) +
+  scale_x_continuous(limits = c(0.6, 5.4), expand = c(0, 0)) +
+  scale_y_continuous(limits = c(0.5, 1.5)) +
+  theme_void() +
+  theme(
+    legend.position = "none",
+    plot.margin = margin(t = 2, b = 10, l = 45, r = 45)
+  )
+
+# 5. Combine main chart and full-width legend
+final_plot <- cowplot::plot_grid(
+  p_main, 
+  p_legend,
+  ncol = 1, 
+  rel_heights = c(0.90, 0.10),
+  align = "v",
+  axis = "lr"
+)
+
+# Print final composed plot
+windows()
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Pulling it all together - Change to line graph
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+
+# 1. Prepare dummy data matching the chart structure
+df_chart <- expand.grid(
+  Product = c("Product A", "Product B", "Product C", "Product D", "Product E"),
+  Year = 2008:2014
+)
+
+# Assign approximate average retail prices based on the visual reference
+df_chart <- df_chart %>%
+  mutate(Price = case_when(
+    Product == "Product A" & Year == 2008 ~ 395,
+    Product == "Product A" & Year == 2009 ~ 420,
+    Product == "Product A" & Year == 2010 ~ 425,
+    Product == "Product A" & Year == 2011 ~ 390,
+    Product == "Product A" & Year == 2012 ~ 300,
+    Product == "Product A" & Year == 2013 ~ 270,
+    Product == "Product A" & Year == 2014 ~ 260,
+    
+    Product == "Product B" & Year == 2008 ~ 360,
+    Product == "Product B" & Year == 2009 ~ 400,
+    Product == "Product B" & Year == 2010 ~ 410,
+    Product == "Product B" & Year == 2011 ~ 375,
+    Product == "Product B" & Year == 2012 ~ 290,
+    Product == "Product B" & Year == 2013 ~ 260,
+    Product == "Product B" & Year == 2014 ~ 250,
+    
+    Product == "Product C" & Year == 2010 ~ 100,
+    Product == "Product C" & Year == 2011 ~ 180,
+    Product == "Product C" & Year == 2012 ~ 200,
+    Product == "Product C" & Year == 2013 ~ 240,
+    Product == "Product C" & Year == 2014 ~ 180,
+    
+    Product == "Product D" & Year == 2011 ~ 160,
+    Product == "Product D" & Year == 2012 ~ 260,
+    Product == "Product D" & Year == 2013 ~ 220,
+    Product == "Product D" & Year == 2014 ~ 215,
+    
+    Product == "Product E" & Year == 2013 ~ 100,
+    Product == "Product E" & Year == 2014 ~ 210,
+    
+    TRUE ~ NA_real_
+  ))
+
+# Filter out missing values for line plotting
+df_clean <- df_chart %>% filter(!is.na(Price))
+
+# 2. Assign continuous x positions with balanced spacing for each product group
+product_offsets <- c("Product A" = 1, "Product B" = 10, "Product C" = 19, "Product D" = 27, "Product E" = 33)
+df_clean <- df_clean %>%
+  mutate(x_pos = product_offsets[as.character(Product)] + (Year - 2008))
+
+# 3. Automatically align product labels precisely under each product's starting year (min x_pos)
+product_labels <- df_clean %>%
+  group_by(Product) %>%
+  summarise(x_pos = min(x_pos))
+
+# 4. Define start/end year annotations with customized downward nudge for 2010 and 2013
+annotations <- df_clean %>%
+  group_by(Product) %>%
+  filter(Year == min(Year) | Year == max(Year)) %>%
+  ungroup() %>%
+  mutate(
+    nudge_y_val = case_when(
+      Year %in% c(2010, 2011,2013) ~ -25, # Push 2010 and 2013 further down
+      Year == min(Year) ~ -20,       # Other start years
+      TRUE ~ 0                       # End years (2014)
+    ),
+    nudge_x_val = if_else(Year == max(Year),  0.6, 0),
+    vjust_val = 0.5,
+    hjust_val = if_else(Year == max(Year), 0, 0.5)
+  )
+
+# 5. Create the line chart
+p_line <- ggplot(df_clean, aes(x = x_pos, y = Price, group = Product)) +
+  geom_line(color = "grey50", linewidth = 1.3) +
+  geom_text(
+    aes(label = Year, nudge_x = nudge_x_val, nudge_y = nudge_y_val, vjust = vjust_val, hjust = hjust_val), 
+    data = annotations, 
+    size = 3.5, 
+    color = "grey40", 
+    fontface = "bold"
+  ) +
+  scale_y_continuous(
+    limits = c(0, 500),
+    breaks = seq(0, 500, by = 100),
+    labels = function(x) paste0("$", x)
+  ) +
+  scale_x_continuous(
+    breaks = product_labels$x_pos,
+    labels = product_labels$Product,
+    limits = c(-2, 42) 
+  ) +
+  labs(
+    title = "Average Retail Product Price per Year",
+    x = NULL,
+    y = NULL
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 15, margin = margin(t = 15, b = 25)),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(color = "grey80", linewidth = 0.5),
+    axis.ticks.x = element_blank(),
+    axis.text.x = element_text(size = 11, face = "bold", color = "grey20", margin = margin(t = 10))
+  )
+
+# Print final plot
+windows()
+print(p_line)
