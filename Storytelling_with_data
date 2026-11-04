@@ -4758,3 +4758,610 @@ final_output <- ggdraw(combined_charts, clip = FALSE) +
 # Display final comparison plot in a new window
 windows(width = 12, height = 8)
 print(final_output)
+
+
+
+#-------------------------------------------------------------------------------
+## #Model visual - line graph
+#------------------------------------------------------------------------------=
+
+
+# Load required libraries
+library(ggplot2)
+library(scales)
+
+# Set up sample data matching the chart progression
+days <- 0:30
+
+# Cumulative raised amounts for Last year (30 days)
+last_year <- c(
+  0, 4000, 6500, 8800, 10800, 11500, 13800, 14200, 16000, 18000,
+  19700, 20200, 24800, 27000, 28200, 29800, 32900, 34000, 34600, 36500,
+  39400, 43200, 43800, 44600, 45900, 46700, 47200, 48300, 49800, 50100, 51400
+)
+
+# Cumulative raised amounts for Progress to date (up to Day 10)
+progress_to_date <- c(0, 4800, 8000, 13000, 15800, 23600, 25800, 27600, 28600, 31800, 33967)
+
+# Create data frames for plotting
+df_last_year <- data.frame(Day = days, Amount = last_year)
+df_progress <- data.frame(Day = 0:10, Amount = progress_to_date)
+
+# Base ggplot construction
+p <- ggplot() +
+  # Goal reference line at $50,000 (dashed style)
+  geom_hline(yintercept = 50000, color = "#8A929A", linewidth = 0.6, linetype = "dashed") +
+  
+  # Last year line
+  geom_line(data = df_last_year, aes(x = Day, y = Amount), color = "#8BACD1", linewidth = 1) +
+  # Last year endpoint dot
+  geom_point(data = tail(df_last_year, 1), aes(x = Day, y = Amount), color = "#8BACD1", size = 2.5) +
+  
+  # Progress to date line
+  geom_line(data = df_progress, aes(x = Day, y = Amount), color = "#2B73B6", linewidth = 1.8) +
+  # Progress to date endpoint dot
+  geom_point(data = tail(df_progress, 1), aes(x = Day, y = Amount), color = "#2B73B6", size = 4) +
+  
+  # Text annotations
+  annotate("text", x = 1, y = 50000, label = "GOAL", color = "#4A4A4A", size = 3.8, hjust = 0, vjust = 0.4) +
+  annotate("text", x = 10, y = 37500, label = "Progress to date", color = "#2B73B6", size = 4.2, fontface = "plain", hjust = 0.5) +
+  annotate("text", x = 10.8, y = 33967, label = "$33,967", color = "#2B73B6", size = 4.8, fontface = "bold", hjust = 0) +
+  annotate("text", x = 33.5, y = 53800, label = "Last year", color = "#8BACD1", size = 3.8, hjust = 1) +
+  annotate("text", x = 30.6, y = 51400, label = "$51,400", color = "#8BACD1", size = 3.8, hjust = 0) +
+  
+  # Axis scales and formatting
+  scale_x_continuous(breaks = seq(0, 30, 5), limits = c(0, 34), expand = c(0, 0)) +
+  scale_y_continuous(
+    labels = dollar_format(prefix = "$", big.mark = ","),
+    breaks = seq(0, 60000, 10000),
+    limits = c(0, 65000),
+    expand = c(0, 0)
+  ) +
+  
+  # Labels and titles
+  labs(
+    title = "Annual giving campaign progress",
+    x = "Days since campaign launch",
+    y = "Money raised"
+  ) +
+  
+  # Minimalist classic theme styling with vertical Y-axis title
+  theme_classic() +
+  theme(
+    plot.title = element_text(size = 18, color = "#555555", margin = margin(b = 15)),
+    # X-axis title left-aligned at the bottom-left
+    axis.title.x = element_text(size = 11, color = "#555555", hjust = 0, margin = margin(t = 10)),
+    # Y-axis title set to vertical orientation (angle = 90) and positioned horizontally at top-left
+    axis.title.y = element_text(size = 11, color = "#555555", angle = 90, hjust = 1, vjust = 0, margin = margin(r = 10)),
+    axis.text = element_text(size = 10, color = "#666666"),
+    axis.line = element_line(color = "#B0B0B0", linewidth = 0.5),
+    axis.ticks = element_line(color = "#B0B0B0", linewidth = 0.5),
+    plot.margin = margin(t = 20, r = 40, b = 20, l = 20)
+  )
+
+# Display chart
+windows()
+print(p)
+
+
+
+#-------------------------------------------------------------------------------
+## #Model visual - annotated line graph with forecast
+#------------------------------------------------------------------------------=
+
+
+
+# Load required libraries
+library(ggplot2)
+library(scales)
+
+# Set up sample data matching the chart
+years <- 2006:2018
+sales <- c(52, 54, 58, 64, 78, 86, 91, 101, 108, 119, 131, 144, 158)
+type <- c(rep("Actual", 9), rep("Forecast", 4))
+
+# Combine into data frame
+df <- data.frame(
+  Year = years,
+  Sales = sales,
+  Type = type
+)
+
+# Split data into Actual and Forecast
+df_actual <- subset(df, Year <= 2014)
+df_forecast <- subset(df, Year >= 2014)
+
+# Subset for actual points (2006, 2010, 2014) - hollow circles
+df_actual_marked <- subset(df, Year %in% c(2006, 2010,2011, 2014))
+# Subset for forecast points (2015-2018) - solid circles
+df_forecast_marked <- subset(df, Year %in% c(2015, 2016, 2017, 2018))
+
+# Base ggplot construction
+p <- ggplot() +
+  # 1. Background shading for FORECAST table region only (2014.5 to 2018.5)
+  annotate("rect", xmin = 2014.5, xmax = 2018.5, ymin = -22, ymax = 0, fill = "#D9D9D9", alpha = 1) +
+  # Background white fill for ACTUAL table region (2005.5 to 2014.5)
+  annotate("rect", xmin = 2005.5, xmax = 2014.5, ymin = -22, ymax = 0, fill = "white", alpha = 1) +
+  
+  # 2. X-axis Table Grid Lines (Using Y=0 as the baseline / top of the table)
+  # Top horizontal boundary (Y = 0, acting as the chart baseline)
+  geom_segment(aes(x = 2005.5, xend = 2018.5, y = 0, yend = 0), color = "#B0B0B0", linewidth = 0.6) +
+  # Right outer vertical border (FORECAST end)
+  geom_segment(aes(x = 2018.5, xend = 2018.5, y = 0, yend = -22), color = "#B0B0B0", linewidth = 0.6) +
+  
+  # Vertical dividers inside FORECAST region only (from Y = 0 down to -22)
+  {
+    forecast_v_lines <- seq(2015.5, 2017.5, by = 1)
+    lapply(forecast_v_lines, function(x) geom_segment(aes(x = x, xend = x, y = 0, yend = -22), color = "#D0D0D0", linewidth = 0.4))
+  } +
+  # Thick vertical divider between ACTUAL and FORECAST at 2014.5
+  geom_segment(aes(x = 2014.5, xend = 2014.5, y = 0, yend = -22), color = "#888888", linewidth = 0.8) +
+  
+  # 3. Manual Years Text inside the top row of the table (2006 to 2018)
+  {
+    yr_labels <- 2006:2018
+    lapply(yr_labels, function(yr) {
+      annotate("text", x = yr, y = -5.5, label = as.character(yr), color = "#666666", size = 3.5, hjust = 0.5, vjust = 0.5)
+    })
+  } +
+  
+  # 4. Main lines
+  geom_line(data = df_actual, aes(x = Year, y = Sales), color = "#2B73B6", linewidth = 1.8) +
+  geom_line(data = df_forecast, aes(x = Year, y = Sales), color = "#2B73B6", linewidth = 1.2, linetype = "dashed") +
+  
+  # 5. Marker points (Hollow white circles for Actual marked years, solid for Forecast)
+  geom_point(data = df_actual_marked, aes(x = Year, y = Sales), color = "#2B73B6", fill = "white", shape = 21, size = 3.5, stroke = 2) +
+  geom_point(data = df_forecast_marked, aes(x = Year, y = Sales), color = "#2B73B6", size = 2.5) +
+  
+  # 6. Text annotations for forecast values
+  annotate("text", x = 2015, y = 125, label = "$119", color = "#2B73B6", size = 5, fontface = "bold") +
+  annotate("text", x = 2016, y = 139, label = "$131", color = "#2B73B6", size = 5, fontface = "bold") +
+  annotate("text", x = 2017, y = 153, label = "$144", color = "#2B73B6", size = 5, fontface = "bold") +
+  annotate("text", x = 2018, y = 168, label = "$158", color = "#2B73B6", size = 5, fontface = "bold") +
+  annotate("text", x = 2014, y = 117, label = "$108", color = "#2B73B6", size = 5, fontface = "bold") +
+  
+  # 7. Top explanatory text annotations
+  # 7. Top explanatory text annotations (Added vjust = 1 for top alignment)
+  annotate("text", x = 2006.1, y = 175, label = "2006-09: annual sales\ngrowth of 7-8%", color = "#333333", size = 4.5, hjust = 0, vjust = 1, lineheight = 1.1) +
+  annotate("text", x = 2009.1, y = 175, label = "2010: more\nmarked\nincrease of \n22% sales year \nover year, driven\nby a, b, and c", color = "#333333", size = 4.5, hjust = 0, vjust = 1, lineheight = 1.1) +
+  annotate("text", x = 2011.5, y = 175, label = "2011-14: another\nperiod\nof steady growth\nof 8-9% annually", color = "#333333", size = 4.5, hjust = 0, vjust = 1, lineheight = 1.1) +
+  annotate("text", x = 2014.2, y = 175, label = "2015 & beyond: assumed\n10% year over year\nincrease in sales*", color = "#333333", size = 4.5, hjust = 0, vjust = 1, lineheight = 1.1) +
+  
+  # 8. Category labels inside the bottom row of the X-axis table
+  annotate("text", x = 2010, y = -16.5, label = "ACTUAL", color = "#555555", size = 3.8, fontface = "bold", hjust = 0.5) +
+  annotate("text", x = 2016.5, y = -16.5, label = "FORECAST", color = "#555555", size = 3.8, fontface = "bold", hjust = 0.5) +
+  
+  # 9. Bottom Footnote text annotations
+  annotate("text", x = 2005.2, y = -31, label = "Data source: Sales Dashboard; annual figures are as of 12/31 of the given year.", color = "#555555", size = 3.2, hjust = 0) +
+  annotate("text", x = 2005.2, y = -38, label = "*Use this footnote to explain what is driving the 10% annual growth forecast assumption.", color = "#555555", size = 3.2, hjust = 0) +
+  
+  # 10. Vertical Y-axis label placed at the top-left (Vertical text)
+  annotate("text", x = 2004.8, y = 195, label = "Sales ($Billion)", color = "#555555", size = 3.8, angle = 90, hjust = 0, vjust = 0.5) +
+  
+  # 11. Axis scales and formatting
+  scale_x_continuous(breaks = NULL, limits = c(2005.2, 2018.8), expand = c(0, 0)) +
+  scale_y_continuous(
+    labels = dollar_format(prefix = "$", suffix = "B", big.mark = ","),
+    breaks = seq(0, 180, 20),
+    limits = c(-45, 205),
+    expand = c(0, 0)
+  ) +
+  # 12. Axis scales and formatting (Extended lower limit to -55 to accommodate all footnotes)
+  scale_x_continuous(breaks = NULL, limits = c(2005.2, 2018.8), expand = c(0, 0)) +
+  scale_y_continuous(
+    labels = dollar_format(prefix = "$", suffix = "B", big.mark = ","),
+    breaks = seq(0, 180, 20),
+    limits = c(-55, 205), # Adjusted lower limit from -45 to -55
+    expand = c(0, 0)
+  ) +
+  
+  # Labels and titles
+  labs(
+    title = "Sales over time",
+    x = NULL,
+    y = NULL
+  ) +
+  
+  # Minimalist classic theme styling
+  theme_classic() +
+  theme(
+    plot.title = element_text(size = 18, color = "#444444", face = "bold", margin = margin(b = 15)),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.text.y = element_text(size = 10, color = "#666666"),
+    axis.line.x = element_blank(), # Handled manually by Y=0 segment
+    axis.line.y = element_line(color = "#B0B0B0", linewidth = 0.5),
+    plot.margin = margin(t = 25, r = 40, b = 25, l = 30)
+  ) +
+  coord_cartesian(clip = "off")
+
+# Display chart with proper window size
+windows(height = 8.5, width = 12)
+print(p)
+
+
+
+#-------------------------------------------------------------------------------
+## Model visual -100% stacked bars
+#------------------------------------------------------------------------------=
+
+
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot) # Required for ggdraw and drawing outside the plot area
+
+# 1. Create dataset with unique quarter identifiers for factor levels
+data <- data.frame(
+  Quarter = rep(c("Q1 2013", "Q2 2013", "Q3 2013", "Q4 2013", 
+                  "Q1 2014", "Q2 2014", "Q3 2014", "Q4 2014", 
+                  "Q1 2015", "Q2 2015", "Q3 2015"), each = 3),
+  Status = rep(c("Miss", "Meet", "Exceed"), times = 11),
+  Percentage = c(
+    5, 53, 42,   # Q1 2013
+    3, 62, 35,   # Q2 2013
+    6, 68, 26,   # Q3 2013
+    5, 70, 25,   # Q4 2013
+    6, 75, 19,   # Q1 2014
+    6, 59, 35,   # Q2 2014
+    12, 61, 27,  # Q3 2014
+    15, 62, 23,  # Q4 2014
+    20, 68, 12,  # Q1 2015
+    33, 62, 5,   # Q2 2015
+    42, 47, 11   # Q3 2015
+  )
+)
+
+# Set factor levels to control stacking order (Miss at bottom, Meet in middle, Exceed at top)
+data$Status <- factor(data$Status, levels = c("Exceed", "Meet", "Miss"))
+
+# Set unique quarter levels to avoid duplication error
+quarter_levels <- c("Q1 2013", "Q2 2013", "Q3 2013", "Q4 2013", 
+                    "Q1 2014", "Q2 2014", "Q3 2014", "Q4 2014", 
+                    "Q1 2015", "Q2 2015", "Q3 2015")
+data$Quarter <- factor(data$Quarter, levels = quarter_levels)
+
+# Prepare data specifically for displaying text labels on the 'Miss' bars
+miss_labels <- data %>%
+  filter(Status == "Miss" & Percentage >= 10)
+
+# 2. Plot the 100% stacked bar chart using ggplot2 (Clean base plot without extra annotations)
+p <- ggplot(data, aes(x = Quarter, y = Percentage, fill = Status)) +
+  geom_bar(stat = "identity", position = "stack", width = 0.7) +
+  geom_text(data = miss_labels, 
+            aes(label = paste0(Percentage, "%")), 
+            position = position_stack(vjust = 0.5), 
+            color = "white", fontface = "bold", size = 4) +
+  scale_fill_manual(
+    values = c("Exceed" = "#595959", "Meet" = "#A6A6A6", "Miss" = "#8B0000")
+  ) +
+  scale_y_continuous(
+    breaks = seq(0, 100, by = 10),
+    labels = function(x) paste0(x, "%"), 
+    limits = c(0, 100), 
+    expand = c(0, 0)
+  ) +
+  scale_x_discrete(
+    labels = c("Q1\n2013", "Q2", "Q3", "Q4", 
+               "Q1\n2014", "Q2", "Q3", "Q4", 
+               "Q1\n2015", "Q2", "Q3")
+  ) +
+  labs(
+    title = "Goal attainment over time\n",
+    caption = "Data source: XYZ Dashboard; total projects increased from 230 in early 2013 to nearly 270 in Q3 2015.",
+    x = NULL,
+    y = NULL
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, color = "#222222", hjust = 0, margin = margin(0, 0, 15, 0)),
+    plot.caption = element_text(size = 9, color = "#777777", hjust = 0, margin = margin(t = 15)),
+    legend.position = "none",
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(color = "#E0E0E0", linewidth = 0.5),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, color = "#333333", size = 10),
+    axis.text.y = element_text(color = "#333333", size = 10),
+    plot.margin = margin(40, 20, 20, 40) # Give enough breathing room for external labels
+  ) +
+  coord_cartesian(clip = "off")
+
+windows(width = 12, height = 8)
+# 3. Combine with ggdraw to place elements precisely in canvas coordinates outside the plot
+ggdraw(p) +
+  # Y-axis label placed strictly to the left of the percentage numbers, perfectly controlled via vjust
+  draw_label("% of total projects", x = 0.04, y = 0.7, angle = 90, 
+             hjust = 0, vjust = 0.5, size = 10, color = "#333333") +
+  
+  # Custom Legend right under the title
+  draw_grob(grid::rectGrob(gp = grid::gpar(fill = "#595959", col = NA)), x = 0.1, y = 0.86, width = 0.015, height = 0.02) +
+  draw_label("Exceed", x = 0.12, y = 0.87, hjust = 0, vjust = 0.5, size = 10, color = "#333333") +
+  
+  draw_grob(grid::rectGrob(gp = grid::gpar(fill = "#A6A6A6", col = NA)), x = 0.2, y = 0.86, width = 0.015, height = 0.02) +
+  draw_label("Meet", x = 0.22, y = 0.87, hjust = 0, vjust = 0.5, size = 10, color = "#333333") +
+  
+  draw_grob(grid::rectGrob(gp = grid::gpar(fill = "#8B0000", col = NA)), x = 0.3, y = 0.86, width = 0.015, height = 0.02) +
+  draw_label("Miss", x = 0.32, y = 0.87, hjust = 0, vjust = 0.5, size = 10, color = "#333333") +
+  
+  # Top-right key message
+  draw_label("As of Q3 2015, more than 1/3 of\nprojects are missing goals", 
+             x = 0.95, y = 0.92, hjust = 1, vjust = 0.5, size = 11, fontface = "bold", color = "#8B0000", lineheight = 1.1)
+
+
+
+#-------------------------------------------------------------------------------
+## Model visual - leveraging positive and negative stacked bars
+#------------------------------------------------------------------------------=
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot)
+
+# 1. Prepare Data
+# -------------------------------------------------------------
+years <- c("Today (9/30/15)", "FY16", "FY17", "FY18", "FY19", "FY20")
+
+df_directors <- data.frame(
+  Year_Index = 1:6,
+  Year_Label = years,
+  Today_Directors = c(191, 165, 147, 129, 110, 91),
+  Promotions = c(0, 9, 10, 13, 17, 21),
+  Acquisitions = c(0, 3, 3, 4, 3, 4),
+  Unmet_Need = c(0, 28, 50, 68, 91, 112),
+  Attrition = c(0, -27, -44, -62, -80, -100)
+)
+
+# Reshape data for stacked bar plotting (positive components)
+df_long <- df_directors %>%
+  select(Year_Index, Year_Label, Today_Directors, Promotions, Acquisitions, Unmet_Need) %>%
+  pivot_longer(
+    cols = c(Today_Directors, Promotions, Acquisitions, Unmet_Need),
+    names_to = "Category",
+    values_to = "Value"
+  )
+
+df_long$Category <- factor(
+  df_long$Category,
+  levels = c("Unmet_Need", "Acquisitions", "Promotions", "Today_Directors")
+)
+
+df_attrition <- df_directors %>%
+  select(Year_Index, Year_Label, Attrition)
+
+# Data for text labels inside the white box (Unmet need values)
+df_labels <- df_directors %>%
+  filter(Unmet_Need > 0) %>%
+  mutate(
+    Y_Pos = Today_Directors + Promotions + Acquisitions + (Unmet_Need / 2),
+    Label = as.character(Unmet_Need)
+  )
+
+# 2. Create Base ggplot
+# -------------------------------------------------------------
+p <- ggplot() +
+  # Add horizontal baseline at y = 0
+  geom_hline(yintercept = 0, color = "#cccccc", linewidth = 0.5) +
+  # Plot positive stacked bars
+  geom_bar(
+    data = df_long,
+    aes(x = Year_Index, y = Value, fill = Category, color = Category),
+    stat = "identity",
+    width = 0.6,
+    linewidth = 0.5
+  ) +
+  # Plot negative attrition bars extending below zero
+  geom_bar(
+    data = df_attrition,
+    aes(x = Year_Index, y = Attrition),
+    stat = "identity",
+    fill = "#739ac5",
+    color = NA,
+    alpha = 0.7,
+    width = 0.6
+  ) +
+  # Add text labels inside the white segments (Unmet need)
+  geom_text(
+    data = df_labels,
+    aes(x = Year_Index, y = Y_Pos, label = Label),
+    size = 4.5,
+    fontface = "bold",
+    color = "#333333"
+  ) +
+  # Annotate X-axis period labels directly below the 0 line
+  annotate(
+    "text",
+    x = df_directors$Year_Index,
+    y = -15,
+    label = df_directors$Year_Label,
+    size = 4,
+    color = "#333333"
+  ) +
+  # Custom color palette: white box gets a gray border
+  scale_fill_manual(
+    values = c(
+      "Unmet_Need" = "white",
+      "Acquisitions" = "#a3b86c",
+      "Promotions" = "#1e7e34",
+      "Today_Directors" = "#4374b7"
+    )
+  ) +
+  scale_color_manual(
+    values = c(
+      "Unmet_Need" = "#999999",
+      "Acquisitions" = "#a3b86c",
+      "Promotions" = "#1e7e34",
+      "Today_Directors" = "#4374b7"
+    )
+  ) +
+  # Set axis limits and breaks
+  scale_x_continuous(limits = c(0.4, 7.8), breaks = NULL) +
+  scale_y_continuous(limits = c(-120, 270), breaks = seq(-100, 250, 50), expand = c(0, 0)) +
+  
+  # Annotations for top-right text elements with safe spacing
+  annotate("text", x = 6.4, y = 230, label = "Unmet need (gap)", hjust = 0, size = 4.5, fontface = "bold", color = "#333333") +
+  annotate("text", x = 6.4, y = 118, label = "Directors from acquisitions", hjust = 0, size = 3.5, color = "#a3b86c") +
+  annotate("text", x = 6.4, y = 108, label = "Promotions to director", hjust = 0, size = 3.5, color = "#1e7e34") +
+  annotate("text", x = 6.4, y = 98, label = "Today's directors", hjust = 0, size = 3.5, color = "#4374b7") +
+  annotate("text", x = 6.4, y = -100, label = "Attrition", hjust = 0, size = 3.5, color = "#739ac5") +
+  
+  labs(
+    title = "Expected director population over time",
+    x = NULL,
+    y = NULL,
+    caption = "A footnote explaining relevant forecast assumptions and methodology would go here."
+  ) +
+  # Theme adjustments: Only Y-axis line remains, X-axis line is removed via element_blank()
+  theme_minimal(base_family = "sans") +
+  theme(
+    plot.title = element_text(size = 15, face = "bold", color = "#555555", hjust = 0, margin = margin(b = 20)),
+    plot.caption = element_text(size = 9, color = "#666666", hjust = 0, margin = margin(t = 15)),
+    axis.text.y = element_text(size = 10, color = "#666666"),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    # Keep Y axis line, remove X axis line
+    axis.line.y = element_line(color = "#cccccc", linewidth = 0.5),
+    axis.line.x = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "none",
+    plot.margin = margin(t = 20, r = 20, b = 20, l = 20)
+  )
+
+# 3. Combine with ggdraw to place ylab precisely at the top-left outside plot area
+# -------------------------------------------------------------
+final_plot <- ggdraw(p) +
+  draw_label(
+    "# of directors",
+    x = 0.03,
+    y = 0.88,
+    hjust = 0,
+    vjust = 1,
+    size = 11,
+    fontface = "plain",
+    colour = "#666666"
+  )
+
+# Display final plot
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Model visual - horizontal stacked bars
+#------------------------------------------------------------------------------=
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot)
+
+# Create dataset based on the survey chart
+data <- data.frame(
+  Priority = c("Education", "Agriculture & rural development", "Poverty reduction", 
+               "Reconstruction", "Economic growth", "Health", "Job creation", 
+               "Governance", "Anti-corruption", "Transport", "Energy", 
+               "Law & Justice", "Basic infrastructure", "Public sector reform", 
+               "Public financial management"),
+  Most_Important = c(24, 17, 15, 9, 7, 3, 4, 5, 4, 4, 3, 2, 2, 2, 1),
+  Second_Important = c(14, 12, 10, 5, 5, 7, 6, 5, 4, 4, 4, 3, 3, 3, 3),
+  Third_Important = c(7, 8, 7, 4, 5, 6, 5, 4, 6, 4, 4, 4, 3, 3, 3)
+)
+
+# Calculate Total % for each category
+data$Total <- data$Most_Important + data$Second_Important + data$Third_Important
+data$Total_Label <- paste0(data$Total, "%")
+
+# Define top 3 priorities vs others
+top_priorities <- c("Education", "Agriculture & rural development", "Poverty reduction")
+data$Is_Top3 <- data$Priority %in% top_priorities
+data$Y_Color <- ifelse(data$Is_Top3, "#1a446e", "#666666")
+
+# Reorder factor levels so that top priorities appear at the top in ggplot
+data$Priority <- factor(data$Priority, levels = rev(data$Priority))
+color_mapping <- setNames(data$Y_Color, data$Priority)
+
+# Reshape data from wide to long format for ggplot2 stack bar chart
+data_long <- data %>%
+  pivot_longer(cols = c(Most_Important, Second_Important, Third_Important),
+               names_to = "Importance_Level",
+               values_to = "Percentage")
+
+# Clean up factor labels and ensure correct stacking order
+data_long$Importance_Level <- factor(
+  data_long$Importance_Level,
+  levels = c("Third_Important", "Second_Important", "Most_Important"),
+  labels = c("3rd Most Important", "2nd Most Important", "Most important")
+)
+
+# Safely assign palette group so Top 3 get blue colors and others get gray colors
+data_long$Bar_Palette <- ifelse(
+  data_long$Priority %in% top_priorities, 
+  as.character(data_long$Importance_Level), 
+  paste0("Gray_", data_long$Importance_Level)
+)
+
+# 1. Generate the main ggplot chart
+p <- ggplot(data_long, aes(x = Priority, y = Percentage, fill = Bar_Palette)) +
+  geom_bar(stat = "identity", width = 0.55) +
+  # Display percentage text inside each bar segment
+  geom_text(aes(label = ifelse(Percentage > 0, paste0(Percentage, "%"), "")), 
+            position = position_stack(vjust = 0.5), 
+            color = "white", size = 3.2, fontface = "bold") +
+  # Display TOTAL % aligned to the left of the bars
+  geom_text(data = data, aes(x = Priority, y = -1.5, label = Total_Label), 
+            inherit.aes = FALSE, hjust = 1, color = "#333333", size = 3.8, fontface = "bold") +
+  coord_flip(clip = "off") +
+  # Explicit color mapping: Top 3 gets Blues, Others gets Grays
+  scale_fill_manual(values = c(
+    # Top 3 (Blue gradient)
+    "Most important"           = "#2b5c8f", 
+    "2nd Most Important"       = "#5b8cb8", 
+    "3rd Most Important"       = "#9ecae1",
+    # Others (Gray gradient)
+    "Gray_Most important"      = "#666666", 
+    "Gray_2nd Most Important"  = "#999999", 
+    "Gray_3rd Most Important"  = "#cccccc"
+  )) +
+  theme_minimal() +
+  labs(
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  ) +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(), # Removed vertical grid lines as requested
+    panel.grid.minor.x = element_blank(),
+    legend.position = "none",
+    axis.text.y = element_text(face = "bold", color = rev(color_mapping), size = 11, hjust = 1),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    plot.margin = margin(t = 55, r = 25, b = 15, l = 15)
+  )
+
+# 2. Combine plot with cowplot ggdraw for robust text and line layouts
+ggdraw(p) +
+  # Draw Title at the very top safely
+  draw_text("Top 15 development priorities, according to survey", 
+            x = 0.04, y = 0.95, hjust = 0, vjust = 0.5, 
+            size = 13, fontface = "bold", color = "#666666") +
+  # Draw column headers below the title
+  draw_text("PRIORITY", x = 0.14, y = 0.90, hjust = 0, size = 9, fontface = "bold", color = "#666666") +
+  draw_text("TOTAL %", x = 0.21, y = 0.90, hjust = 0, size = 9, fontface = "bold", color = "#666666") +
+  draw_text("Most important", x = 0.39, y = 0.90, hjust = 0, size = 9, fontface = "bold", color = "#666666") +
+  draw_text("|", x = 0.53, y = 0.90, hjust = 0.5, size = 9, color = "#aaaaaa") +
+  draw_text("2nd Most Important", x = 0.57, y = 0.90, hjust = 0, size = 9, fontface = "bold", color = "#666666") +
+  draw_text("|", x = 0.72, y = 0.90, hjust = 0.5, size = 9, color = "#aaaaaa") +
+  draw_text("3rd Most Important", x = 0.76, y = 0.90, hjust = 0, size = 9, fontface = "bold", color = "#666666") +
+  # Draw a single clean solid grey horizontal line using ggdraw::draw_line
+  draw_line(x = c(0.04, 0.99), y = c(0.93, 0.93), color = "#cccccc", linewidth = 1)
+
