@@ -6500,3 +6500,487 @@ suppressWarnings({
 # Print the final plot
 windows(width = 8, height = 5.5)
 print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+##  Pulling it all together -  tell a story (1): Executive Summary
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(ggtext)
+
+# Create the slide plot using ggplot and annotate("richtext")
+p_slide <- ggplot() +
+  # Top Header ("In the next 5 minutes...")
+  annotate(
+    "richtext", x = 0.05, y = 0.90, hjust = 0, vjust = 1,
+    label = "<span style='color:grey60; font-size:20pt;'>In the next </span><span style='color:#1f4e78; font-size:20pt;'><b>5</b></span><span style='color:grey60; font-size:20pt;'> minutes...</span>",
+    fill = NA, label.color = NA
+  ) +
+  
+  # Main Title ("OUR GOAL:")
+  annotate(
+    "richtext", x = 0.05, y = 0.78, hjust = 0, vjust = 1,
+    label = "<span style='color:#1f4e78; font-size:28pt;'><b>OUR GOAL:</b></span>",
+    fill = NA, label.color = NA
+  ) +
+  
+  # Goal 1 Number
+  annotate(
+    "richtext", x = 0.05, y = 0.60, hjust = 0, vjust = 1,
+    label = "<span style='color:grey80; font-size:56pt;'><b>1</b></span>",
+    fill = NA, label.color = NA
+  ) +
+  
+  # Goal 1 Text (Two-line wrapping matching the reference image)
+  annotate(
+    "richtext", x = 0.15, y = 0.58, hjust = 0, vjust = 1,
+    label = "<span style='color:grey50; font-size:16pt;'>Understand </span><b style='color:#1f4e78; font-size:16pt;'>how prices have changed</b><br><b style='color:#1f4e78; font-size:16pt;'>over time</b><span style='color:grey50; font-size:16pt;'> in the competitive landscape.</span>",
+    fill = NA, label.color = NA
+  ) +
+  
+  # Goal 2 Number
+  annotate(
+    "richtext", x = 0.05, y = 0.40, hjust = 0, vjust = 1,
+    label = "<span style='color:grey80; font-size:56pt;'><b>2</b></span>",
+    fill = NA, label.color = NA
+  ) +
+  
+  # Goal 2 Text
+  annotate(
+    "richtext", x = 0.15, y = 0.38, hjust = 0, vjust = 1,
+    label = "<span style='color:grey50; font-size:16pt;'>Use this knowledge to </span><b style='color:#1f4e78; font-size:16pt;'>inform the pricing</b><br><b style='color:#1f4e78; font-size:16pt;'>of our product</b><span style='color:grey50; font-size:16pt;'>.</span>",
+    fill = NA, label.color = NA
+  ) +
+  
+  # Bottom Concluding Text
+  annotate(
+    "richtext", x = 0.05, y = 0.18, hjust = 0, vjust = 1,
+    label = "<span style='color:grey50; font-size:16pt;'>We will end with a </span><b style='color:#1f4e78; font-size:16pt;'>specific recommendation</b><span style='color:grey50; font-size:16pt;'>.</span>",
+    fill = NA, label.color = NA
+  ) +
+  
+  # Canvas boundaries and theme settings
+  xlim(0, 1) +
+  ylim(0, 1) +
+  theme_void() +
+  theme(
+    plot.background = element_rect(fill = "white", color = NA),
+    plot.margin = margin(t = 30, r = 30, b = 30, l = 30)
+  )
+
+# Print the final slide visual
+windows(width = 10, height = 6.5)
+print(p_slide)
+
+
+
+#-------------------------------------------------------------------------------
+##  Pulling it all together -  tell a story (2): Price trends for Products A and B
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+library(ggtext)
+
+# 1. Prepare data and common elements
+years <- 2008:2014
+df <- data.frame(
+  Year = rep(years, times = 2),
+  Product = rep(c("Product A", "Product B"), each = length(years)),
+  Price = c(395, 420, 425, 390, 300, 270, 260,
+            360, 400, 410, 375, 290, 260, 250)
+)
+df$Product <- factor(df$Product, levels = c("Product A", "Product B"))
+
+df_labels <- data.frame(
+  Product = c("Product A", "Product B"),
+  Label = c("A", "B"),
+  Year = c(2007.8, 2007.8),
+  Price = c(395, 360)
+)
+
+df_start <- df %>% filter(Year == 2008)
+df_end <- df %>% filter(Year == 2014)
+
+suppressWarnings({
+  
+  # --- [Slide 1] 2008 Launch Highlight ---
+  p1 <- ggplot() +
+    geom_point(data = df_start, aes(x = Year, y = Price), color = "#1f4e78", size = 2.5) +
+    geom_text(data = df_labels, aes(x = Year, y = Price, label = Label), color = "grey40", size = 4, fontface = "plain") +
+    scale_y_continuous(limits = c(0, 500), breaks = seq(0, 500, by = 100), labels = function(x) paste0("$", x), expand = expansion(mult = c(0.02, 0.05))) +
+    scale_x_continuous(breaks = years, limits = c(2007.2, 2014.2), expand = c(0, 0)) +
+    labs(x = "Year") + theme_minimal(base_size = 10) +
+    theme(
+      panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+      axis.line.x = element_line(color = "grey70", linewidth = 0.5),
+      axis.line.y = element_line(color = "grey70", linewidth = 0.5),
+      panel.border = element_blank(), legend.position = "none",
+      axis.text.x = element_text(color = "grey30", size = 9, hjust = 1),
+      axis.text.y = element_text(color = "grey30", size = 9),
+      plot.title = element_blank(), axis.title.y = element_blank(),
+      axis.title.x = element_text(color = "grey40", size = 9, hjust = 0.02, margin = margin(t = 5)),
+      plot.margin = margin(t = 10, r = 10, b = 10, l = 20)
+    )
+  
+  slide_1 <- ggdraw(p1) +
+    draw_label("Retail price over time", x = 0.05, y = 0.99, hjust = 0, vjust = 1, fontface = "bold", size = 12, colour = "grey20") +
+    draw_label("Average price", x = 0.03, y = 0.82, angle = 90, hjust = 0.5, vjust = 0, fontface = "plain", size = 9, colour = "grey40")
+  
+  header_1 <- ggplot() +
+    geom_richtext(aes(x = 0, y = 0.5, label = "Products A & B launched in 2008 at <span style='color:#1f4e78;'><b>$360+</b></span>"),
+                  hjust = 0.05, vjust = 0, fill = NA, label.color = NA, size = 5) +
+    xlim(0, 1) + ylim(0, 1) + theme_void() + theme(plot.margin = margin(t = 10, r = 10, b = 0, l = 20))
+  
+  panel_1 <- plot_grid(header_1, slide_1, ncol = 1, rel_heights = c(0.22, 0.78))
+  
+  # --- [Slide 2] Trend Similarity ---
+  p2 <- ggplot() +
+    geom_line(data = df, aes(x = Year, y = Price, group = Product), color = "#1f4e78", linewidth = 1.1, na.rm = TRUE) +
+    geom_text(data = df_labels, aes(x = Year, y = Price, label = Label), color = "grey40", size = 4, fontface = "plain") +
+    scale_y_continuous(limits = c(0, 500), breaks = seq(0, 500, by = 100), labels = function(x) paste0("$", x), expand = expansion(mult = c(0.02, 0.05))) +
+    scale_x_continuous(breaks = years, limits = c(2007.2, 2014.2), expand = c(0, 0)) +
+    labs(x = "Year") + theme_minimal(base_size = 10) +
+    theme(
+      panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+      axis.line.x = element_line(color = "grey70", linewidth = 0.5),
+      axis.line.y = element_line(color = "grey70", linewidth = 0.5),
+      panel.border = element_blank(), legend.position = "none",
+      axis.text.x = element_text(color = "grey30", size = 9, hjust = 1),
+      axis.text.y = element_text(color = "grey30", size = 9),
+      plot.title = element_blank(), axis.title.y = element_blank(),
+      axis.title.x = element_text(color = "grey40", size = 9, hjust = 0.02, margin = margin(t = 5)),
+      plot.margin = margin(t = 10, r = 10, b = 10, l = 20)
+    )
+  
+  slide_2 <- ggdraw(p2) +
+    draw_label("Retail price over time", x = 0.05, y = 0.99, hjust = 0, vjust = 1, fontface = "bold", size = 12, colour = "grey20") +
+    draw_label("Average price", x = 0.03, y = 0.82, angle = 90, hjust = 0.5, vjust = 0, fontface = "plain", size = 9, colour = "grey40")
+  
+  header_2 <- ggplot() +
+    geom_richtext(aes(x = 0, y = 0.3, label = "They have been priced similarly over time,<br>with Bslightly lower than A"),
+                  hjust = 0.05, vjust = 0.1, fill = NA, label.color = NA, size = 5) +
+    xlim(0, 1) + ylim(0, 1) + theme_void() + theme(plot.margin = margin(t = 10, r = 10, b = 0, l = 20))
+  
+  panel_2 <- plot_grid(header_2, slide_2, ncol = 1, rel_heights = c(0.22, 0.78))
+  
+  # --- [Slide 3] 2014 Final Price Highlight ---
+  p3 <- ggplot() +
+    geom_line(data = df, aes(x = Year, y = Price, group = Product), color = "grey70", linewidth = 1.0, na.rm = TRUE) +
+    geom_point(data = df_end, aes(x = Year, y = Price), color = "#1f4e78", size = 2.5) +
+    geom_text(data = df_labels, aes(x = Year, y = Price, label = Label), color = "grey40", size = 4, fontface = "plain") +
+    scale_y_continuous(limits = c(0, 500), breaks = seq(0, 500, by = 100), labels = function(x) paste0("$", x), expand = expansion(mult = c(0.02, 0.05))) +
+    scale_x_continuous(breaks = years, limits = c(2007.2, 2014.2), expand = c(0, 0)) +
+    labs(x = "Year") + theme_minimal(base_size = 10) +
+    theme(
+      panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+      axis.line.x = element_line(color = "grey70", linewidth = 0.5),
+      axis.line.y = element_line(color = "grey70", linewidth = 0.5),
+      panel.border = element_blank(), legend.position = "none",
+      axis.text.x = element_text(color = "grey30", size = 9, hjust = 1),
+      axis.text.y = element_text(color = "grey30", size = 9),
+      plot.title = element_blank(), axis.title.y = element_blank(),
+      axis.title.x = element_text(color = "grey40", size = 9, hjust = 0.02, margin = margin(t = 5)),
+      plot.margin = margin(t = 10, r = 10, b = 10, l = 20)
+    )
+  
+  slide_3 <- ggdraw(p3) +
+    draw_label("Retail price over time", x = 0.05, y = 0.99, hjust = 0, vjust = 1, fontface = "bold", size = 12, colour = "grey20") +
+    draw_label("Average price", x = 0.03, y = 0.82, angle = 90, hjust = 0.5, vjust = 0.5, fontface = "plain", size = 9, colour = "grey40")
+  
+  header_3 <- ggplot() +
+    geom_richtext(aes(x = 0, y = 0.3, label = "In 2014, A & B were priced at<br><span style='color:#1f4e78;'><b> $260 </b></span> and <span style='color:#1f4e78;'><b> $250 </b></span>respectively"),
+                  hjust = 0.05, vjust = 0, fill = NA, label.color = NA, size = 5) +
+    xlim(0, 1) + ylim(0, 1) + theme_void() + theme(plot.margin = margin(t = 10, r = 10, b = 0, l = 20))
+  
+  panel_3 <- plot_grid(header_3, slide_3, ncol = 1, rel_heights = c(0.22, 0.78))
+  
+  # 2. Combine all three panels into a 1x3 grid layout
+  combined_1x3 <- plot_grid(panel_1, panel_2, panel_3, ncol = 3, nrow = 1)
+})
+
+# Print the final combined layout
+windows(width = 15, height = 5.5)
+print(combined_1x3)
+
+
+
+#-------------------------------------------------------------------------------
+##  Pulling it all together -  tell a story (3): Price trends for Products A and B after market entry of competitors
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+library(ggtext)
+
+# 1. Prepare comprehensive data for Products A, B, C, D, E
+years <- 2008:2014
+
+df <- data.frame(
+  Year = rep(years, times = 5),
+  Product = rep(c("Product A", "Product B", "Product C", "Product D", "Product E"), each = length(years)),
+  Price = c(
+    # Product A
+    395, 420, 425, 390, 300, 270, 260,
+    # Product B
+    360, 400, 410, 375, 290, 260, 250,
+    # Product C (Launched in 2010 at 100)
+    NA,  NA,  100, 180, 200, 240, 180,
+    # Product D (Launched in 2011 at 160)
+    NA,  NA,  NA,  160, 260, 220, 215,
+    # Product E (Launched in 2013 at 100)
+    NA,  NA,  NA,  NA,  NA,  100, 210
+  )
+)
+df$Product <- factor(df$Product, levels = c("Product A", "Product B", "Product C", "Product D", "Product E"))
+
+# Label positions for A, B, C, D, E
+df_labels <- data.frame(
+  Product = c("Product A", "Product B", "Product C", "Product D", "Product E"),
+  Label = c("A", "B", "C", "D", "E"),
+  Year = c(2007.8, 2007.8, 2009.7, 2010.7, 2012.7),
+  Price = c(395, 360, 100, 160, 100)
+)
+
+# Launch points for C, D, E
+df_launches <- data.frame(
+  Year = c(2010, 2011, 2013),
+  Price = c(100, 160, 100)
+)
+
+suppressWarnings({
+  
+  # Common theme matched with previous design
+  common_theme <- theme_minimal(base_size = 10) +
+    theme(
+      panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+      axis.line.x = element_line(color = "grey70", linewidth = 0.5),
+      axis.line.y = element_line(color = "grey70", linewidth = 0.5),
+      panel.border = element_blank(), legend.position = "none",
+      axis.text.x = element_text(color = "grey30", size = 9, hjust = 1),
+      axis.text.y = element_text(color = "grey30", size = 9),
+      plot.title = element_blank(), axis.title.y = element_blank(),
+      axis.title.x = element_text(color = "grey40", size = 9, hjust = 0.02, margin = margin(t = 5)),
+      plot.margin = margin(t = 10, r = 10, b = 10, l = 20)
+    )
+  
+  # --- [Panel 1] Products C, D, and E introduced later at much lower price points ---
+  p1 <- ggplot() +
+    geom_line(data = df %>% filter(!Product %in% c("Product C", "Product D", "Product E")), aes(x = Year, y = Price, group = Product), color = "grey70", linewidth = 1.0, na.rm = TRUE) +
+    geom_point(data = df_launches, aes(x = Year, y = Price), color = "#1f4e78", size = 2.5) +
+    geom_text(data = df_labels, aes(x = Year, y = Price, label = Label), color = "grey40", size = 4, fontface = "plain") +
+    scale_y_continuous(limits = c(0, 500), breaks = seq(0, 500, by = 100), labels = function(x) paste0("$", x), expand = expansion(mult = c(0.02, 0.05))) +
+    scale_x_continuous(breaks = years, limits = c(2007.2, 2014.2), expand = c(0, 0)) +
+    labs(x = "Year") + common_theme
+  
+  slide_1 <- ggdraw(p1) +
+    draw_label("Retail price over time", x = 0.05, y = 0.99, hjust = 0, vjust = 1, fontface = "bold", size = 12, colour = "grey20") +
+    draw_label("Average price", x = 0.03, y = 0.82, angle = 90, hjust = 0.5, vjust = 0, fontface = "plain", size = 9, colour = "grey40")
+  
+  header_1 <- ggplot() +
+    geom_richtext(aes(x = 0.03, y = 0.8, label = "Products C, D, and E were each introduced later<br>at <span style='color:#1f4e78;'><b>much lower price points</b></span>..."),
+                  hjust = 0, vjust = 1, fill = NA, label.color = NA, size = 5.0) +
+    xlim(0, 1) + ylim(0, 1) + theme_void() + theme(plot.margin = margin(t = 5, r = 10, b = 0, l = 20))
+  
+  panel_1 <- plot_grid(header_1, slide_1, ncol = 1, rel_heights = c(0.22, 0.78))
+  
+  # --- [Panel 2] But all have increased in price since their respective launches ---
+  df_cde <- df %>% filter(Product %in% c("Product C", "Product D", "Product E"))
+  p2 <- ggplot() +
+    geom_line(data = df %>% filter(!Product %in% c("Product C", "Product D", "Product E")), aes(x = Year, y = Price, group = Product), color = "grey70", linewidth = 1.0, na.rm = TRUE) +
+    geom_line(data = df_cde, aes(x = Year, y = Price, group = Product), color = "#1f4e78", linewidth = 1.1, na.rm = TRUE) +
+    geom_point(data = df_launches, aes(x = Year, y = Price), color = "#1f4e78", size = 2.5) +
+    geom_text(data = df_labels, aes(x = Year, y = Price, label = Label), color = "grey40", size = 4, fontface = "plain") +
+    scale_y_continuous(limits = c(0, 500), breaks = seq(0, 500, by = 100), labels = function(x) paste0("$", x), expand = expansion(mult = c(0.02, 0.05))) +
+    scale_x_continuous(breaks = years, limits = c(2007.2, 2014.2), expand = c(0, 0)) +
+    labs(x = "Year") + common_theme
+  
+  slide_2 <- ggdraw(p2) +
+    draw_label("Retail price over time", x = 0.05, y = 0.99, hjust = 0, vjust = 1, fontface = "bold", size = 12, colour = "grey20") +
+    draw_label("Average price", x = 0.03, y = 0.82, angle = 90, hjust = 0.5, vjust = 0, fontface = "plain", size = 9, colour = "grey40")
+  
+  header_2 <- ggplot() +
+    geom_richtext(aes(x = 0.03, y = 0.8, label = "...but all have <span style='color:#1f4e78;'><b>increased in price</b></span><br>since their respective launches"),
+                  hjust = 0, vjust = 1, fill = NA, label.color = NA, size = 5.0) +
+    xlim(0, 1) + ylim(0, 1) + theme_void() + theme(plot.margin = margin(t = 5, r = 10, b = 0, l = 20))
+  
+  panel_2 <- plot_grid(header_2, slide_2, ncol = 1, rel_heights = c(0.22, 0.78))
+  
+  # --- [Panel 3] Custom line highlighting with precise color transitions ---
+  p3 <- ggplot() +
+    geom_line(data = df, aes(x = Year, y = Price, group = Product), color = "grey70", linewidth = 1.0, na.rm = TRUE) +
+    geom_text(data = df_labels, aes(x = Year, y = Price, label = Label), color = "grey40", size = 4, fontface = "plain") +
+    scale_y_continuous(limits = c(0, 500), breaks = seq(0, 500, by = 100), labels = function(x) paste0("$", x), expand = expansion(mult = c(0.02, 0.05))) +
+    scale_x_continuous(breaks = years, limits = c(2007.2, 2014.2), expand = c(0, 0)) +
+    labs(x = "Year") + common_theme
+  
+  # Overlay custom highlighted segments:
+  # - A & B: Navy up to 2009, Regular Grey (grey70) for 2009~2010 (increase/peak phase), Very Dark Grey (grey25) from 2010 onwards (decrease phase)
+  # - C: Navy up to 2011, Regular Grey for 2011~2013, Very Dark Grey (grey25) from 2013 onwards
+  # - D: Navy up to 2012, Very Dark Grey (grey25) from 2012 onwards
+  # - E: Navy from 2013 onwards
+  p3_final <- p3 +
+    # Product A
+    geom_line(data = df %>% filter(Product == "Product A" & Year <= 2009), aes(x = Year, y = Price), color = "#1f4e78", linewidth = 1.2, na.rm = TRUE) +
+    geom_line(data = df %>% filter(Product == "Product A" & Year >= 2009 & Year <= 2010), aes(x = Year, y = Price), color = "grey70", linewidth = 1.0, na.rm = TRUE) +
+    geom_line(data = df %>% filter(Product == "Product A" & Year >= 2010), aes(x = Year, y = Price), color = "grey25", linewidth = 1.1, na.rm = TRUE) +
+    # Product B
+    geom_line(data = df %>% filter(Product == "Product B" & Year <= 2009), aes(x = Year, y = Price), color = "#1f4e78", linewidth = 1.2, na.rm = TRUE) +
+    geom_line(data = df %>% filter(Product == "Product B" & Year >= 2009 & Year <= 2010), aes(x = Year, y = Price), color = "grey70", linewidth = 1.0, na.rm = TRUE) +
+    geom_line(data = df %>% filter(Product == "Product B" & Year >= 2010), aes(x = Year, y = Price), color = "grey25", linewidth = 1.1, na.rm = TRUE) +
+    # Product C
+    geom_line(data = df %>% filter(Product == "Product C" & Year >= 2010 & Year <= 2011), aes(x = Year, y = Price), color = "#1f4e78", linewidth = 1.2, na.rm = TRUE) +
+    geom_line(data = df %>% filter(Product == "Product C" & Year >= 2011 & Year <= 2013), aes(x = Year, y = Price), color = "grey70", linewidth = 1.0, na.rm = TRUE) +
+    geom_line(data = df %>% filter(Product == "Product C" & Year >= 2013), aes(x = Year, y = Price), color = "grey25", linewidth = 1.1, na.rm = TRUE) +
+    # Product D
+    geom_line(data = df %>% filter(Product == "Product D" & Year >= 2011 & Year <= 2012), aes(x = Year, y = Price), color = "#1f4e78", linewidth = 1.2, na.rm = TRUE) +
+    geom_line(data = df %>% filter(Product == "Product D" & Year >= 2012), aes(x = Year, y = Price), color = "grey25", linewidth = 1.1, na.rm = TRUE) +
+    # Product E
+    geom_line(data = df %>% filter(Product == "Product E" & Year >= 2013), aes(x = Year, y = Price), color = "#1f4e78", linewidth = 1.2, na.rm = TRUE)
+  
+  slide_3 <- ggdraw(p3_final) +
+    draw_label("Retail price over time", x = 0.05, y = 0.99, hjust = 0, vjust = 1, fontface = "bold", size = 12, colour = "grey20") +
+    draw_label("Average price", x = 0.03, y = 0.82, angle = 90, hjust = 0.5, vjust = 0, fontface = "plain", size = 9, colour = "grey40")
+  
+  header_3 <- ggplot() +
+    geom_richtext(aes(x = 0.03, y = 0.8, label = "We tend to see an <span style='color:#1f4e78;'><b>initial price increase</b></span>,<br>followed by a decrease over time"),
+                  hjust = 0, vjust = 1, fill = NA, label.color = NA, size = 5) +
+    xlim(0, 1) + ylim(0, 1) + theme_void() + theme(plot.margin = margin(t = 5, r = 10, b = 0, l = 20))
+  
+  panel_3 <- plot_grid(header_3, slide_3, ncol = 1, rel_heights = c(0.22, 0.78))
+  
+  # 2. Combine all three panels into a 1x3 grid layout
+  combined_1x3_cde <- plot_grid(panel_1, panel_2, panel_3, ncol = 3, nrow = 1)
+})
+
+# Print the final combined layout
+windows(width = 15, height = 5.5)
+print(combined_1x3_cde)
+
+
+
+#-------------------------------------------------------------------------------
+##  Pulling it all together -  tell a story (3): Recommended price range for Products A and B
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+library(ggtext)
+
+# 1. Prepare comprehensive data for Products A, B, C, D, E
+years <- 2008:2014
+
+df <- data.frame(
+  Year = rep(years, times = 5),
+  Product = rep(c("Product A", "Product B", "Product C", "Product D", "Product E"), each = length(years)),
+  Price = c(
+    # Product A
+    395, 420, 425, 390, 300, 270, 260,
+    # Product B
+    360, 400, 410, 375, 290, 260, 250,
+    # Product C (Launched in 2010 at 100)
+    NA,  NA,  100, 180, 200, 240, 180,
+    # Product D (Launched in 2011 at 160)
+    NA,  NA,  NA,  160, 260, 220, 215,
+    # Product E (Launched in 2013 at 100)
+    NA,  NA,  NA,  NA,  NA,  100, 210
+  )
+)
+df$Product <- factor(df$Product, levels = c("Product A", "Product B", "Product C", "Product D", "Product E"))
+
+# Label positions for A, B, C, D, E
+df_labels <- data.frame(
+  Product = c("Product A", "Product B", "Product C", "Product D", "Product E"),
+  Label = c("A", "B", "C", "D", "E"),
+  Year = c(2007.8, 2007.8, 2009.7, 2010.7, 2012.7),
+  Price = c(395, 360, 100, 160, 100)
+)
+
+# 2014 endpoints for convergence
+df_end_2014 <- df %>% filter(Year == 2014)
+
+suppressWarnings({
+  
+  # Common theme matched with previous design
+  common_theme <- theme_minimal(base_size = 10) +
+    theme(
+      panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+      axis.line.x = element_line(color = "grey70", linewidth = 0.5),
+      axis.line.y = element_line(color = "grey70", linewidth = 0.5),
+      panel.border = element_blank(), legend.position = "none",
+      axis.text.x = element_text(color = "grey30", size = 9, hjust = 1),
+      axis.text.y = element_text(color = "grey30", size = 9),
+      plot.title = element_blank(), axis.title.y = element_blank(),
+      axis.title.x = element_text(color = "grey40", size = 9, hjust = 0.02, margin = margin(t = 5)),
+      plot.margin = margin(t = 10, r = 10, b = 10, l = 20)
+    )
+  
+  # --- [Panel 1] As of 2014, retail prices have converged ($223 average) ---
+  p1 <- ggplot() +
+    geom_line(data = df, aes(x = Year, y = Price, group = Product), color = "grey70", linewidth = 1.0, na.rm = TRUE) +
+    geom_point(data = df_end_2014, aes(x = Year, y = Price), color = "#1f4e78", size = 2.5) +
+    geom_text(data = df_labels, aes(x = Year, y = Price, label = Label), color = "grey40", size = 4, fontface = "plain") +
+    scale_y_continuous(limits = c(0, 500), breaks = seq(0, 500, by = 100), labels = function(x) paste0("$", x), expand = expansion(mult = c(0.02, 0.05))) +
+    scale_x_continuous(breaks = years, limits = c(2007.2, 2014.2), expand = c(0, 0)) +
+    labs(x = "Year") + common_theme
+  
+  slide_1 <- ggdraw(p1) +
+    draw_label("Retail price over time", x = 0.03, y = 0.99, hjust = 0, vjust = 1, size = 12, colour = "grey20") +
+    draw_label("Average price", x = 0.03, y = 0.82, angle = 90, hjust = 0.5, vjust = 0, fontface = "plain", size = 9, colour = "grey40")
+  
+  header_1 <- ggplot() +
+    geom_richtext(aes(x = 0.01, y = 0.8, label = "As of 2014, retail prices have converged, with an <span style='color:#1f4e78;'><b>average retail<br>price of $223</b></span>, ranging from a low of $180 (C) to a high of $260 (A)"),
+                  hjust = 0, vjust = 1, fill = NA, label.color = NA, size = 4.2) +
+    xlim(0, 1) + ylim(0, 1) + theme_void() + theme(plot.margin = margin(t = 5, r = 10, b = 0, l = 20))
+  
+  panel_1 <- plot_grid(header_1, slide_1, ncol = 1, rel_heights = c(0.22, 0.78))
+  
+  # --- [Panel 2] Recommendation: introduce product below $223 average ($150-$200 range) ---
+  p2 <- ggplot() +
+    # Shaded recommended range background ($150 - $200)
+    annotate("rect", xmin = -Inf, xmax = Inf, ymin = 150, ymax = 200, fill = "#1f4e78", alpha = 0.12) +
+    geom_line(data = df, aes(x = Year, y = Price, group = Product), color = "grey70", linewidth = 1.0, na.rm = TRUE) +
+    # Highlight average point in 2014
+    geom_point(data = data.frame(Year = 2014, Price = 223), aes(x = Year, y = Price), color = "#1f4e78", size = 3.0) +
+    geom_text(data = data.frame(Year = 2014, Price = 223, Label = "AVG"), aes(x = Year - 0.3, y = Price, label = Label), color = "#1f4e78", size = 3.2, fontface = "bold") +
+    geom_text(data = df_labels, aes(x = Year, y = Price, label = Label), color = "grey40", size = 4, fontface = "plain") +
+    scale_y_continuous(limits = c(0, 500), breaks = seq(0, 500, by = 100), labels = function(x) paste0("$", x), expand = expansion(mult = c(0.02, 0.05))) +
+    scale_x_continuous(breaks = years, limits = c(2007.2, 2014.2), expand = c(0, 0)) +
+    labs(x = "Year") + common_theme
+  
+  slide_2 <- ggdraw(p2) +
+    draw_label("Retail price over time", x = 0.05, y = 0.99, hjust = 0, vjust = 1, size = 12, colour = "grey20") +
+    draw_label("Average price", x = 0.03, y = 0.82, angle = 90, hjust = 0.5, vjust = 0, fontface = "plain", size = 9, colour = "grey40") +
+    draw_label("Recommended range", x = 0.12, y = 0.42, hjust = 0, vjust = 0.5, fontface = "plain", size = 9, colour = "#1f4e78")
+  
+  header_2 <- ggplot() +
+    geom_richtext(aes(x = 0.01, y = 0.8, label = "To be competitive, we recommend introducing our product <i>below</i><br>the <i>$223 average</i> price point in the <span style='color:#1f4e78;'><b>$150–$200 range</b></span>"),
+                  hjust = 0, vjust = 1, fill = NA, label.color = NA, size = 4.5) +
+    xlim(0, 1) + ylim(0, 1) + theme_void() + theme(plot.margin = margin(t = 5, r = 10, b = 0, l = 20))
+  
+  panel_2 <- plot_grid(header_2, slide_2, ncol = 1, rel_heights = c(0.22, 0.78))
+  
+  # 3. Combine both concluding panels into a 1x2 layout (or continue 1x3 if adding another)
+  conclusion_grid <- plot_grid(panel_1, panel_2, ncol = 2, nrow = 1)
+})
+
+# Print the final layout window
+windows(width = 12, height = 5.5)
+print(conclusion_grid)
