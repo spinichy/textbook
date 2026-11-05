@@ -5871,3 +5871,632 @@ p_line <- ggplot(df_clean, aes(x = x_pos, y = Price, group = Product)) +
 # Print final plot
 windows()
 print(p_line)
+
+
+#-------------------------------------------------------------------------------
+## Pulling it all together -Single line graph for all products
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+
+# 1. Create dummy data based on the line graph
+years <- 2008:2014
+
+df <- data.frame(
+  Year = rep(years, times = 5),
+  Product = rep(c("Product A", "Product B", "Product C", "Product D", "Product E"), each = length(years)),
+  Price = c(
+    # Product A
+    395, 420, 425, 390, 300, 270, 260,
+    # Product B
+    360, 400, 410, 375, 290, 260, 250,
+    # Product C
+    NA,  NA,  100, 180, 200, 240, 180,
+    # Product D
+    NA,  NA,  NA,  160, 260, 220, 215,
+    # Product E
+    NA,  NA,  NA,  NA,  NA,  100, 210
+  )
+)
+
+# Ensure 'Product' is a factor with the correct legend order
+df$Product <- factor(df$Product, levels = c("Product A", "Product B", "Product C", "Product D", "Product E"))
+
+# 2. Define custom color palette matching the image
+product_colors <- c(
+  "Product A" = "#2b7bde", # Blue
+  "Product B" = "#d93838", # Red
+  "Product C" = "#88b73d", # Green
+  "Product D" = "#8e44ad", # Purple
+  "Product E" = "#00bcd4"  # Cyan/Light Blue
+)
+
+# Common layout theme for exact margin alignment
+shared_theme <- theme_minimal(base_size = 12) +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.margin = margin(t = 15, r = 25, b = 10, l = 25)
+  )
+
+# 3. Create the main line chart (p_main) with slightly extended limits to prevent clipping
+p_main <- ggplot(df, aes(x = Year, y = Price, color = Product, group = Product)) +
+  geom_line(linewidth = 1.0, na.rm = TRUE) +
+  scale_color_manual(values = product_colors) +
+  scale_y_continuous(
+    limits = c(0, 500),
+    breaks = seq(0, 500, by = 100),
+    labels = function(x) paste0("$", x)
+  ) +
+  # Slightly expand limits to c(2008, 2014.2) so Product E is never clipped at the right edge
+  scale_x_continuous(breaks = years, limits = c(2008, 2014.2), expand = c(0, 0)) +
+  shared_theme +
+  theme(
+    panel.grid.major.y = element_line(color = "#e0e0e0", linewidth = 0.5),
+    panel.border = element_rect(color = "#cccccc", fill = NA, linewidth = 0.8),
+    legend.position = "none",
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text = element_text(color = "#333333"),
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5, margin = margin(b = 15))
+  ) +
+  ggtitle("Average Retail Product Price per Year")
+
+# 4. Create a dedicated legend chart (p_legend) using line segments instead of points
+df_leg <- data.frame(
+  Product = factor(c("Product A", "Product B", "Product C", "Product D", "Product E"),
+                   levels = c("Product A", "Product B", "Product C", "Product D", "Product E")),
+  x_pos = seq(2008, 2013.3, length.out = 5) # Evenly spaced starting points for legend line segments
+)
+
+p_legend <- ggplot(df_leg, aes(color = Product)) +
+  # Draw line segments for legend items to match line graph style
+  geom_segment(aes(x = x_pos, xend = x_pos + 0.35, y = 1, yend = 1), linewidth = 1.5) +
+  # Place text labels next to the line segments
+  geom_text(aes(x = x_pos + 0.4, y = 1, label = Product), size = 3.2, hjust = 0, show.legend = FALSE, color = "#333333") +
+  scale_color_manual(values = product_colors) +
+  scale_x_continuous(limits = c(2008, 2014.2), expand = c(0, 0)) +
+  scale_y_continuous(limits = c(0.5, 1.5)) +
+  coord_cartesian(xlim = c(2008, 2014.2), clip = "off") +
+  shared_theme +
+  theme(
+    legend.position = "none",
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    panel.border = element_blank(),
+    panel.grid = element_blank(),
+    plot.margin = margin(t = 0, r = 25, b = 15, l = 25)
+  )
+
+# 5. Combine both plots vertically using cowplot with precise alignment
+final_plot <- plot_grid(
+  p_main, 
+  p_legend, 
+  ncol = 1, 
+  rel_heights = c(0.91, 0.09),
+  align = "v",
+  axis = "lr"
+)
+
+# Print final composed plot in a new windows device
+windows(width = 9, height = 7)
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+##  Pulling it all together - Eliminate clutter -
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+
+# 1. Create dummy data based on the line graph
+years <- 2008:2014
+
+df <- data.frame(
+  Year = rep(years, times = 5),
+  Product = rep(c("Product A", "Product B", "Product C", "Product D", "Product E"), each = length(years)),
+  Price = c(
+    # Product A
+    395, 420, 425, 390, 300, 270, 260,
+    # Product B
+    360, 400, 410, 375, 290, 260, 250,
+    # Product C
+    NA,  NA,  100, 180, 200, 240, 180,
+    # Product D
+    NA,  NA,  NA,  160, 260, 220, 215,
+    # Product E
+    NA,  NA,  NA,  NA,  NA,  100, 210
+  )
+)
+
+# Ensure 'Product' is a factor
+df$Product <- factor(df$Product, levels = c("Product A", "Product B", "Product C", "Product D", "Product E"))
+
+# 2. Data frame for direct text labels (A, B, C, D, E) positioned near line starting points
+df_labels <- data.frame(
+  Product = c("Product A", "Product B", "Product C", "Product D", "Product E"),
+  Label = c("A", "B", "C", "D", "E"),
+  Year = c(2007.8, 2007.8, 2009.8, 2010.9, 2012.8), # Position slightly to the left of line starts
+  Price = c(395, 360, 100, 160, 100)
+)
+
+# 3. Create ggplot matching the exact clean monochrome style
+p <- ggplot() +
+  # Draw line graph in grey color
+  geom_line(data = df, aes(x = Year, y = Price, group = Product), color = "grey40", linewidth = 1.1, na.rm = TRUE) +
+  # Directly label each line with A, B, C, D, E
+  geom_text(data = df_labels, aes(x = Year, y = Price, label = Label), color = "grey30", size = 4.5, fontface = "plain") +
+  # Y-axis setup with padding at origin ($0)
+  scale_y_continuous(
+    limits = c(0, 500),
+    breaks = seq(0, 500, by = 100),
+    labels = function(x) paste0("$", x),
+    expand = expansion(mult = c(0.02, 0.05)) # Small margin near $0
+  ) +
+  # X-axis setup with explicit margin (padding) between origin and 2008
+  scale_x_continuous(
+    breaks = years,
+    limits = c(2007.2, 2014.2), # Add offset space before 2008 and after 2014
+    expand = c(0, 0)
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    # Remove all internal grid lines (major and minor)
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    
+    # Show clean solid axis lines on L-shape (Left and Bottom)
+    axis.line.x = element_line(color = "grey70", linewidth = 0.6),
+    axis.line.y = element_line(color = "grey70", linewidth = 0.6),
+    
+    # Remove border box around panel
+    panel.border = element_blank(),
+    
+    # Remove bottom legend completely
+    legend.position = "none",
+    
+    # Formatting titles and tick marks
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text = element_text(color = "grey30", size = 11),
+    plot.title = element_text(face = "bold", color = "grey20", size = 15, hjust = 0.5, margin = margin(b = 20)),
+    plot.margin = margin(t = 20, r = 25, b = 20, l = 20)
+  ) +
+  ggtitle("Average Retail Product Price per Year")
+
+# Print the clean plot
+windows(width = 8, height = 5.5)
+print(p)
+
+
+
+#-------------------------------------------------------------------------------
+##  Pulling it all together - Focus the audience’s attention
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+
+# 1. Create dummy data based on the line graph
+years <- 2008:2014
+
+df <- data.frame(
+  Year = rep(years, times = 5),
+  Product = rep(c("Product A", "Product B", "Product C", "Product D", "Product E"), each = length(years)),
+  Price = c(
+    # Product A
+    395, 420, 425, 390, 300, 270, 260,
+    # Product B
+    360, 400, 410, 375, 290, 260, 250,
+    # Product C
+    NA,  NA,  100, 180, 200, 240, 180,
+    # Product D
+    NA,  NA,  NA,  160, 260, 220, 215,
+    # Product E
+    NA,  NA,  NA,  NA,  NA,  100, 210
+  )
+)
+
+# Ensure 'Product' is a factor
+df$Product <- factor(df$Product, levels = c("Product A", "Product B", "Product C", "Product D", "Product E"))
+
+# 2. Data frame for direct text labels (A, B, C, D, E)
+df_labels <- data.frame(
+  Product = c("Product A", "Product B", "Product C", "Product D", "Product E"),
+  Label = c("A", "B", "C", "D", "E"),
+  Year = c(2007.8, 2007.8, 2009.8, 2010.9, 2012.8),
+  Price = c(395, 360, 100, 160, 100)
+)
+
+# 3. Data frame for Product C starting point dot
+df_point <- data.frame(
+  Year = 2010,
+  Price = 100
+)
+
+# 4. Create ggplot with conditional coloring starting strictly from 2010 onwards
+p <- ggplot() +
+  # Draw background lines in light grey for the entire range
+  geom_line(data = df, aes(x = Year, y = Price, group = Product), color = "grey80", linewidth = 1.1, na.rm = TRUE) +
+  
+  # Draw highlighted lines for Product A and B starting strictly from 2010 onwards in dark blue
+  geom_line(data = df %>% filter(Product %in% c("Product A", "Product B") & Year >= 2010), 
+            aes(x = Year, y = Price, group = Product), color = "#1f4e78", linewidth = 1.2, na.rm = TRUE) +
+  
+  # Draw highlighted starting point for Product C (2010, $100)
+  geom_point(data = df_point, aes(x = Year, y = Price), color = "#1f4e78", size = 3.0) +
+  
+  # Directly label each line with A, B, C, D, E
+  geom_text(data = df_labels, aes(x = Year, y = Price, label = Label), color = "grey40", size = 4.5, fontface = "plain") +
+  
+  # Y-axis setup
+  scale_y_continuous(
+    limits = c(0, 500),
+    breaks = seq(0, 500, by = 100),
+    labels = function(x) paste0("$", x),
+    expand = expansion(mult = c(0.02, 0.05))
+  ) +
+  
+  # X-axis setup with explicit margin
+  scale_x_continuous(
+    breaks = years,
+    limits = c(2007.2, 2014.2),
+    expand = c(0, 0)
+  ) +
+  
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.line.x = element_line(color = "grey70", linewidth = 0.6),
+    axis.line.y = element_line(color = "grey70", linewidth = 0.6),
+    panel.border = element_blank(),
+    legend.position = "none",
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text = element_text(color = "grey30", size = 11),
+    plot.title = element_text(face = "bold", color = "grey20", size = 15, hjust = 0.5, margin = margin(b = 20)),
+    plot.margin = margin(t = 20, r = 25, b = 20, l = 20)
+  ) +
+  ggtitle("Average Retail Product Price per Year")
+
+# Print the highlighted plot
+windows(width = 8, height = 5.5)
+print(p)
+
+
+
+#-------------------------------------------------------------------------------
+##  Pulling it all together - Refocus the audience’s attention
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+
+# 1. Create dummy data based on the line graph
+years <- 2008:2014
+
+df <- data.frame(
+  Year = rep(years, times = 5),
+  Product = rep(c("Product A", "Product B", "Product C", "Product D", "Product E"), each = length(years)),
+  Price = c(
+    # Product A
+    395, 420, 425, 390, 300, 270, 260,
+    # Product B
+    360, 400, 410, 375, 290, 260, 250,
+    # Product C
+    NA,  NA,  100, 180, 200, 240, 180,
+    # Product D
+    NA,  NA,  NA,  160, 260, 220, 215,
+    # Product E
+    NA,  NA,  NA,  NA,  NA,  100, 210
+  )
+)
+
+# Ensure 'Product' is a factor
+df$Product <- factor(df$Product, levels = c("Product A", "Product B", "Product C", "Product D", "Product E"))
+
+# 2. Data frame for direct text labels (A, B, C, D, E)
+df_labels <- data.frame(
+  Product = c("Product A", "Product B", "Product C", "Product D", "Product E"),
+  Label = c("A", "B", "C", "D", "E"),
+  Year = c(2007.8, 2007.8, 2009.8, 2010.9, 2012.8),
+  Price = c(395, 360, 100, 160, 100)
+)
+
+# 3. Create ggplot with precise segment highlighting
+p <- ggplot() +
+  # Draw base background lines in light grey for the entire range
+  geom_line(data = df, aes(x = Year, y = Price, group = Product), color = "grey80", linewidth = 1.1, na.rm = TRUE) +
+  
+  # --- BLUE HIGHLIGHTS (Increasing segments) ---
+  # Product A & B: 2008 to 2009 (Increasing)
+  geom_line(data = df %>% filter(Product %in% c("Product A", "Product B") & Year <= 2009), 
+            aes(x = Year, y = Price, group = Product), color = "#1f4e78", linewidth = 1.2, na.rm = TRUE) +
+  # Product C: 2010 to 2011 (Increasing segment)
+  geom_line(data = df %>% filter(Product == "Product C" & Year >= 2010 & Year <= 2011), 
+            aes(x = Year, y = Price, group = Product), color = "#1f4e78", linewidth = 1.2, na.rm = TRUE) +
+  # Product D: 2011 to 2012 (Increasing segment)
+  geom_line(data = df %>% filter(Product == "Product D" & Year >= 2011 & Year <= 2012), 
+            aes(x = Year, y = Price, group = Product), color = "#1f4e78", linewidth = 1.2, na.rm = TRUE) +
+  # Product E: 2013 to 2014 (Increasing segment)
+  geom_line(data = df %>% filter(Product == "Product E" & Year >= 2013 & Year <= 2014), 
+            aes(x = Year, y = Price, group = Product), color = "#1f4e78", linewidth = 1.2, na.rm = TRUE) +
+  
+  # --- DARK GREY HIGHLIGHTS ---
+  # Product A & B: 2010 onwards (Dark Grey)
+  geom_line(data = df %>% filter(Product %in% c("Product A", "Product B") & Year >= 2010), 
+            aes(x = Year, y = Price, group = Product), color = "grey25", linewidth = 1.2, na.rm = TRUE) +
+  # Product D: 2012 onwards (Dark Grey)
+  geom_line(data = df %>% filter(Product == "Product D" & Year >= 2012), 
+            aes(x = Year, y = Price, group = Product), color = "grey25", linewidth = 1.2, na.rm = TRUE) +
+  # Product C: 2013 onwards (Decreasing segment, Dark Grey)
+  geom_line(data = df %>% filter(Product == "Product C" & Year >= 2013), 
+            aes(x = Year, y = Price, group = Product), color = "grey25", linewidth = 1.2, na.rm = TRUE) +
+  
+  # Directly label each line with A, B, C, D, E
+  geom_text(data = df_labels, aes(x = Year, y = Price, label = Label), color = "grey40", size = 4.5, fontface = "plain") +
+  
+  # Y-axis setup
+  scale_y_continuous(
+    limits = c(0, 500),
+    breaks = seq(0, 500, by = 100),
+    labels = function(x) paste0("$", x),
+    expand = expansion(mult = c(0.02, 0.05))
+  ) +
+  
+  # X-axis setup with explicit margin
+  scale_x_continuous(
+    breaks = years,
+    limits = c(2007.2, 2014.2),
+    expand = c(0, 0)
+  ) +
+  
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.line.x = element_line(color = "grey70", linewidth = 0.6),
+    axis.line.y = element_line(color = "grey70", linewidth = 0.6),
+    panel.border = element_blank(),
+    legend.position = "none",
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text = element_text(color = "grey30", size = 11),
+    plot.title = element_text(face = "bold", color = "grey20", size = 15, hjust = 0.5, margin = margin(b = 20)),
+    plot.margin = margin(t = 20, r = 25, b = 20, l = 20)
+  ) +
+  ggtitle("Average Retail Product Price per Year")
+
+# Print the highlighted plot
+windows(width = 8, height = 5.5)
+print(p)
+
+
+
+#-------------------------------------------------------------------------------
+##  Pulling it all together -  Refocus the audience’s attention again
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+
+# 1. Create dummy data based on the line graph
+years <- 2008:2014
+
+df <- data.frame(
+  Year = rep(years, times = 5),
+  Product = rep(c("Product A", "Product B", "Product C", "Product D", "Product E"), each = length(years)),
+  Price = c(
+    # Product A
+    395, 420, 425, 390, 300, 270, 260,
+    # Product B
+    360, 400, 410, 375, 290, 260, 250,
+    # Product C
+    NA,  NA,  100, 180, 200, 240, 180,
+    # Product D
+    NA,  NA,  NA,  160, 260, 220, 215,
+    # Product E
+    NA,  NA,  NA,  NA,  NA,  100, 210
+  )
+)
+
+# Ensure 'Product' is a factor
+df$Product <- factor(df$Product, levels = c("Product A", "Product B", "Product C", "Product D", "Product E"))
+
+# 2. Data frame for direct text labels (A, B, C, D, E)
+df_labels <- data.frame(
+  Product = c("Product A", "Product B", "Product C", "Product D", "Product E"),
+  Label = c("A", "B", "C", "D", "E"),
+  Year = c(2007.8, 2007.8, 2009.8, 2010.9, 2012.8),
+  Price = c(395, 360, 100, 160, 100)
+)
+
+# 3. Extract the last valid data point for each product (Year 2014) for marker placement
+df_endpoints <- df %>%
+  filter(!is.na(Price)) %>%
+  group_by(Product) %>%
+  filter(Year == max(Year))
+
+# 4. Create ggplot
+p <- ggplot() +
+  # Draw all product lines in clean grey color
+  geom_line(data = df, aes(x = Year, y = Price, group = Product), color = "grey70", linewidth = 1.1, na.rm = TRUE) +
+  
+  # Add blue circular markers at the very last data point of each line
+  geom_point(data = df_endpoints, aes(x = Year, y = Price), color = "#1f4e78", size = 3.0) +
+  
+  # Directly label each line with A, B, C, D, E
+  geom_text(data = df_labels, aes(x = Year, y = Price, label = Label), color = "grey40", size = 4.5, fontface = "plain") +
+  
+  # Y-axis setup
+  scale_y_continuous(
+    limits = c(0, 500),
+    breaks = seq(0, 500, by = 100),
+    labels = function(x) paste0("$", x),
+    expand = expansion(mult = c(0.02, 0.05))
+  ) +
+  
+  # X-axis setup with standard years
+  scale_x_continuous(
+    breaks = years,
+    limits = c(2007.2, 2014.2),
+    expand = c(0, 0)
+  ) +
+  
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.line.x = element_line(color = "grey70", linewidth = 0.6),
+    axis.line.y = element_line(color = "grey70", linewidth = 0.6),
+    panel.border = element_blank(),
+    legend.position = "none",
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    
+    # Highlight '2014' text in blue (vectorized text formatting)
+    axis.text.x = element_text(
+      color = c(rep("grey30", 6), "#1f4e78"), 
+      face = c(rep("plain", 6), "bold"),
+      size = 11
+    ),
+    axis.text.y = element_text(color = "grey30", size = 11),
+    
+    plot.title = element_text(face = "bold", color = "grey20", size = 15, hjust = 0.5, margin = margin(b = 20)),
+    plot.margin = margin(t = 20, r = 25, b = 20, l = 20)
+  ) +
+  ggtitle("Average Retail Product Price per Year")
+
+# Print the final plot
+windows(width = 8, height = 5.5)
+print(p)
+
+
+
+#-------------------------------------------------------------------------------
+##  Pulling it all together -  Add text and align elements
+#-------------------------------------------------------------------------------
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(cowplot) # Required for ggdraw and draw_label
+
+# 1. Create dummy data based on the line graph
+years <- 2008:2014
+
+df <- data.frame(
+  Year = rep(years, times = 5),
+  Product = rep(c("Product A", "Product B", "Product C", "Product D", "Product E"), each = length(years)),
+  Price = c(
+    # Product A
+    395, 420, 425, 390, 300, 270, 260,
+    # Product B
+    360, 400, 410, 375, 290, 260, 250,
+    # Product C
+    NA,  NA,  100, 180, 200, 240, 180,
+    # Product D
+    NA,  NA,  NA,  160, 260, 220, 215,
+    # Product E
+    NA,  NA,  NA,  NA,  NA,  100, 210
+  )
+)
+
+# Ensure 'Product' is a factor
+df$Product <- factor(df$Product, levels = c("Product A", "Product B", "Product C", "Product D", "Product E"))
+
+# 2. Data frame for direct text labels (A, B, C, D, E)
+df_labels <- data.frame(
+  Product = c("Product A", "Product B", "Product C", "Product D", "Product E"),
+  Label = c("A", "B", "C", "D", "E"),
+  Year = c(2007.8, 2007.8, 2009.8, 2010.9, 2012.8),
+  Price = c(395, 360, 100, 160, 100)
+)
+
+# 3. Create base ggplot without endpoint markers and with uniform X-axis text color
+suppressWarnings({
+  p <- ggplot() +
+    # Draw all product lines in clean grey color
+    geom_line(data = df, aes(x = Year, y = Price, group = Product), color = "grey70", linewidth = 1.1, na.rm = TRUE) +
+    
+    # Directly label each line with A, B, C, D, E
+    geom_text(data = df_labels, aes(x = Year, y = Price, label = Label), color = "grey40", size = 4.5, fontface = "plain") +
+    
+    # Y-axis setup
+    scale_y_continuous(
+      limits = c(0, 500),
+      breaks = seq(0, 500, by = 100),
+      labels = function(x) paste0("$", x),
+      expand = expansion(mult = c(0.02, 0.05))
+    ) +
+    
+    # X-axis setup
+    scale_x_continuous(
+      breaks = years,
+      limits = c(2007.2, 2014.2),
+      expand = c(0, 0)
+    ) +
+    
+    # Keep only X-axis title (Year) inside ggplot
+    labs(x = "Year") +
+    
+    theme_minimal(base_size = 12) +
+    theme(
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.line.x = element_line(color = "grey70", linewidth = 0.6),
+      axis.line.y = element_line(color = "grey70", linewidth = 0.6),
+      panel.border = element_blank(),
+      legend.position = "none",
+      
+      # Uniform color for all X-axis and Y-axis text labels
+      axis.text.x = element_text(color = "grey30", size = 11),
+      axis.text.y = element_text(color = "grey30", size = 11),
+      
+      # Remove built-in title and y-axis title to handle them via ggdraw
+      plot.title = element_blank(),
+      axis.title.y = element_blank(),
+      
+      # X-axis label (Year) positioned cleanly on the left under the axis
+      axis.title.x = element_text(color = "grey40", size = 11, hjust = 0.1, margin = margin(t = 10)),
+      
+      # Ensure enough margin on the left and top for custom drawn labels
+      plot.margin = margin(t = 35, r = 25, b = 20, l = 40)
+    )
+  
+  # 4. Use ggdraw to precisely place the title and the vertical Y-axis label
+  final_plot <- ggdraw(p) +
+    # Draw Main Title at top-left
+    draw_label("Retail price over time", x = 0.03, y = 0.98, hjust = 0, vjust = 1, fontface = "bold", size = 15, colour = "grey20") +
+    # Draw Vertical Y-axis Label ("Average price" rotated 90 degrees)
+    draw_label("Average price", x = 0.04, y = 0.82, angle = 90, hjust = 0.5, vjust = 0.5, fontface = "plain", size = 11, colour = "grey40")
+})
+
+# Print the final plot
+windows(width = 8, height = 5.5)
+print(final_plot)
