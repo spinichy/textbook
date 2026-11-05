@@ -6984,3 +6984,321 @@ suppressWarnings({
 # Print the final layout window
 windows(width = 12, height = 5.5)
 print(conclusion_grid)
+
+
+
+#-------------------------------------------------------------------------------
+## Color considerations with a dark background - 1) Simple graph on white, blue, and black background 
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(patchwork)
+
+# Create sample data
+df <- data.frame(
+  Month = factor(c("Jan", "Feb", "Mar", "Apr", "May"), 
+                 levels = c("Jan", "Feb", "Mar", "Apr", "May")),
+  Value = c(4, 2, 3, 4, 4)
+)
+
+# 1. White background plot
+p_white <- ggplot(df, aes(x = Month, y = Value, group = 1)) +
+  geom_line(color = "black", linewidth = 1.2) +
+  geom_point(color = "black", size = 3.5) +
+  scale_y_continuous(limits = c(0, 5), breaks = 0:5) +
+  labs(title = "White background", x = NULL, y = NULL) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(color = "black", face = "plain", size = 14),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "gray60", linewidth = 0.5),
+    axis.text = element_text(color = "black", size = 11),
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.background = element_rect(fill = "white", color = NA)
+  )
+
+# 2. Blue background plot
+p_blue <- ggplot(df, aes(x = Month, y = Value, group = 1)) +
+  geom_line(color = "white", linewidth = 1.2) +
+  geom_point(color = "white", size = 3.5) +
+  scale_y_continuous(limits = c(0, 5), breaks = 0:5) +
+  labs(title = "Blue background", x = NULL, y = NULL) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(color = "white", face = "plain", size = 14),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "white", linewidth = 0.5),
+    axis.text = element_text(color = "white", size = 11),
+    plot.background = element_rect(fill = "#4B6B98", color = NA), # Adjusted to match tone
+    panel.background = element_rect(fill = "#4B6B98", color = NA)
+  )
+
+# 3. Black background plot
+p_black <- ggplot(df, aes(x = Month, y = Value, group = 1)) +
+  geom_line(color = "white", linewidth = 1.2) +
+  geom_point(color = "white", size = 3.5) +
+  scale_y_continuous(limits = c(0, 5), breaks = 0:5) +
+  labs(title = "Black background", x = NULL, y = NULL) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(color = "white", face = "plain", size = 14),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "white", linewidth = 0.5),
+    axis.text = element_text(color = "white", size = 11),
+    plot.background = element_rect(fill = "black", color = NA),
+    panel.background = element_rect(fill = "black", color = NA)
+  )
+
+# Combine plots side by side using patchwork
+combined_plot <- p_white + p_blue + p_black
+print(combined_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Color considerations with a dark background - 2) Initial makeover on white background
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot)
+
+# 1. Prepare data
+survey_data <- data.frame(
+  Item = c("Survey item A", "Survey item B", "Survey item C", "Survey item D"),
+  Strongly_Disagree = c(1, 5, 8, 11),
+  Middle = c(66, 83, 83, 80),        
+  Strongly_Agree = c(33, 12, 9, 9)
+)
+
+# 2. Reshape to long format
+survey_long <- survey_data %>%
+  pivot_longer(
+    cols = c(Strongly_Disagree, Middle, Strongly_Agree),
+    names_to = "Response",
+    values_to = "Percent"
+  )
+
+survey_long$Response <- factor(
+  survey_long$Response, 
+  levels = c("Strongly_Agree", "Middle", "Strongly_Disagree")
+)
+
+survey_long$Item <- factor(
+  survey_long$Item, 
+  levels = rev(c("Survey item A", "Survey item B", "Survey item C", "Survey item D"))
+)
+
+# 3. Define exact color palette matching the image style
+color_palette <- c(
+  "Strongly_Agree" = "#2A9D8F",      # Teal / Greenish
+  "Middle" = "#D1D5DB",            # Light gray
+  "Strongly_Disagree" = "#C53030"    # Red
+)
+
+# 4. Create the core horizontal stacked bar plot
+p_main <- ggplot(survey_long, aes(x = Item, y = Percent, fill = Response)) +
+  # Adjusted bar width for a slightly slimmer/tighter look and better spacing
+  geom_bar(stat = "identity", width = 0.42) +
+  coord_flip(clip = "off") +
+  scale_fill_manual(values = color_palette) +
+  
+  # --- Fixed absolute position for inner bar labels ---
+  # Left side (Strongly Disagree) - aligned to the left
+  annotate("text", x = 4, y = 1.5, label = "1%", color = "white", size = 4, fontface = "bold", hjust = 0) +
+  annotate("text", x = 3, y = 1.5, label = "5%", color = "white", size = 4, fontface = "bold", hjust = 0) +
+  annotate("text", x = 2, y = 1.5, label = "8%", color = "white", size = 4, fontface = "bold", hjust = 0) +
+  annotate("text", x = 1, y = 1.5, label = "11%", color = "white", size = 4, fontface = "bold", hjust = 0) +
+  
+  # Right side (Strongly Agree) - correct individual values for each item
+  annotate("text", x = 4, y = 100 - (9 / 2), label = "33%", color = "white", size = 4, fontface = "bold", hjust = 0.5) +
+  annotate("text", x = 3, y = 100 - (9 / 2), label = "12%", color = "white", size = 4, fontface = "bold", hjust = 0.5) +
+  annotate("text", x = 2, y = 100 - (9 / 2),  label = "9%",  color = "white", size = 4, fontface = "bold", hjust = 0.5) +
+  annotate("text", x = 1, y = 100 - (9 / 2),  label = "9%",  color = "white", size = 4, fontface = "bold", hjust = 0.5) +
+  
+  # --- Right-side annotations (Multi-color split styling) ---
+  # Item A: Title in Teal, description in Gray
+  annotate("text", x = 4.16, y = 103, label = "Survey item A", color = "#2A9D8F", size = 3.8, fontface = "bold", hjust = 0) +
+  annotate("text", x = 4, y = 103, label = "ranked highest\nfor team X", color = "#666666", size = 3.8, fontface = "bold", hjust = 0, lineheight = 1.1) +
+  
+  # Item D: Description in Gray, Title in Red
+  annotate("text", x = 1, y = 103, label = "Dissatisfaction\nwas greatest for", color = "#666666", size = 3.8, fontface = "bold", hjust = 0, lineheight = 1.1) +
+  annotate("text", x = 1.2, y = 103, label = "Survey item D", color = "#C53030", size = 3.8, fontface = "bold", hjust = 0, lineheight = 1.1) +
+  
+  scale_y_continuous(limits = c(0, 142), breaks = seq(0, 100, 20)) +
+  
+  theme_minimal(base_family = "sans") +
+  labs(x = NULL, y = NULL) +
+  theme(
+    axis.text.y = element_text(size = 12, face = "bold", color = "#222222"),
+    axis.text.x = element_blank(),
+    axis.ticks = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = "none",
+    # Top margin configured to give exact clearance for the ggdraw header elements
+    plot.margin = margin(65, 10, 15, 10)
+  )
+
+# 5. Assemble final composition using cowplot (ggdraw) perfectly aligned with 0%~100% span
+final_plot <- ggdraw(p_main) +
+  # Main Title
+  draw_text("Survey Results: Team X", x = 0.01, y = 0.96, size = 16, fontface = "bold", color = "#222222", hjust = 0) +
+  
+  # Header: Scale legend / Likert category header
+  {
+    sp <- "        " 
+    header_str <- paste(
+      "Strongly Disagree", sp, "|", sp,
+      "Disagree", sp, "|", sp,
+      "Neutral", sp, "|", sp,
+      "Agree", sp, "|", sp,
+      "Strongly Agree"
+    )
+    
+    draw_text(header_str, x = 0.15, y = 0.91, size = 10, color = "#666666", hjust = 0)
+  } +
+  
+  # Axis ticks and percentages perfectly aligned with the plot's 0% to 100% scale bounds
+  draw_text("0%", x = 0.15, y = 0.86, size = 9, color = "#666666", hjust = 0) +
+  draw_text("20%", x = 0.15 + 0.11*1, y = 0.86, size = 9, color = "#666666", hjust = 0) +
+  draw_text("40%", x = 0.15 + 0.11*2, y = 0.86, size = 9, color = "#666666", hjust = 0) +
+  draw_text("60%", x = 0.15 + 0.11*3, y = 0.86, size = 9, color = "#666666", hjust = 0) +
+  draw_text("80%", x = 0.15 + 0.11*4, y = 0.86, size = 9, color = "#666666", hjust = 0) +
+  draw_text("100%", x = 0.15 + 0.11*5, y = 0.86, size = 9, color = "#666666", hjust = 0) +
+  
+  # Footer / Subtitle label below the scale
+  draw_text("Percent of Total", x = 0.15, y = 0.83, size = 9, color = "#666666", hjust = 0)
+
+# Print the final plot
+windows(width = 12, height = 8)
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Color considerations with a dark background - 3) Remake on dark background
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot)
+
+# 1. Prepare data
+survey_data <- data.frame(
+  Item = c("Survey item A", "Survey item B", "Survey item C", "Survey item D"),
+  Strongly_Disagree = c(1, 5, 8, 11),
+  Middle = c(66, 83, 83, 80),        
+  Strongly_Agree = c(33, 12, 9, 9)
+)
+
+# 2. Reshape to long format
+survey_long <- survey_data %>%
+  pivot_longer(
+    cols = c(Strongly_Disagree, Middle, Strongly_Agree),
+    names_to = "Response",
+    values_to = "Percent"
+  )
+
+survey_long$Response <- factor(
+  survey_long$Response, 
+  levels = c("Strongly_Agree", "Middle", "Strongly_Disagree")
+)
+
+survey_long$Item <- factor(
+  survey_long$Item, 
+  levels = rev(c("Survey item A", "Survey item B", "Survey item C", "Survey item D"))
+)
+
+# 3. Define exact color palette matching the dark theme style
+color_palette <- c(
+  "Strongly_Agree" = "#2A9D8F",      # Teal / Greenish
+  "Middle" = "#4A4A4A",            # Darker gray for dark mode
+  "Strongly_Disagree" = "#E63946"    # Vibrant Red
+)
+
+# 4. Create the core horizontal stacked bar plot with dark theme
+p_main <- ggplot(survey_long, aes(x = Item, y = Percent, fill = Response)) +
+  geom_bar(stat = "identity", width = 0.42) +
+  coord_flip(clip = "off") +
+  scale_fill_manual(values = color_palette) +
+  
+  # --- Fixed absolute position for inner bar labels ---
+  annotate("text", x = 4, y = 1.5, label = "1%", color = "white", size = 4, fontface = "bold", hjust = 0) +
+  annotate("text", x = 3, y = 1.5, label = "5%", color = "white", size = 4, fontface = "bold", hjust = 0) +
+  annotate("text", x = 2, y = 1.5, label = "8%", color = "white", size = 4, fontface = "bold", hjust = 0) +
+  annotate("text", x = 1, y = 1.5, label = "11%", color = "white", size = 4, fontface = "bold", hjust = 0) +
+  
+  # Right side values inside teal bars
+  annotate("text", x = 4, y = 100 - (9 / 2), label = "33%", color = "white", size = 4, fontface = "bold", hjust = 0.5) +
+  annotate("text", x = 3, y = 100 - (9 / 2), label = "12%", color = "white", size = 4, fontface = "bold", hjust = 0.5) +
+  annotate("text", x = 2, y = 100 - (9 / 2),  label = "9%",  color = "white", size = 4, fontface = "bold", hjust = 0.5) +
+  annotate("text", x = 1, y = 100 - (9 / 2),  label = "9%",  color = "white", size = 4, fontface = "bold", hjust = 0.5) +
+  
+  # --- Right-side annotations (Dark mode text colors) ---
+  annotate("text", x = 4.16, y = 103, label = "Survey item A", color = "white", size = 3.8, fontface = "bold", hjust = 0) +
+  annotate("text", x = 4, y = 103, label = "\nranked highest\nfor team X", color = "#B0B0B0", size = 3.8, fontface = "bold", hjust = 0, lineheight = 1.1) +
+  
+  annotate("text", x = 1, y = 103, label = "Dissatisfaction\nwas greatest for", color = "#B0B0B0", size = 3.8, fontface = "bold", hjust = 0, lineheight = 1.1) +
+  annotate("text", x = 1.3, y = 103, label = "\n\nSurvey item D", color = "#E63946", size = 3.8, fontface = "bold", hjust = 0, lineheight = 1.1) +
+  
+  scale_y_continuous(limits = c(0, 142), breaks = seq(0, 100, 20)) +
+  
+  theme_minimal(base_family = "sans") +
+  labs(x = NULL, y = NULL) +
+  theme(
+    plot.background = element_rect(fill = "#121212", color = NA),
+    panel.background = element_rect(fill = "#121212", color = NA),
+    axis.text.y = element_text(size = 12, face = "bold", color = "#E0E0E0"),
+    axis.text.x = element_blank(),
+    axis.ticks = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = "none",
+    plot.margin = margin(65, 10, 15, 10)
+  )
+
+# 5. Assemble final composition using cowplot (ggdraw) with dark background
+final_plot <- ggdraw() +
+  draw_plot(p_main) +
+  # Background fill for entire cowplot canvas
+  theme(plot.background = element_rect(fill = "#121212", color = NA)) +
+  
+  # Main Title
+  draw_text("Survey Results: Team X", x = 0.01, y = 0.96, size = 16, fontface = "bold", color = "white", hjust = 0) +
+  
+  # Header: Scale legend / Likert category header
+  {
+    sp <- "        " 
+    header_str <- paste(
+      "Strongly Disagree", sp, "|", sp,
+      "Disagree", sp, "|", sp,
+      "Neutral", sp, "|", sp,
+      "Agree", sp, "|", sp,
+      "Strongly Agree"
+    )
+    
+    draw_text(header_str, x = 0.15, y = 0.91, size = 10, color = "#B0B0B0", hjust = 0)
+  } +
+  
+  # Axis ticks and percentages (Light gray for dark mode)
+  draw_text("0%", x = 0.15, y = 0.86, size = 9, color = "#B0B0B0", hjust = 0) +
+  draw_text("20%", x = 0.15 + 0.11*1, y = 0.86, size = 9, color = "#B0B0B0", hjust = 0) +
+  draw_text("40%", x = 0.15 + 0.11*2, y = 0.86, size = 9, color = "#B0B0B0", hjust = 0) +
+  draw_text("60%", x = 0.15 + 0.11*3, y = 0.86, size = 9, color = "#B0B0B0", hjust = 0) +
+  draw_text("80%", x = 0.15 + 0.11*4, y = 0.86, size = 9, color = "#B0B0B0", hjust = 0) +
+  draw_text("100%", x = 0.15 + 0.11*5, y = 0.86, size = 9, color = "#B0B0B0", hjust = 0) +
+  
+  # Footer / Subtitle label below the scale
+  draw_text("Percent of Total", x = 0.15, y = 0.83, size = 9, color = "#B0B0B0", hjust = 0)
+
+# Print the final plot
+windows(width = 12, height = 8)
+print(final_plot)
