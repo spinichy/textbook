@@ -7302,3 +7302,409 @@ final_plot <- ggdraw() +
 # Print the final plot
 windows(width = 12, height = 8)
 print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Leveraging animation in the visuals you present - 1) Original graph
+#-------------------------------------------------------------------------------
+
+
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(scales)
+library(cowplot)
+
+# Set locale to English for proper month abbreviation formatting
+Sys.setlocale("LC_TIME", "C")
+
+# 1. Create sample data (21 rows matching Sep 2013 - May 2015)
+df <- data.frame(
+  date = seq(as.Date("2013-09-01"), as.Date("2015-05-01"), by = "month"),
+  active_users = c(
+    5800, 7200, 9100, 11000,                                     # Sep - Dec 2013 (4)
+    20500, 26000, 28800, 29800, 32500, 30900, 30500, 32800, 
+    34200, 36200, 37800, 39000,                                  # Jan - Dec 2014 (12)
+    39500, 50200, 61500, 82000, 94500                            # Jan - May 2015 (5)
+  )
+)
+
+# 2. Build the ggplot (Restored Y-axis line, internal grid lines removed, no native caption)
+p <- ggplot(df, aes(x = date, y = active_users)) +
+  # Add the main trend line with smooth appearance
+  geom_line(color = "#2b7bb9", linewidth = 1.2) +
+  
+  # Set scales and limits
+  scale_y_continuous(
+    labels = comma,
+    limits = c(0, 100000),
+    breaks = seq(0, 100000, by = 10000),
+    expand = c(0, 0)
+  ) +
+  scale_x_date(
+    breaks = df$date,
+    labels = function(x) {
+      sapply(x, function(d) {
+        date_val <- as.Date(d, origin = "1970-01-01")
+        m_str <- tolower(format(date_val, "%b"))
+        y_str <- format(date_val, "%Y")
+        
+        # Show year along with lowercase month abbreviation for January ("01") or the initial start date
+        if (format(date_val, "%m") == "01" || date_val == as.Date("2013-09-01")) {
+          paste0(m_str, "\n", y_str)
+        } else {
+          m_str
+        }
+      })
+    },
+    expand = expansion(mult = c(0.02, 0.02))
+  ) +
+  
+  # Clean minimalist theme styling
+  theme_minimal(base_size = 12) +
+  theme(
+    # Remove all internal grid lines (both horizontal and vertical)
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    
+    # Axis line formatting (Restored Y-axis vertical border line)
+    axis.line.y = element_line(color = "#cccccc", linewidth = 0.5),
+    axis.line.x = element_line(color = "#cccccc", linewidth = 0.5),
+    axis.ticks.x = element_line(color = "#cccccc", linewidth = 0.5),
+    axis.ticks.length = unit(4, "pt"),
+    
+    # Remove default titles and axis titles
+    axis.title.y = element_blank(),
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(size = 9, color = "#555555", vjust = 0.5),
+    axis.text.y = element_text(size = 10, color = "#555555"),
+    
+    # Generous overall plot margins to accommodate manual annotations and bottom caption
+    plot.margin = margin(50, 35, 60, 55)
+  )
+
+# 3. Combine ggplot with ggdraw for precise custom text layout (Title, Subtitle, Y-label, and Bottom-Left Caption)
+final_plot <- ggdraw(p) +
+  # Draw Title ("Moonville:")
+  draw_label("Moonville:", x = 0.05, y = 0.96, hjust = 0, vjust = 1, size = 18, fontface = "plain", color = "#222222") +
+  # Draw Subtitle ("active users over time") in blue
+  draw_label("active users over time", x = 0.155, y = 0.96, hjust = 0, vjust = 1, size = 16, fontface = "plain", color = "#2b7bb9") +
+  # Draw vertical Y-axis label ("Active users") rotated at 90 degrees
+  draw_label("Active users", x = 0.055, y = 0.86, angle = 90, vjust = 0.5, size = 12, color = "#555555") +
+  # Draw Caption at the bottom-left using ggdraw
+  draw_label(
+    "Data source: ABC Report. For purpose of analysis \"active user\" is defined as the number of unique users in the past 30 days.",
+    x = 0.05, y = 0.05, hjust = 0, vjust = 0, size = 9, color = "#666666"
+  )
+
+# Display the final plot
+windows(width = 12, height = 8)
+print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+## Leveraging animation in the visuals you present - 2) animation 
+#-------------------------------------------------------------------------------
+
+
+
+#-------------------------------------------------------------------------------
+## 5-Step Animation GIF Generation Code (10 seconds per frame)
+#-------------------------------------------------------------------------------
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(scales)
+library(cowplot)
+library(magick)
+
+# Set locale to English for proper month abbreviation formatting
+Sys.setlocale("LC_TIME", "C")
+
+# Common dataset definition (Sep 2013 - May 2015)
+df_full <- data.frame(
+  date = seq(as.Date("2013-09-01"), as.Date("2015-05-01"), by = "month"),
+  active_users = c(
+    5800, 7200, 9100, 11000,                                     # Sep - Dec 2013 (4)
+    20500, 26000, 28800, 29800, 32500, 30900, 30500, 32800, 
+    34200, 36200, 37800, 39000,                                   # Jan - Dec 2014 (12)
+    39500, 50200, 61500, 82000, 94500                             # Jan - May 2015 (5)
+  )
+)
+
+# Function to generate ggplot for each of the 5 steps provided by the user
+create_step_plot <- function(step_num) {
+  
+  if (step_num == 1) {
+    # Step 1: White line (blending into background) and single filled blue point at start
+    df_plot <- df_full
+    df_plot$active_users <- NA 
+    line_color <- "white"
+    point_data <- df_full[1, ]
+    point_aes <- geom_point(data = point_data, shape = 21, size = 3.5, fill = "#2b7bb9", color = "#2b7bb9", stroke = 1.5)
+    
+  } else if (step_num == 2) {
+    # Step 2: Line up to Dec 2013, points at Sep 2013 and Dec 2013
+    df_plot <- df_full
+    df_plot$active_users[5:21] <- NA
+    line_color <- "#2b7bb9"
+    point_data <- subset(df_full, date == as.Date("2013-09-01") | date == as.Date("2013-12-01"))
+    point_aes <- geom_point(data = point_data, shape = 21, size = 3.5, fill = "white", color = "#2b7bb9", stroke = 1.5)
+    
+  } else if (step_num == 3) {
+    # Step 3: Line up to Apr 2014, points at Sep 2013, Dec 2013, and Apr 2014
+    df_plot <- df_full
+    df_plot$active_users[9:21] <- NA
+    line_color <- "#2b7bb9"
+    point_data <- subset(df_full, date == as.Date("2013-09-01") | date == as.Date("2013-12-01") | date == as.Date("2014-04-01"))
+    point_aes <- geom_point(data = point_data, shape = 21, size = 3.5, fill = "white", color = "#2b7bb9", stroke = 1.5)
+    
+  } else if (step_num == 4) {
+    # Step 4: Line up to Dec 2014, points at Sep 2013, Mar 2014, and Dec 2014
+    df_plot <- df_full
+    df_plot$active_users[17:21] <- NA
+    line_color <- "#2b7bb9"
+    point_data <- subset(df_full, date == as.Date("2013-09-01") | date == as.Date("2014-03-01") | date == as.Date("2014-12-01"))
+    point_aes <- geom_point(data = point_data, shape = 21, size = 3.5, fill = "white", color = "#2b7bb9", stroke = 1.5)
+    
+  } else {
+    # Step 5: Full line up to May 2015, points at Sep 2013, Dec 2014, and May 2015
+    df_plot <- df_full
+    line_color <- "#2b7bb9"
+    point_data <- subset(df_full, date == as.Date("2013-09-01") | date == as.Date("2014-12-01") | date == as.Date("2015-05-01"))
+    point_aes <- geom_point(data = point_data, shape = 21, size = 3.5, fill = "white", color = "#2b7bb9", stroke = 1.5)
+  }
+  
+  # Build ggplot
+  p <- ggplot(df_plot, aes(x = date, y = active_users)) +
+    geom_line(color = line_color, linewidth = 1.2) +
+    point_aes +
+    scale_y_continuous(
+      labels = comma,
+      limits = c(0, 100000),
+      breaks = seq(0, 100000, by = 10000),
+      expand = c(0, 0)
+    ) +
+    scale_x_date(
+      breaks = df_full$date,
+      labels = function(x) {
+        sapply(x, function(d) {
+          date_val <- as.Date(d, origin = "1970-01-01")
+          m_str <- tolower(format(date_val, "%b"))
+          y_str <- format(date_val, "%Y")
+          if (format(date_val, "%m") == "01" || date_val == as.Date("2013-09-01")) {
+            paste0(m_str, "\n", y_str)
+          } else {
+            m_str
+          }
+        })
+      },
+      expand = expansion(mult = c(0.02, 0.02))
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_blank(),
+      panel.grid.minor.y = element_blank(),
+      axis.line.y = element_line(color = "#cccccc", linewidth = 0.5),
+      axis.line.x = element_line(color = "#cccccc", linewidth = 0.5),
+      axis.ticks.x = element_line(color = "#cccccc", linewidth = 0.5),
+      axis.ticks.length = unit(4, "pt"),
+      axis.title.y = element_blank(),
+      axis.title.x = element_blank(),
+      axis.text.x = element_text(size = 9, color = "#555555", vjust = 0.5),
+      axis.text.y = element_text(size = 10, color = "#555555"),
+      plot.margin = margin(50, 35, 60, 55)
+    )
+  
+  # Combine with ggdraw for annotations
+  final_plot <- ggdraw(p) +
+    draw_label("Moonville:", x = 0.05, y = 0.96, hjust = 0, vjust = 1, size = 18, fontface = "plain", color = "#222222") +
+    draw_label("active users over time", x = 0.17, y = 0.96, hjust = 0, vjust = 1, size = 16, fontface = "plain", color = "#2b7bb9") +
+    draw_label("Active users", x = 0.055, y = 0.84, angle = 90, vjust = 0.5, size = 12, color = "#555555") +
+    draw_label(
+      "Data source: ABC Report. For purpose of analysis \"active user\" is defined as the number of unique users in the past 30 days.",
+      x = 0.05, y = 0.05, hjust = 0, vjust = 0, size = 9, color = "#666666"
+    )
+  
+  return(final_plot)
+}
+
+# Generate temporary image files for all 5 steps
+img_dir <- tempdir()
+img_paths <- c()
+
+for (i in 1:5) {
+  file_path <- file.path(img_dir, paste0("step_", i, ".png"))
+  png(file_path, width = 1200, height = 800, res = 120)
+  print(create_step_plot(i))
+  dev.off()
+  img_paths <- c(img_paths, file_path)
+}
+
+# Create animated GIF with 10 seconds per frame (delay = 1000 centiseconds = 10 seconds)
+animation <- image_read(img_paths) %>%
+  image_animate(delay = 1000, optimize = TRUE)
+
+# Save the GIF file
+image_write(animation, path = "moonville_animation_5steps.gif")
+
+getwd()
+cat("GIF successfully created: moonville_animation_5steps.gif (10 seconds per step)\n")
+
+
+
+
+#-------------------------------------------------------------------------------
+## Leveraging animation in the visuals you present - 3) final annotated version
+#-------------------------------------------------------------------------------
+
+
+
+#-------------------------------------------------------------------------------
+## Leveraging animation in the visuals you present - Final Annotated Chart (Fixed)
+#-------------------------------------------------------------------------------
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(scales)
+library(cowplot)
+
+# Set locale to English for proper month abbreviation formatting
+Sys.setlocale("LC_TIME", "C")
+
+# 1. Create dataset (21 rows matching Sep 2013 - May 2015)
+df <- data.frame(
+  date = seq(as.Date("2013-09-01"), as.Date("2015-05-01"), by = "month"),
+  active_users = c(
+    5680, 7200, 9100, 10931,                                     # Sep - Dec 2013 (4)
+    20500, 26000, 28746, 29800, 32500, 30900, 30500, 32800, 
+    34200, 36200, 37800, 39214,                                   # Jan - Dec 2014 (12)
+    39500, 50200, 61500, 82000, 94255                             # Jan - May 2015 (5)
+  )
+)
+
+# Define exact points where hollow circles and numeric value labels should appear
+highlight_dates <- as.Date(c("2013-09-01", "2013-12-01", "2014-03-01", "2014-12-01", "2015-05-01"))
+df_highlight <- subset(df, date %in% highlight_dates)
+
+# Format numbers with commas for annotations
+df_highlight$label_text <- format(df_highlight$active_users, big.mark = ",")
+
+# 2. Build the ggplot
+p <- ggplot(df, aes(x = date, y = active_users)) +
+  # Add the main trend line
+  geom_line(color = "#2b7bb9", linewidth = 1.2) +
+  
+  # Add hollow points with blue outline and white fill at key milestone dates
+  geom_point(data = df_highlight, shape = 21, size = 3.5, fill = "white", color = "#2b7bb9", stroke = 1.5) +
+  
+  # Add numeric value labels (nudge the last point's label slightly to the left to prevent cutting off)
+  geom_text(data = df_highlight, 
+            aes(label = label_text, 
+                hjust = ifelse(date == as.Date("2015-05-01"), 0.8, 0.5)), 
+            vjust = 2, hjust = 0.19, size = 4.7, color = "#2b7bb9", fontfamily = "") +
+  
+  # Set scales and limits
+  scale_y_continuous(
+    labels = comma,
+    limits = c(0, 100000),
+    breaks = seq(0, 100000, by = 10000),
+    expand = c(0, 0)
+  ) +
+  scale_x_date(
+    breaks = df$date,
+    labels = function(x) {
+      sapply(x, function(d) {
+        date_val <- as.Date(d, origin = "1970-01-01")
+        m_str <- tolower(format(date_val, "%b"))
+        y_str <- format(date_val, "%Y")
+        
+        # Show year along with lowercase month abbreviation for January ("01") or the initial start date
+        if (format(date_val, "%m") == "01" || date_val == as.Date("2013-09-01")) {
+          paste0(m_str, "\n", y_str)
+        } else {
+          m_str
+        }
+      })
+    },
+    expand = expansion(mult = c(0.02, 0.05)) # Increased right expansion to give more breathing room
+  ) +
+  
+  # Clean minimalist theme styling
+  theme_minimal(base_size = 12) +
+  theme(
+    # Remove all internal grid lines (both horizontal and vertical)
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    
+    # Axis line formatting (Restored Y-axis vertical border line)
+    axis.line.y = element_line(color = "#cccccc", linewidth = 0.5),
+    axis.line.x = element_line(color = "#cccccc", linewidth = 0.5),
+    axis.ticks.x = element_line(color = "#cccccc", linewidth = 0.5),
+    axis.ticks.length = unit(4, "pt"),
+    
+    # Remove default titles and axis titles
+    axis.title.y = element_blank(),
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(size = 9, color = "#555555", vjust = 0.5),
+    axis.text.y = element_text(size = 10, color = "#555555"),
+    
+    # Expanded right margin to prevent rightmost text/numbers from cutting off
+    plot.margin = margin(50, 70, 60, 55)
+  )
+# 
+# 3. Combine ggplot with ggdraw for precise custom text layout & column text annotations
+final_plot <- ggdraw(p) +
+  # Draw Title ("Moonville:")
+  draw_label("Moonville:", x = 0.05, y = 0.96, hjust = 0, vjust = 1, size = 18, fontface = "plain", color = "#222222") +
+  # Draw Subtitle ("active users over time") in blue
+  draw_label("active users over time", x = 0.155, y = 0.96, hjust = 0, vjust = 1, size = 16, fontface = "plain", color = "#2b7bb9") +
+  # Draw vertical Y-axis label ("Active users") rotated at 90 degrees
+  draw_label("Active users", x = 0.055, y = 0.86, angle = 90, vjust = 0.5, size = 12, color = "#555555") +
+  # --- Top Section Column Annotations (Structured headers & body texts) ---
+  # Column 1: Sep–Dec 2013
+  draw_label("Sep–Dec 2013" , x =0.12 , y=0.88, hjust = 0, vjust = 1, size = 12, fontface = "bold", color = "#333333") +
+  draw_label("Moonville\nlaunched with\n5K active users\nin Sep. Early\nfeedback was\nmixed; still, the\nnumber of\nactive users\nnearly doubled\nin the first four\nmonths.", 
+             x = 0.12, y = 0.83, hjust = 0, vjust = 1, size = 11, color = "#666666", lineheight = 1.1) +
+  
+  # Column 2: Jan–Mar 2014
+  draw_label("Jan–Mar 2014", x = 0.27, y = 0.88, hjust = 0, vjust = 1, size = 12, fontface = "bold", color = "#333333") +
+  draw_label("The number of\nactive users\nincreased with\nsteeper\ntrajectory as a\nresult of friends\nand family\npromotions.", 
+             x = 0.27, y = 0.83, hjust = 0, vjust = 1, size = 11, color = "#666666", lineheight = 1.1) +
+  
+  # Column 3: Mar–Dec 2014
+  draw_label( "Mar–Dec 2014", x = 0.42, y = 0.88, hjust = 0, vjust = 1, size = 12, fontface = "bold", color = "#333333") +
+  draw_label("Growth was marginal\nthrough the rest of 2014 as\nwe halted marketing\nefforts to focus on quality\nimprovements.", 
+             x = 0.42, y = 0.83, hjust = 0, vjust = 1, size = 11, color = "#666666", lineheight = 1.1) +
+  
+  # Column 4: YTD 2015
+  draw_label("YTD 2015", x = 0.73, y = 0.88, hjust = 0, vjust = 1, size = 12, fontface = "bold", color = "#333333") +
+  draw_label("The revamped game\nplus partnerships\nwith social\nmedia channels\nhave been very\nsuccessful.", 
+             x = 0.73, y = 0.83, hjust = 0, vjust = 1, size = 11, color = "#666666", lineheight = 1.1) +
+  
+  # --- Right-side floating commentary box ---
+  draw_label("Given recent\ngrowth rate, we\nanticipate", 
+             x = 0.84, y = 0.70, hjust = 0, vjust = 1, size = 11, fontface = "plain", color = "#555555", lineheight = 1.1) +
+  draw_label("we will\nsurpass 100K active\nusers in June.", 
+             x = 0.84, y = 0.62, hjust = 0, vjust = 1, size = 11, fontface = "plain", color = "#2b7bb9", lineheight = 1.1) +
+  
+  # --- Bottom-Left Caption ---
+  draw_label(
+    "Data source: ABC Report. For purpose of analysis \"active user\" is defined as the number of unique users in the past 30 days.",
+    x = 0.05, y = 0.05, hjust = 0, vjust = 0, size = 9, color = "#666666"
+  )
+
+# Display the final plot with a wider window size
+windows(width = 13, height = 8)
+print(final_plot)
