@@ -7708,3 +7708,811 @@ final_plot <- ggdraw(p) +
 # Display the final plot with a wider window size
 windows(width = 13, height = 8)
 print(final_plot)
+
+
+
+#-------------------------------------------------------------------------------
+##  Establishing logic in order - 1) original graph
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot)
+library(grid)
+
+# 1. Prepare your data frame (df) with feature and category columns 
+df <- data.frame(
+  Feature = paste0("Feature ", LETTERS[1:15]),
+  Cat1 = c(46, 45, 32, 26, 25, 26, 36, 24, 29, 32, 31, 22, 24, 16, 18), 
+  Cat2 = c(40, 36, 34, 37, 36, 35, 26, 32, 27, 27, 28, 27, 18, 17, 16), 
+  Cat3 = c(11, 13, 24, 21, 23, 20, 15, 23, 17, 24, 17, 23, 25, 24, 15), 
+  Cat4 = c(1, 3, 5, 4, 6, 5, 5, 6, 5, 14, 4, 4, 8, 14, 6),         
+  Cat5 = c(1, 2, 3, 2, 2, 2, 3, 3, 2, 1, 2, 2, 3, 4, 5),          
+  Cat6 = c(1, 1, 2, 10, 8, 12, 15, 12, 20, 2, 18, 19, 22, 25, 40)    
+)
+
+# 2. Extract category column names in their EXACT physical order from the data frame
+cat_levels <- setdiff(names(df), "Feature")
+
+# 3. Convert to long format preserving the exact left-to-right order
+df_long <- df %>%
+  pivot_longer(cols = all_of(cat_levels), names_to = "Category", values_to = "Value") %>%
+  group_by(Feature) %>%
+  mutate(
+    Percentage = Value / sum(Value) * 100,
+    LabelText = ifelse(Percentage >= 4, paste0(round(Percentage), "%"), "")
+  ) %>%
+  ungroup()
+
+# 4. Explicitly enforce the factor levels to match the exact column order (Left -> Right)
+df_long$Category <- factor(df_long$Category, levels = cat_levels)
+
+# 5. Preserve the exact row order of features from top to bottom
+df_long$Feature <- factor(df_long$Feature, levels = rev(unique(df$Feature)))
+
+# 6. Define custom colors matching each category column in exact order
+custom_colors <- c(
+  "Cat1" = "#1B4F5A", # Dark Teal (Far left)
+  "Cat2" = "#33A1C9", # Light Blue
+  "Cat3" = "#B0B0B0", # Gray
+  "Cat4" = "#E60073", # Pink
+  "Cat5" = "#660000", # Dark Maroon
+  "Cat6" = "#000000"  # Black (Far right)
+)
+
+# 7. Create the horizontal stacked bar chart with centered percentage labels
+p_bar <- ggplot(df_long, aes(x = Percentage, y = Feature, fill = Category)) +
+  geom_bar(stat = "identity", width = 0.7) +
+  geom_text(aes(label = LabelText), 
+            position = position_stack(vjust = 0.5), 
+            color = "white", 
+            size = 3.5, 
+            fontface = "bold") +
+  scale_fill_manual(values = custom_colors) +
+  scale_x_continuous(expand = c(0, 0)) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.title = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.text.y = element_text(size = 12, face = "bold", color = "black"),
+    legend.position = "none",
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# 8. Use ggdraw to manually draw the title and custom legend layout
+legend_labels <- c(
+  "Have not used", 
+  "Not satisfied at all", 
+  "Not very satisfied", 
+  "Somewhat satisfied", 
+  "Very satisfied", 
+  "Completely satisfied"
+)
+legend_colors <- c("#000000", "#660000", "#E60073", "#B0B0B0", "#33A1C9", "#1B4F5A")
+
+windows(width = 12, height = 8)
+ggdraw() +
+  draw_plot(p_bar, x = 0.0, y = 0.0, width = 1.0, height = 0.88) +
+  draw_label(
+    "How satisfied have you been with each of these features?", 
+    x = 0.5, y = 0.95, 
+    size = 15, fontface = "bold", hjust = 0.5
+  ) +
+  # Cat 1
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[1], col = NA)), x = 0.08, y = 0.89, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[1], x = 0.10, y = 0.90, size = 9, hjust = 0, fontface = "bold") +
+  
+  # Cat 2
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[2], col = NA)), x = 0.08 + 0.156*1, y = 0.89, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[2], x = 0.08 + 0.156*1 + 0.02, y = 0.90, size = 9, hjust = 0, fontface = "bold") +
+  
+  # Cat 3
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[3], col = NA)), x = 0.08 + 0.156*2, y = 0.89, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[3], x = 0.08 + 0.156*2 + 0.02, y = 0.90, size = 9, hjust = 0, fontface = "bold") +
+  
+  # Cat 4
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[4], col = NA)), x = 0.08 + 0.156*3, y = 0.89, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[4], x = 0.08 + 0.156*3 + 0.02, y = 0.90, size = 9, hjust = 0, fontface = "bold") +
+  
+  # Cat 5
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[5], col = NA)), x = 0.08 + 0.156*4, y = 0.89, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[5], x = 0.08 + 0.156*4 + 0.02, y = 0.90, size = 9, hjust = 0, fontface = "bold") +
+  
+  # Cat 6
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[6], col = NA)), x = 0.08 + 0.156*5, y = 0.89, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[6], x = 0.88, y = 0.9, size = 9, hjust = 0, fontface = "bold")
+
+
+
+#-------------------------------------------------------------------------------
+##  Establishing logic in order - 2) Highlight the positive story
+#-------------------------------------------------------------------------------
+
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot)
+library(grid)
+
+# 1. Prepare data frame with feature and category columns 
+df <- data.frame(
+  Feature = paste0("Feature ", LETTERS[1:15]),
+  Cat1 = c(46, 45, 32, 26, 25, 26, 36, 24, 29, 32, 31, 22, 24, 16, 18), 
+  Cat2 = c(40, 36, 34, 37, 36, 35, 26, 32, 27, 27, 28, 27, 18, 17, 16), 
+  Cat3 = c(11, 13, 24, 21, 23, 20, 15, 23, 17, 24, 17, 23, 25, 24, 15), 
+  Cat4 = c(1, 3, 5, 4, 6, 5, 5, 6, 5, 14, 4, 4, 8, 14, 6),         
+  Cat5 = c(1, 2, 3, 2, 2, 2, 3, 3, 2, 1, 2, 2, 3, 4, 5),         
+  Cat6 = c(1, 1, 2, 10, 8, 12, 15, 12, 20, 2, 18, 19, 22, 25, 40)    
+)
+
+# 2. Extract original category column names
+cat_levels_orig <- setdiff(names(df), "Feature")
+
+# 3. Convert to long format and generate labels ONLY for blue positive categories (Cat1, Cat2)
+df_long <- df %>%
+  pivot_longer(cols = all_of(cat_levels_orig), names_to = "Category", values_to = "Value") %>%
+  group_by(Feature) %>%
+  mutate(
+    Percentage = Value / sum(Value) * 100,
+    LabelText = ifelse(Category %in% c("Cat1", "Cat2") & Percentage >= 4, paste0(round(Percentage), "%"), "")
+  ) %>%
+  ungroup()
+
+# 4. Reverse factor levels for bar stacking (Right-to-Left stacking order)
+df_long$Category <- factor(df_long$Category, levels = rev(cat_levels_orig))
+
+# 5. Preserve top-to-bottom row order for features (Feature A at the top)
+df_long$Feature <- factor(df_long$Feature, levels = rev(unique(df$Feature)))
+
+# 6. Define custom color palette matching the original category names
+custom_colors <- c(
+  "Cat1" = "#1B4F5A", # Completely satisfied: Dark Blue/Teal
+  "Cat2" = "#2C6B84", # Very satisfied: Medium Blue
+  "Cat3" = "#C5C5C5", # Somewhat satisfied: Light Gray
+  "Cat4" = "#D0D0D0", # Not very satisfied: Medium Light Gray
+  "Cat5" = "#DBDBDB", # Not satisfied at all: Gray
+  "Cat6" = "#E5E5E5"  # Have not used: Very Light Gray
+)
+
+# 7. Create horizontal stacked bar chart with reversed stacking
+p_bar <- ggplot(df_long, aes(x = Percentage, y = Feature, fill = Category)) +
+  geom_bar(stat = "identity", width = 0.7) +
+  geom_text(aes(label = LabelText), 
+            position = position_stack(vjust = 0.5), 
+            color = "white", 
+            size = 3.2, 
+            fontface = "bold") +
+  scale_fill_manual(values = custom_colors) +
+  scale_x_continuous(expand = c(0, 0)) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.title = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.text.y = element_text(size = 11, face = "bold", color = "#333333"),
+    legend.position = "none",
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# 8. Define legend labels and text colors (Matching Category 1 to 6)
+legend_labels <- c(
+  "Completely satisfied", 
+  "Very satisfied",       
+  "Somewhat satisfied",   
+  "Not very satisfied",   
+  "Not satisfied at all", 
+  "Have not used"         
+)
+legend_colors <- c("#1B4F5A", "#2C6B84", "#C5C5C5", "#D0D0D0", "#DBDBDB", "#E5E5E5")
+text_colors   <- c("#1B4F5A", "#2C6B84", "#888888", "#888888", "#888888", "#888888")
+
+# 9. Assemble layout with cowplot applying the requested reference legend layout
+windows(width = 12, height = 8.5)
+
+ggdraw() +
+  # Draw the main bar chart
+  draw_plot(p_bar, x = 0.02, y = 0.12, width = 0.96, height = 0.74) +
+  
+  # Draw Structured Title at the top-left
+  draw_label("Product X User Satisfaction: ", x = 0.01, y = 0.94, size = 15, fontface = "plain", hjust = 0, color = "#222222") +
+  draw_label("Features", x = 0.25, y = 0.94, size = 15, fontface = "bold", hjust = 0, color = "#222222") +
+  
+  # Cat 1
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[1], col = NA)), x = 0.1, y = 0.87, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[1], x = 0.12, y = 0.88, size = 9, hjust = 0, fontface = "bold", color = text_colors[1]) +
+  
+  # Cat 2
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[2], col = NA)), x = 0.1 + 0.156*1, y = 0.87, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[2], x = 0.1 + 0.156*1 + 0.02, y = 0.88, size = 9, hjust = 0, fontface = "bold", color = text_colors[2]) +
+  
+  # Cat 3
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[3], col = NA)), x = 0.08 + 0.156*2, y = 0.87, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[3], x = 0.08 + 0.156*2 + 0.02, y = 0.88, size = 9, hjust = 0, fontface = "bold", color = text_colors[3]) +
+  
+  # Cat 4
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[4], col = NA)), x = 0.08 + 0.156*3, y = 0.87, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[4], x = 0.08 + 0.156*3 + 0.02, y = 0.88, size = 9, hjust = 0, fontface = "bold", color = text_colors[4]) +
+  
+  # Cat 5
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[5], col = NA)), x = 0.08 + 0.156*4, y = 0.87, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[5], x = 0.08 + 0.156*4 + 0.02, y = 0.88, size = 9, hjust = 0, fontface = "bold", color = text_colors[5]) +
+  
+  # Cat 6
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[6], col = NA)), x = 0.08 + 0.156*5, y = 0.87, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[6], x = 0.08 + 0.156*5 + 0.02, y = 0.88, size = 9, hjust = 0, fontface = "bold", color = text_colors[6]) +
+  
+  # Bottom Footnotes
+  draw_label('Responses based on survey question "How satisfied have you been with each of these features?".', 
+             x = 0.04, y = 0.07 +0.03, size = 9, hjust = 0, fontface = "plain", color = "#555555") +
+  draw_label('Need more details here to help put this data into context: How many people completed survey? What proportion of users', 
+             x = 0.04, y = 0.045 +0.03, size = 8.5, hjust = 0, fontface = "plain", color = "#777777") +
+  draw_label('does this represent? Do those who completed survey look like the overall population, demographic-wise? When was the survey conducted?', 
+             x = 0.04, y = 0.025 +0.03, size = 8.5, hjust = 0, fontface = "plain", color = "#777777")
+
+
+
+
+#-------------------------------------------------------------------------------
+##  Establishing logic in order - 3) Highlight dissatisfaction
+#-------------------------------------------------------------------------------
+
+
+
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot)
+library(grid)
+
+# 1. Prepare data frame with feature and category columns 
+df <- data.frame(
+  Feature = paste0("Feature ", LETTERS[1:15]),
+  Cat1 = c(46, 45, 32, 26, 25, 26, 36, 24, 29, 32, 31, 22, 24, 16, 18), 
+  Cat2 = c(40, 36, 34, 37, 36, 35, 26, 32, 27, 27, 28, 27, 18, 17, 16), 
+  Cat3 = c(11, 13, 24, 21, 23, 20, 15, 23, 17, 24, 17, 23, 25, 24, 15), 
+  Cat4 = c(1, 3, 5, 4, 6, 5, 5, 6, 5, 14, 4, 4, 8, 14, 6),         
+  Cat5 = c(1, 2, 3, 2, 2, 2, 3, 3, 2, 1, 2, 2, 3, 4, 5),          
+  Cat6 = c(1, 1, 2, 10, 8, 12, 15, 12, 20, 2, 18, 19, 22, 25, 40)    
+)
+
+# 2. Extract original category column names
+cat_levels_orig <- setdiff(names(df), "Feature")
+
+# 3. Automatically sort features by dissatisfaction (Cat5 + Cat6) in DESCENDING order
+df <- df %>%
+  mutate(Dissatisfaction_Score = Cat5 + Cat6) %>%
+  arrange(desc(Dissatisfaction_Score))
+
+# 4. Convert to long format and generate labels ONLY for non-gray (dissatisfaction) categories
+df_long <- df %>%
+  pivot_longer(cols = all_of(cat_levels_orig), names_to = "Category", values_to = "Value") %>%
+  group_by(Feature) %>%
+  mutate(
+    Percentage = Value / sum(Value) * 100,
+    # Show text labels ONLY for Cat5 and Cat6 (dissatisfaction/highlighted categories)
+    LabelText = ifelse(Category %in% c("Cat5", "Cat6") & Percentage >= 2, paste0(round(Percentage), "%"), "")
+  ) %>%
+  ungroup()
+
+# 5. Enforce normal factor levels (Left-to-Right stacking order: Cat1 to Cat6)
+df_long$Category <- factor(df_long$Category, levels = cat_levels_orig)
+
+# 6. Preserve sorted feature order in descending (highest dissatisfaction at the top)
+df_long$Feature <- factor(df_long$Feature, levels = rev(unique(df$Feature)))
+
+# 7. Define custom colors: Cat5 & Cat6 are orange, others are gray
+custom_colors <- c(
+  "Cat1" = "#E0E0E0", # Gray (Completely satisfied)
+  "Cat2" = "#CCCCCC", # Gray (Very satisfied)
+  "Cat3" = "#B8B8B8", # Gray (Somewhat satisfied)
+  "Cat4" = "#A0A0A0", # Gray (Not very satisfied)
+  "Cat5" = "#E66101", # Orange (Not satisfied at all)
+  "Cat6" = "#FDB863"  # Light Orange (Have not used)
+)
+
+# 8. Create horizontal stacked bar chart
+p_bar <- ggplot(df_long, aes(x = Percentage, y = Feature, fill = Category)) +
+  geom_bar(stat = "identity", width = 0.7) +
+  geom_text(aes(label = LabelText), 
+            position = position_stack(vjust = 0.5), 
+            color = "white", 
+            size = 3.2, 
+            fontface = "bold") +
+  scale_fill_manual(values = custom_colors) +
+  scale_x_continuous(expand = c(0, 0)) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.title = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.text.y = element_text(size = 11, face = "bold", color = "#333333"),
+    legend.position = "none",
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# 9. Define legend labels, colors, and text colors matching the target layout
+legend_labels <- c(
+  "Not satisfied at all", 
+  "Not very satisfied",        
+  "Somewhat satisfied",    
+  "Very satisfied",    
+  "Completely satisfied", 
+  "Have not used"          
+)
+legend_colors <- c("#E66101", "#FDB863", "#B8B8B8", "#CCCCCC", "#E0E0E0", "#E0E0E0")
+text_colors   <- c("#E66101", "#E66101", "#888888", "#888888", "#888888", "#888888")
+
+# 10. Assemble layout with cowplot using your exact legend positioning snippet
+windows(width = 12, height = 8.5)
+
+ggdraw() +
+  # Draw the main bar chart
+  draw_plot(p_bar, x = 0.02, y = 0.12, width = 0.96, height = 0.74) +
+  
+  # Draw Structured Title at the top-left
+  draw_label("Product X User Satisfaction: ", x = 0.01, y = 0.94, size = 15, fontface = "plain", hjust = 0, color = "#222222") +
+  draw_label("Features", x = 0.25, y = 0.94, size = 15, fontface = "bold", hjust = 0, color = "#222222") +
+  
+  # Cat 1
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[1], col = NA)), x = 0.1, y = 0.87, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[1], x = 0.12, y = 0.88, size = 9, hjust = 0, fontface = "bold", color = text_colors[1]) +
+  
+  # Cat 2
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[2], col = NA)), x = 0.1 + 0.156*1, y = 0.87, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[2], x = 0.1 + 0.156*1 + 0.02, y = 0.88, size = 9, hjust = 0, fontface = "bold", color = text_colors[2]) +
+  
+  # Cat 3
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[3], col = NA)), x = 0.08 + 0.156*2, y = 0.87, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[3], x = 0.08 + 0.156*2 + 0.02, y = 0.88, size = 9, hjust = 0, fontface = "bold", color = text_colors[3]) +
+  
+  # Cat 4
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[4], col = NA)), x = 0.08 + 0.156*3, y = 0.87, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[4], x = 0.08 + 0.156*3 + 0.02, y = 0.88, size = 9, hjust = 0, fontface = "bold", color = text_colors[4]) +
+  
+  # Cat 5
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[5], col = NA)), x = 0.08 + 0.156*4, y = 0.87, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[5], x = 0.08 + 0.156*4 + 0.02, y = 0.88, size = 9, hjust = 0, fontface = "bold", color = text_colors[5]) +
+  
+  # Cat 6
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[6], col = NA)), x = 0.08 + 0.156*5, y = 0.87, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[6], x = 0.08 + 0.156*5 + 0.02, y = 0.88, size = 9, hjust = 0, fontface = "bold", color = text_colors[6]) +
+  
+  # Bottom Footnotes
+  draw_label('Responses based on survey question "How satisfied have you been with each of these features?".', 
+             x = 0.04, y = 0.07 + 0.03, size = 9, hjust = 0, fontface = "plain", color = "#555555") +
+  draw_label('Need more details here to help put this data into context: How many people completed survey? What proportion of users', 
+             x = 0.04, y = 0.045 + 0.03, size = 8.5, hjust = 0, fontface = "plain", color = "#777777") +
+  draw_label('does this represent? Do those who completed survey look like the overall population, demographic-wise? When was the survey conducted?', 
+             x = 0.04, y = 0.025 + 0.03, size = 8.5, hjust = 0, fontface = "plain", color = "#777777")
+
+
+#-------------------------------------------------------------------------------
+##  Establishing logic in order - 4) Focus on unused features
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot)
+library(grid)
+
+# 1. Prepare data frame with feature and category columns 
+df <- data.frame(
+  Feature = paste0("Feature ", LETTERS[1:15]),
+  Cat1 = c(46, 45, 32, 26, 25, 26, 36, 24, 29, 32, 31, 22, 24, 16, 18), 
+  Cat2 = c(40, 36, 34, 37, 36, 35, 26, 32, 27, 27, 28, 27, 18, 17, 16), 
+  Cat3 = c(11, 13, 24, 21, 23, 20, 15, 23, 17, 24, 17, 23, 25, 24, 15), 
+  Cat4 = c(1, 3, 5, 4, 6, 5, 5, 6, 5, 14, 4, 4, 8, 14, 6),         
+  Cat5 = c(1, 2, 3, 2, 2, 2, 3, 3, 2, 1, 2, 2, 3, 4, 5),          
+  Cat6 = c(1, 1, 2, 10, 8, 12, 15, 12, 20, 2, 18, 19, 22, 25, 40)    
+)
+
+# 2. Extract original category column names
+cat_levels_orig <- setdiff(names(df), "Feature")
+
+# 3. Sort features in DESCENDING order based on Cat1 (Have not used)
+df <- df %>%
+  arrange(desc(Cat1))
+
+# 4. Convert to long format and generate labels ONLY for Cat1 ("Have not used")
+df_long <- df %>%
+  pivot_longer(cols = all_of(cat_levels_orig), names_to = "Category", values_to = "Value") %>%
+  group_by(Feature) %>%
+  mutate(
+    Percentage = Value / sum(Value) * 100,
+    LabelText = ifelse(Category == "Cat1" & Percentage >= 2, paste0(round(Percentage), "%"), "")
+  ) %>%
+  ungroup()
+
+# 5. Reverse factor levels for horizontal symmetry (Left-to-Right stacking becomes Cat6 -> Cat1)
+df_long$Category <- factor(df_long$Category, levels = rev(cat_levels_orig))
+
+# 6. Reverse the feature order for vertical orientation (descending sort configuration)
+df_long$Feature <- factor(df_long$Feature, levels = rev(unique(df$Feature)))
+
+# 7. Define custom colors matching the reversed category order
+custom_colors <- c(
+  "Cat1" = "#1B4F5A", # Dark Teal (Have not used - Highlight)
+  "Cat2" = "#C5C5C5", # Gray
+  "Cat3" = "#CECECE", # Gray
+  "Cat4" = "#D8D8D8", # Gray
+  "Cat5" = "#E2E2E2", # Gray
+  "Cat6" = "#EBEBEB"  # Gray
+)
+
+# 8. Create horizontal stacked bar chart
+p_bar <- ggplot(df_long, aes(x = Percentage, y = Feature, fill = Category)) +
+  geom_bar(stat = "identity", width = 0.7) +
+  geom_text(aes(label = LabelText), 
+            position = position_stack(vjust = 0.5), 
+            color = "white", 
+            size = 3.2, 
+            fontface = "bold") +
+  scale_fill_manual(values = custom_colors) +
+  scale_x_continuous(expand = c(0, 0)) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.title = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.text.y = element_text(size = 11, face = "bold", color = "#333333"),
+    legend.position = "none",
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# 9. Define legend labels, colors, and text colors matching the target image layout
+legend_labels <- c(
+  "Have not used", 
+  "Not satisfied at all",        
+  "Not very satisfied",    
+  "Somewhat satisfied",    
+  "Very satisfied",    
+  "Completely satisfied"          
+)
+legend_colors <- c("#1B4F5A", "#C5C5C5", "#CECECE", "#D8D8D8", "#E2E2E2", "#EBEBEB")
+text_colors   <- c("#1B4F5A", "#888888", "#888888", "#888888", "#888888", "#888888")
+
+# 10. Assemble layout with cowplot using sequential left-aligned legend positions
+windows(width = 12, height = 8.5)
+
+ggdraw() +
+  # Draw the main bar chart
+  draw_plot(p_bar, x = 0.02, y = 0.12, width = 0.96, height = 0.74) +
+  
+  # Draw Structured Title at the top-left[cite: 4]
+  draw_label("Product X User Satisfaction: ", x = 0.01, y = 0.94, size = 15, fontface = "plain", hjust = 0, color = "#222222") +
+  draw_label("Features", x = 0.25, y = 0.94, size = 15, fontface = "bold", hjust = 0, color = "#222222") +
+  
+  # Legend Items (Have not used -> Completely satisfied 순서대로 왼쪽부터 배치)[cite: 4]
+  # 1. Have not used
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[1], col = NA)), x = 0.01, y = 0.87, width = 0.012, height = 0.02) +
+  draw_label(legend_labels[1], x = 0.025, y = 0.88, size = 8.5, hjust = 0, fontface = "bold", color = text_colors[1]) +
+  
+  # 2. Not satisfied at all
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[2], col = NA)), x = 0.14, y = 0.87, width = 0.012, height = 0.02) +
+  draw_label(legend_labels[2], x = 0.155, y = 0.88, size = 8.5, hjust = 0, fontface = "bold", color = text_colors[2]) +
+  
+  # 3. Not very satisfied
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[3], col = NA)), x = 0.31, y = 0.87, width = 0.012, height = 0.02) +
+  draw_label(legend_labels[3], x = 0.325, y = 0.88, size = 8.5, hjust = 0, fontface = "bold", color = text_colors[3]) +
+  
+  # 4. Somewhat satisfied
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[4], col = NA)), x = 0.47, y = 0.87, width = 0.012, height = 0.02) +
+  draw_label(legend_labels[4], x = 0.485, y = 0.88, size = 8.5, hjust = 0, fontface = "bold", color = text_colors[4]) +
+  
+  # 5. Very satisfied
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[5], col = NA)), x = 0.65, y = 0.87, width = 0.012, height = 0.02) +
+  draw_label(legend_labels[5], x = 0.665, y = 0.88, size = 8.5, hjust = 0, fontface = "bold", color = text_colors[5]) +
+  
+  # 6. Completely satisfied
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[6], col = NA)), x = 0.79, y = 0.87, width = 0.012, height = 0.02) +
+  draw_label(legend_labels[6], x = 0.805, y = 0.88, size = 8.5, hjust = 0, fontface = "bold", color = text_colors[6]) +
+  
+  # Bottom Footnotes[cite: 4]
+  draw_label('Responses based on survey question "How satisfied have you been with each of these features?".', 
+             x = 0.04, y = 0.10, size = 9, hjust = 0, fontface = "plain", color = "#555555") +
+  draw_label('Need more details here to help put this data into context: How many people completed survey? What proportion of users', 
+             x = 0.04, y = 0.075, size = 8.5, hjust = 0, fontface = "plain", color = "#777777") +
+  draw_label('does this represent? Do those who completed survey look like the overall population, demographic-wise? When was the survey conducted?', 
+             x = 0.04, y = 0.055, size = 8.5, hjust = 0, fontface = "plain", color = "#777777")
+
+
+
+
+
+#-------------------------------------------------------------------------------
+##  Establishing logic in order - 5) Set up the graph
+#-------------------------------------------------------------------------------
+
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot)
+library(grid)
+
+# 1. Prepare your data frame (df) with feature and category columns 
+df <- data.frame(
+  Feature = paste0("Feature ", LETTERS[1:15]),
+  Cat1 = c(46, 45, 32, 26, 25, 26, 36, 24, 29, 32, 31, 22, 24, 16, 18), 
+  Cat2 = c(40, 36, 34, 37, 36, 35, 26, 32, 27, 27, 28, 27, 18, 17, 16), 
+  Cat3 = c(11, 13, 24, 21, 23, 20, 15, 23, 17, 24, 17, 23, 25, 24, 15), 
+  Cat4 = c(1, 3, 5, 4, 6, 5, 5, 6, 5, 14, 4, 4, 8, 14, 6),         
+  Cat5 = c(1, 2, 3, 2, 2, 2, 3, 3, 2, 1, 2, 2, 3, 4, 5),          
+  Cat6 = c(1, 1, 2, 10, 8, 12, 15, 12, 20, 2, 18, 19, 22, 25, 40)    
+)
+
+# 2. Extract category column names in their EXACT physical order from the data frame
+cat_levels <- setdiff(names(df), "Feature")
+
+# 3. Convert to long format preserving the exact left-to-right order
+df_long <- df %>%
+  pivot_longer(cols = all_of(cat_levels), names_to = "Category", values_to = "Value") %>%
+  group_by(Feature) %>%
+  mutate(
+    Percentage = Value / sum(Value) * 100,
+    LabelText = ifelse(Percentage >= 4, paste0(round(Percentage), "%"), "")
+  ) %>%
+  ungroup()
+
+# 4. Explicitly enforce the factor levels to match the exact column order (Left -> Right)
+df_long$Category <- factor(df_long$Category, levels = cat_levels)
+
+# 5. Preserve the exact row order of features from top to bottom
+df_long$Feature <- factor(df_long$Feature, levels = rev(unique(df$Feature)))
+
+# 6. Define custom colors: Cat1, Cat2, Cat3, Cat4 are grey50, others are grey90
+# Cat1: Have not used, Cat2: Not satisfied at all, Cat3: Not very satisfied, Cat4: Somewhat satisfied
+custom_colors <- c(
+  "Cat1" = "#E6E6E6", # grey50
+  "Cat2" = "#E6E6E6", # grey50
+  "Cat3" = "#7F7F7F", # grey50
+  "Cat4" = "#7F7F7F", # grey50
+  "Cat5" = "#E6E6E6", # very light grey
+  "Cat6" = "#E6E6E6"  # very light grey
+)
+
+# 7. Create the horizontal stacked bar chart with borders between segments for distinction
+p_bar <- ggplot(df_long, aes(x = Percentage, y = Feature, fill = Category)) +
+  geom_bar(stat = "identity", width = 0.7, color = "white", linewidth = 0.3) +
+  scale_fill_manual(values = custom_colors) +
+  scale_x_continuous(expand = c(0, 0)) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.title = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.text.y = element_text(size = 12, face = "bold", color = "black"),
+    legend.position = "none",
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# 8. Use ggdraw to manually draw the title and custom legend layout matching the colors
+legend_labels <- c(
+  "Have not used", 
+  "Not satisfied at all", 
+  "Not very satisfied", 
+  "Somewhat satisfied", 
+  "Very satisfied", 
+  "Completely satisfied"
+)
+legend_colors <- c("#E6E6E6", "#E6E6E6", "#7F7F7F", "#7F7F7F", "#E6E6E6", "#E6E6E6")
+
+windows(width = 12, height = 8)
+ggdraw() +
+  draw_plot(p_bar, x = 0.0, y = 0.0, width = 1.0, height = 0.88) +
+  draw_label(
+    "How satisfied have you been with each of these features?", 
+    x = 0.5, y = 0.95, 
+    size = 15, fontface = "bold", hjust = 0.5
+  ) +
+  # Cat 1
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[1], col = NA)), x = 0.08, y = 0.89, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[1], x = 0.10, y = 0.90, size = 9, hjust = 0, fontface = "bold", color = "#333333") +
+  
+  # Cat 2
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[2], col = NA)), x = 0.08 + 0.156*1, y = 0.89, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[2], x = 0.08 + 0.156*1 + 0.02, y = 0.90, size = 9, hjust = 0, fontface = "bold", color = "#333333") +
+  
+  # Cat 3
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[3], col = NA)), x = 0.08 + 0.156*2, y = 0.89, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[3], x = 0.08 + 0.156*2 + 0.02, y = 0.90, size = 9, hjust = 0, fontface = "bold", color = "#333333") +
+  
+  # Cat 4
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[4], col = NA)), x = 0.08 + 0.156*3, y = 0.89, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[4], x = 0.08 + 0.156*3 + 0.02, y = 0.90, size = 9, hjust = 0, fontface = "bold", color = "#333333") +
+  
+  # Cat 5
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[5], col = NA)), x = 0.08 + 0.156*4, y = 0.89, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[5], x = 0.08 + 0.156*4 + 0.02, y = 0.90, size = 9, hjust = 0, fontface = "bold", color = "#555555") +
+  
+  # Cat 6
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[6], col = NA)), x = 0.08 + 0.156*5, y = 0.89, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[6], x = 0.88, y = 0.9, size = 9, hjust = 0, fontface = "bold", color = "#555555")
+
+
+
+
+#-------------------------------------------------------------------------------
+##  Establishing logic in order - Direct Color Mapping in df_long with Adjusted Spacing
+#-------------------------------------------------------------------------------
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot)
+library(grid)
+
+# 1. Prepare your data frame (df) with feature and category columns 
+df <- data.frame(
+  Feature = paste0("Feature ", LETTERS[1:15]),
+  Cat1 = c(46, 45, 32, 26, 25, 26, 36, 24, 29, 32, 31, 22, 24, 16, 18), 
+  Cat2 = c(40, 36, 34, 37, 36, 35, 26, 32, 27, 27, 28, 27, 18, 17, 16), 
+  Cat3 = c(11, 13, 24, 21, 23, 20, 15, 23, 17, 24, 17, 23, 25, 24, 15), 
+  Cat4 = c(1, 3, 5, 4, 6, 5, 5, 6, 5, 14, 4, 4, 8, 14, 6),         
+  Cat5 = c(1, 2, 3, 2, 2, 2, 3, 3, 2, 1, 2, 2, 3, 4, 5),         
+  Cat6 = c(1, 1, 2, 10, 8, 12, 15, 12, 20, 2, 18, 19, 22, 25, 40)    
+)
+
+# 2. Extract category column names in their EXACT physical order from the data frame
+cat_levels <- setdiff(names(df), "Feature")
+
+# 3. Convert to long format preserving the exact left-to-right order
+df_long <- df %>%
+  pivot_longer(cols = all_of(cat_levels), names_to = "Category", values_to = "Value") %>%
+  group_by(Feature) %>%
+  mutate(
+    Percentage = Value / sum(Value) * 100,
+    LabelText = ifelse(Percentage >= 4, paste0(round(Percentage), "%"), "")
+  ) %>%
+  ungroup()
+
+# 4. Explicitly enforce the factor levels to match the exact column order (Left -> Right)
+df_long$Category <- factor(df_long$Category, levels = cat_levels)
+
+# 5. Preserve the exact row order of features from top to bottom
+df_long$Feature <- factor(df_long$Feature, levels = rev(unique(df$Feature)))
+
+# 6. Directly assign color codes into df_long based on Feature and Category
+df_long <- df_long %>%
+  mutate(
+    BarColor = case_when(
+      # Feature A and B (Vivid tones for Cat5 and Cat6)
+      Feature %in% c("Feature A", "Feature B") & Category == "Cat1" ~ "#1E3F66",
+      Feature %in% c("Feature A", "Feature B") & Category == "Cat2" ~ "#1B3B5C",
+      Feature %in% c("Feature A", "Feature B") & Category == "Cat3" ~ "#B0B0B0",
+      Feature %in% c("Feature A", "Feature B") & Category == "Cat4" ~ "#C8C8C8",
+      Feature %in% c("Feature A", "Feature B") & Category == "Cat5" ~ "#DCDCDC",
+      Feature %in% c("Feature A", "Feature B") & Category == "Cat6" ~ "#EAEAEA",
+      
+      # Feature C to O (Lighter/Softer tones for Cat5 and Cat6 as requested)
+      Feature %in% paste0("Feature ", LETTERS[3:15]) & Category == "Cat1" ~ "#85B5D9",
+      Feature %in% paste0("Feature ", LETTERS[3:15]) & Category == "Cat2" ~ "#85B5D9",
+      Feature %in% paste0("Feature ", LETTERS[3:15]) & Category == "Cat3" ~ "#B0B0B0",
+      Feature %in% paste0("Feature ", LETTERS[3:15]) & Category == "Cat4" ~ "#C8C8C8",
+      Feature %in% paste0("Feature ", LETTERS[3:15]) & Category == "Cat5" ~ "#DCDCDC", 
+      Feature %in% paste0("Feature ", LETTERS[3:15]) & Category == "Cat6" ~ "#EAEAEA", 
+      TRUE ~ "#999999"
+    )
+  )
+
+# 7. Create the horizontal stacked bar chart using scale_fill_identity() with white segment borders
+p_bar <- ggplot(df_long, aes(x = Percentage, y = Feature, fill = BarColor)) +
+  geom_bar(stat = "identity", width = 0.7, colour = "white", linewidth = 0.5) +
+  scale_fill_identity() + # Direct hex color mapping
+  scale_x_continuous(expand = c(0, 0)) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.title = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.text.y = element_text(size = 12, face = "bold", color = "black"),
+    legend.position = "none",
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# 8. Use ggdraw to manually draw the title, custom legend layout, side callout box, and bottom footnotes
+legend_labels <- c(
+  "Have not used", 
+  "Not satisfied at all", 
+  "Not very satisfied", 
+  "Somewhat satisfied", 
+  "Very satisfied", 
+  "Completely satisfied"
+)
+legend_colors <- c("#EAEAEA", "#DCDCDC", "#C8C8C8", "#B0B0B0", "#1B3B5C", "#1E3F66")
+
+windows(width = 12, height = 8.5)
+ggdraw() +
+  # Restrict plot width to 0.85 to leave space for the right-side callout box
+  draw_plot(p_bar, x = 0.0, y = 0.12, width = 0.85, height = 0.76) +
+  
+  # Main Title
+  draw_label(
+    "Product X User Satisfaction: Features", 
+    x = 0.05, y = 0.94, 
+    size = 15, fontface = "bold", hjust = 0.0
+  ) +
+  
+  # --- Custom Top Legend Layout (Balanced spacing) ---
+  # Cat 1
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[1], col = NA)), x = 0.05, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[1], x = 0.07, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "gray50") +
+  
+  # Cat 2
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[2], col = NA)), x = 0.18, y = 0.88, width = 0.015, height = 0.02) + 
+  draw_label(legend_labels[2], x = 0.20, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "gray50") +
+  
+  # Cat 3
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[3], col = NA)), x = 0.33, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[3], x = 0.35, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "gray50") +
+  
+  # Cat 4
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[4], col = NA)), x = 0.48, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[4], x = 0.50, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "gray50") +
+  
+  # Cat 5
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[5], col = NA)), x = 0.65, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[5], x = 0.67, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "#1E3F66") +
+  
+  # Cat 6
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[6], col = NA)), x = 0.78, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[6], x = 0.80, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "#1E3F66") +
+  
+  # --- Side Callout Box (Placed cleanly on the right) ---
+  draw_grob(rectGrob(gp = gpar(fill = "#1E3F66", col = NA)), x = 0.865, y = 0.73, width = 0.1, height = 0.13) +
+  draw_label("Features\nA and B\ncontinue\n           to top user\n           satisfaction", 
+             x = 0.925, y = 0.795, size = 10, fontface = "bold", color = "white", hjust = 0.8, vjust = 0.5, lineheight = 1.1) +
+  
+  # --- Bottom Captions / Footnotes ---
+  draw_label("Responses based on survey question \"How satisfied have you been with each of these features?\".", 
+             x = 0.05, y = 0.07+0.03, size = 9, hjust = 0, color = "gray40") +
+  draw_label("Need more details here to help put this data into context: How many people completed survey? What proportion of users does this represent?", 
+             x = 0.05, y = 0.045+0.03, size = 9, hjust = 0, color = "gray40") +
+  draw_label("Do those who completed survey look like the overall population, demographic-wise? When was the survey conducted?", 
+             x = 0.05, y = 0.02+0.03, size = 9, hjust = 0, color = "gray40")
+
+
+#-------------------------------------------------------------------------------
+##  Establishing logic in order - 6) Dissatisfaction
+#-------------------------------------------------------------------------------
+
+
+
+#-------------------------------------------------------------------------------
+##  Establishing logic in order - 7) Dissatisfaction
+#-------------------------------------------------------------------------------
+
+
+
+#-------------------------------------------------------------------------------
+##  Establishing logic in order - 8) Unused features
+#-------------------------------------------------------------------------------
+
+
+
+#-------------------------------------------------------------------------------
+##  Establishing logic in order - 9) Comprehensive visual
+#-------------------------------------------------------------------------------
+
+
