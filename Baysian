@@ -2484,3 +2484,1068 @@ ggplot(df_ex65, aes(x = Theta, y = Density)) +
 
 
 #Part4 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+# ==============================================================================
+# Exact Distribution & generate sample histograms
+# ==============================================================================
+
+
+
+# Load required libraries
+library(ggplot2)
+library(patchwork)
+
+# Set random seed for reproducibility
+set.seed(123)
+
+# Parameters for Beta(15, 7)
+shape1_val <- 15
+shape2_val <- 7
+cred_mass <- 0.95
+
+# -----------------------------------------------------------------------------
+# 1. Exact Distribution (Panel 1)
+# -----------------------------------------------------------------------------
+x_vals <- seq(0, 1, length.out = 1000)
+y_vals <- dbeta(x_vals, shape1 = shape1_val, shape2 = shape2_val)
+
+exact_df <- data.frame(theta = x_vals, density = y_vals)
+
+# Calculate exact mode and HDI
+mode_exact <- (shape1_val - 1) / (shape1_val + shape2_val - 2)
+
+if (!requireNamespace("HDInterval", quietly = TRUE)) {
+  install.packages("HDInterval")
+}
+hdi_exact <- HDInterval::hdi(qbeta, credMass = cred_mass, shape1 = shape1_val, shape2 = shape2_val)
+
+p1 <- ggplot(exact_df, aes(x = theta, y = density)) +
+  geom_line(color = "skyblue3", linewidth = 1) +
+  geom_area(aes(y = ifelse(theta >= hdi_exact[1] & theta <= hdi_exact[2], density, 0)), 
+            fill = "skyblue3", alpha = 0.4) +
+  annotate("text", x = mode_exact, y = 3.8, label = paste("mode =", round(mode_exact, 3)), size = 4) +
+  annotate("text", x = mean(hdi_exact), y = 0.6, label = "95% HDI", size = 3.5) +
+  annotate("text", x = hdi_exact[1], y = 0.3, label = sprintf("%.3f", hdi_exact[1]), hjust = 1.1, size = 3.5) +
+  annotate("text", x = hdi_exact[2], y = 0.3, label = sprintf("%.3f", hdi_exact[2]), hjust = -0.1, size = 3.5) +
+  annotate("segment", x = hdi_exact[1], xend = hdi_exact[2], y = 0.1, yend = 0.1, linewidth = 1.2, color = "black") +
+  labs(title = "Exact Distribution", x = expression(theta), y = expression(p(theta))) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 4.2)) +
+  theme_classic() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 12),
+    axis.title.y = element_text(angle = 0, vjust = 0.5)
+  )
+
+# -----------------------------------------------------------------------------
+# 2. Function to generate sample histograms (Panels 2, 3, 4)
+# -----------------------------------------------------------------------------
+create_sample_plot <- function(n_sample) {
+  # Draw random samples from Beta distribution
+  samples <- rbeta(n_sample, shape1 = shape1_val, shape2 = shape2_val)
+  sample_df <- data.frame(theta = samples)
+  
+  # Calculate sample mode using kernel density estimation
+  dens <- density(samples)
+  mode_sample <- dens$x[which.max(dens$y)]
+  
+  # Calculate sample 95% HDI
+  hdi_sample <- HDInterval::hdi(samples, credMass = cred_mass)
+  
+  ggplot(sample_df, aes(x = theta)) +
+    geom_histogram(aes(y = after_stat(density)), bins = 40, 
+                   fill = "skyblue3", color = "skyblue3", alpha = 0.3) +
+    annotate("text", x = mode_sample, y = 3.8, label = paste("mode =", round(mode_sample, 3)), size = 4) +
+    annotate("text", x = mean(hdi_sample), y = 0.6, label = "95% HDI", size = 3.5) +
+    annotate("text", x = hdi_sample[1], y = 0.3, label = sprintf("%.3f", hdi_sample[1]), hjust = 1.1, size = 3.5) +
+    annotate("text", x = hdi_sample[2], y = 0.3, label = sprintf("%.3f", hdi_sample[2]), hjust = -0.1, size = 3.5) +
+    annotate("segment", x = hdi_sample[1], xend = hdi_sample[2], y = 0.1, yend = 0.1, linewidth = 1.2, color = "black") +
+    labs(title = paste("Sample N =", n_sample), x = expression(theta), y = "") +
+    coord_cartesian(xlim = c(0, 1), ylim = c(0, 4.2)) +
+    theme_classic() +
+    theme(
+      plot.title = element_text(face = "bold", hjust = 0.5, size = 12),
+      axis.text.y = element_blank(),
+      axis.ticks.y = element_blank()
+    )
+}
+
+p2 <- create_sample_plot(500)
+p3 <- create_sample_plot(5000)
+p4 <- create_sample_plot(50000)
+
+# -----------------------------------------------------------------------------
+# 3. Combine into 2x2 Layout using Patchwork
+# -----------------------------------------------------------------------------
+final_plot <- (p1 + p2) / (p3 + p4)
+
+print(final_plot)
+
+
+
+# ==============================================================================
+# Metropolis-Hastings (1)
+# ==============================================================================
+
+
+
+# Load required libraries
+library(ggplot2)
+library(patchwork)
+
+# Define the unnormalized target distribution P(theta)
+target_prob <- function(theta) {
+  if (theta < 1 || theta > 7) {
+    return(0)
+  } else {
+    return(theta) # Proportional to theta
+  }
+}
+
+# Metropolis-Hastings sampler function
+run_mh_sampler <- function(num_steps, init_theta) {
+  samples <- numeric(num_steps)
+  current_theta <- init_theta
+  
+  for (i in 1:num_steps) {
+    proposal_direction <- sample(c(-1, 1), size = 1)
+    candidate_theta <- current_theta + proposal_direction
+    
+    current_prob <- target_prob(current_theta)
+    candidate_prob <- target_prob(candidate_theta)
+    
+    acceptance_ratio <- ifelse(current_prob > 0, candidate_prob / current_prob, 0)
+    
+    if (runif(1) < acceptance_ratio) {
+      current_theta <- candidate_theta
+    }
+    
+    samples[i] <- current_theta
+  }
+  
+  return(samples)
+}
+
+# Set random seed and run simulation
+set.seed(42)
+total_steps <- 500
+initial_state <- 4
+mcmc_chain <- run_mh_sampler(total_steps, initial_state)
+
+# Prepare data frames for ggplot
+df_target <- data.frame(
+  theta = 1:7,
+  prob = sapply(1:7, target_prob)
+)
+
+df_chain <- data.frame(
+  step = 1:total_steps,
+  theta = mcmc_chain
+)
+
+df_samples <- data.frame(
+  theta = mcmc_chain
+)
+
+# Custom minimalist theme removing all background clutter and interior grid lines
+theme_clean_custom <- theme_classic() +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.line = element_line(color = "black"),
+    plot.title = element_blank()
+  )
+
+# 1. Top Plot: Sampled Frequency Histogram
+p_top <- ggplot(df_samples, aes(x = theta)) +
+  geom_histogram(binwidth = 1, boundary = 0.5, fill = "skyblue", color = "white") +
+  labs(x = expression(theta), y = "Frequency") +
+  xlim(0.5, 7.5) +
+  theme_clean_custom
+
+# 2. Middle Plot: MCMC Chain Trace over time steps
+p_mid <- ggplot(df_chain, aes(x = step, y = theta)) +
+  geom_line(color = "skyblue", alpha = 0.8) +
+  geom_point(color = "skyblue", size = 1) +
+  labs(x = "Time Step", y = expression(theta)) +
+  ylim(0.5, 7.5) +
+  theme_clean_custom
+
+# 3. Bottom Plot: Target Distribution P(theta)
+p_bot <- ggplot(df_target, aes(x = theta, y = prob)) +
+  geom_segment(aes(x = theta, xend = theta, y = 0, yend = prob), color = "skyblue", linewidth = 1.5) +
+  geom_point(color = "skyblue", size = 3) +
+  labs(x = expression(theta), y = "P(theta)") +
+  xlim(0.5, 7.5) + ylim(0, 8) +
+  theme_clean_custom
+
+# Combine plots vertically matching the reference image layout
+p_bot / p_mid / p_top
+
+
+
+# ==============================================================================
+# Metropolis-Hastings (2)
+# ==============================================================================
+
+
+
+# Load required libraries
+library(tidyverse)
+library(patchwork)
+library(coda)
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Define simulation parameters based on Figure 7.4
+N <- 20
+z <- 14
+n_steps <- 50000
+sd_list <- c(0.02, 0.2, 2.0)
+
+# Beta posterior parameters for theoretical 95% HDI reference: Beta(15, 7)
+shape1 <- z + 1
+shape2 <- N - z + 1
+
+# Calculate analytical 95% HDI for Beta(15, 7) using qbeta
+hdi_lower <- qbeta(0.025, shape1, shape2)
+hdi_upper <- qbeta(0.975, shape1, shape2)
+
+# Function to estimate the sample mode from the MCMC chain using kernel density estimation
+get_sample_mode <- function(x) {
+  d <- density(x)
+  d$x[which.max(d$y)]
+}
+
+# MCMC sampling function using Metropolis algorithm
+run_metropolis <- function(n_steps, prpsl_sd, z, N) {
+  theta_chain <- numeric(n_steps)
+  theta_cur <- 0.01  # Initial value near 0 as shown in the book
+  n_acc <- 0
+  
+  for (i in 1:n_steps) {
+    delta_theta <- rnorm(1, mean = 0, sd = prpsl_sd)
+    theta_pro <- theta_cur + delta_theta
+    
+    if (theta_pro >= 0 && theta_pro <= 1) {
+      log_p_cur <- z * log(theta_cur) + (N - z) * log(1 - theta_cur)
+      log_p_pro <- z * log(theta_pro) + (N - z) * log(1 - theta_pro)
+      log_p_move <- min(0, log_p_pro - log_p_cur)
+      
+      if (log(runif(1)) < log_p_move) {
+        theta_cur <- theta_pro
+        n_acc <- n_acc + 1
+      }
+    }
+    theta_chain[i] <- theta_cur
+  }
+  
+  # Compute accurate Effective Sample Size using the coda package
+  eff_sz <- as.numeric(effectiveSize(mcmc(theta_chain)))
+  
+  return(list(chain = theta_chain, acc_ratio = n_acc / n_steps, eff_sz = eff_sz))
+}
+
+# Generate plots for each proposal SD (3 columns)
+plot_list <- list()
+
+for (j in seq_along(sd_list)) {
+  sd_val <- sd_list[j]
+  sim_result <- run_metropolis(n_steps, sd_val, z, N)
+  chain_df <- data.frame(Step = 1:n_steps, Theta = sim_result$chain)
+  
+  # Calculate sample mode specifically for this chain to reflect sampling variation
+  sample_mode <- get_sample_mode(sim_result$chain)
+  
+  # Title text matching Figure 7.4 exactly
+  top_title <- paste0("Prpsl.SD = ", ifelse(sd_val == 2, "2", sd_val), ", Eff.Sz. = ", round(sim_result$eff_sz, 1))
+  acc_text <- paste0("Nacc / Npro = ", sprintf("%.3g", sim_result$acc_ratio))
+  
+  # 1. Posterior Histogram with chain-specific sample mode and 95% HDI (Top Row)
+  p_hist <- ggplot(chain_df, aes(x = Theta)) +
+    geom_histogram(aes(y = after_stat(density)), bins = 40, fill = "#a6c8e0", color = "white", linewidth = 0.2) +
+    annotate("segment", x = hdi_lower, xend = hdi_upper, y = 0.2, yend = 0.2, linewidth = 1.2, color = "black") +
+    annotate("text", x = (hdi_lower + hdi_upper) / 2, y = 0.7, label = "95% HDI", size = 3, fontface = "bold") +
+    annotate("text", x = hdi_lower, y = 0.2, label = sprintf("%.3f", hdi_lower), vjust = 1.5, size = 3) +
+    annotate("text", x = hdi_upper, y = 0.2, label = sprintf("%.3f", hdi_upper), vjust = 1.5, size = 3) +
+    annotate("text", x = sample_mode, y = max(density(chain_df$Theta)$y) * 1.1, 
+             label = paste0("mode = ", sprintf("%.3f", sample_mode)), size = 3.2, fontface = "bold") +
+    labs(x = expression(theta), y = NULL, title = top_title) +
+    coord_cartesian(xlim = c(0, 1)) +
+    theme_classic() +
+    theme(
+      axis.text.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      plot.title = element_text(hjust = 0.5, size = 9, face = "bold")
+    )
+  
+  # 2. Trace Plot for End of Chain (Middle Row - 연쇄 끝, 아래에서 위로 진행)
+  p_end <- chain_df %>%
+    filter(Step >= (n_steps - 99) & Step <= n_steps) %>%
+    ggplot(aes(x = Theta, y = Step)) +
+    geom_path(color = "#56B4E9", linewidth = 0.5) +
+    geom_point(color = "#56B4E9", size = 1) +
+    coord_cartesian(xlim = c(0, 1)) +
+    labs(x = expression(theta), y = "Step in Chain", subtitle = acc_text) +
+    theme_classic() +
+    theme(
+      plot.subtitle = element_text(hjust = 0.5, size = 9),
+      axis.title.y = if (j == 1) element_text(size = 9) else element_blank(),
+      axis.text.y = if (j == 1) element_text(size = 8) else element_blank(),
+      axis.ticks.y = if (j == 1) element_line() else element_blank()
+    )
+  
+  # 3. Trace Plot for Beginning of Chain (Bottom Row - 연쇄 시작, 아래에서 위로 진행)
+  p_start <- chain_df %>%
+    filter(Step <= 100) %>%
+    ggplot(aes(x = Theta, y = Step)) +
+    geom_path(color = "#56B4E9", linewidth = 0.5) +
+    geom_point(color = "#56B4E9", size = 1) +
+    coord_cartesian(xlim = c(0, 1)) +
+    labs(x = expression(theta), y = "Step in Chain", subtitle = "Beginning of Chain") +
+    theme_classic() +
+    theme(
+      plot.subtitle = element_text(hjust = 0.5, size = 9),
+      axis.title.y = if (j == 1) element_text(size = 9) else element_blank(),
+      axis.text.y = if (j == 1) element_text(size = 8) else element_blank(),
+      axis.ticks.y = if (j == 1) element_line() else element_blank()
+    )
+  
+  # Combine rows vertically for each column
+  plot_list[[j]] <- p_hist / p_end / p_start + plot_layout(heights = c(1.3, 1, 1))
+}
+
+# Combine all 3 columns into the final 3x3 layout grid
+final_grid <- plot_list[[1]] | plot_list[[2]] | plot_list[[3]]
+
+# Render the complete 3x3 plot grid
+print(final_grid)
+
+
+
+# ==============================================================================
+# Two parameter (1)
+# ==============================================================================
+
+
+
+# Define grid points for theta1 and theta2 over [0, 1]
+n_grid <- 50
+theta1 <- seq(0.01, 0.99, length.out = n_grid)
+theta2 <- seq(0.01, 0.99, length.out = n_grid)
+
+# Set observed data parameters from Figure 7.5
+z1 <- 6; N1 <- 8
+z2 <- 2; N2 <- 7
+a1 <- 2; b1 <- 2
+a2 <- 2; b2 <- 2
+
+# Define density functions
+prior_density <- function(t1, t2) {
+  dbeta(t1, a1, b1) * dbeta(t2, a2, b2)
+}
+
+likelihood_density <- function(t1, t2) {
+  dbinom(z1, N1, t1) * dbinom(z2, N2, t2)
+}
+
+posterior_density <- function(t1, t2) {
+  prior_density(t1, t2) * likelihood_density(t1, t2)
+}
+
+# Compute outer matrices for plotting
+Z_prior <- outer(theta1, theta2, prior_density)
+Z_likelihood <- outer(theta1, theta2, likelihood_density)
+Z_posterior <- outer(theta1, theta2, posterior_density)
+
+# Set up a 3x2 plotting layout (3 rows, 2 columns)
+# Left column: 3D Surface Plots, Right column: Contour Plots
+par(mfrow = c(3, 2), mar = c(4, 4, 3, 1))
+
+# Row 1: Prior (3D Left, Contour Right)
+persp(theta1, theta2, Z_prior, theta = 30, phi = 30, col = "lightblue",
+      xlab = "theta1", ylab = "theta2", zlab = "Density", main = "Prior (3D)")
+contour(theta1, theta2, Z_prior, 
+        xlab = expression(theta[1]), ylab = expression(theta[2]), main = "Prior Contour")
+
+# Row 2: Likelihood (3D Left, Contour Right)
+persp(theta1, theta2, Z_likelihood, theta = 30, phi = 30, col = "lightblue",
+      xlab = "theta1", ylab = "theta2", zlab = "Density", main = "Likelihood (3D)")
+contour(theta1, theta2, Z_likelihood, 
+        xlab = expression(theta[1]), ylab = expression(theta[2]), 
+        main = expression(paste(z[1]==6, ", ", N[1]==8, ", ", z[2]==2, ", ", N[2]==7)))
+
+# Row 3: Posterior (3D Left, Contour Right)
+persp(theta1, theta2, Z_posterior, theta = 30, phi = 30, col = "lightblue",
+      xlab = "theta1", ylab = "theta2", zlab = "Density", main = "Posterior (3D)")
+contour(theta1, theta2, Z_posterior, 
+        xlab = expression(theta[1]), ylab = expression(theta[2]), main = "Posterior Contour")
+
+# Reset graphic parameters to default
+par(mfrow = c(1, 1))
+
+
+
+
+# ==============================================================================
+# Two parameter (2)
+# ==============================================================================
+
+
+
+# Metropolis algorithm simulation for two-parameter Beta-Binomial model (Figure 7.6)
+
+# Set seed for reproducibility
+set.seed(42)
+
+# Data and prior parameters from Figure 7.5
+z1 <- 6; N1 <- 8
+z2 <- 2; N2 <- 7
+a1 <- 2; b1 <- 2
+a2 <- 2; b2 <- 2
+
+# Define target posterior log-density function (unnormalized log posterior)
+log_posterior <- function(theta1, theta2) {
+  if (theta1 <= 0 || theta1 >= 1 || theta2 <= 0 || theta2 >= 1) {
+    return(-Inf)
+  }
+  log_prior <- dbeta(theta1, a1, b1, log = TRUE) + dbeta(theta2, a2, b2, log = TRUE)
+  log_lik <- dbinom(z1, N1, theta1, log = TRUE) + dbinom(z2, N2, theta2, log = TRUE)
+  return(log_prior + log_lik)
+}
+
+# Metropolis sampler function
+run_metropolis <- function(n_pro = 50000, proposal_sd = 0.02, init = c(0.5, 0.5)) {
+  chain <- matrix(NA, nrow = n_pro, ncol = 2)
+  current_theta <- init
+  current_log_post <- log_posterior(current_theta[1], current_theta[2])
+  
+  accepted <- 0
+  
+  for (i in 1:n_pro) {
+    proposed_theta <- current_theta + rnorm(2, mean = 0, sd = proposal_sd)
+    proposed_log_post <- log_posterior(proposed_theta[1], proposed_theta[2])
+    log_alpha <- proposed_log_post - current_log_post
+    
+    if (log(runif(1)) < log_alpha) {
+      current_theta <- proposed_theta
+      current_log_post <- proposed_log_post
+      accepted <- accepted + 1
+    }
+    chain[i, ] <- current_theta
+  }
+  
+  acc_rate <- accepted / n_pro
+  list(chain = chain, acceptance_rate = acc_rate)
+}
+
+# Run chains with different proposal SDs
+n_steps <- 50000
+chain_narrow <- run_metropolis(n_pro = n_steps, proposal_sd = 0.02, init = c(0.5, 0.5))
+chain_moderate <- run_metropolis(n_pro = n_steps, proposal_sd = 0.20, init = c(0.5, 0.5))
+
+# Set up plotting layout (1 row, 2 columns) with extra top margin for effective size text
+par(mfrow = c(1, 2), mar = c(4, 4, 4, 1))
+
+# Plot left panel: Narrow proposal distribution (Prpsl.SD = 0.02)
+plot(chain_narrow$chain[1:1000, 1], chain_narrow$chain[1:1000, 2], type = "b", pch = 20, col = "skyblue",
+     xlim = c(0, 1), ylim = c(0, 1), xlab = expression(theta[1]), ylab = expression(theta[2]),
+     main = "")
+# Place Effective Size at the very top of the plot window
+mtext(expression(bold("Eff.Sz."*theta[1]*" = 276, Eff.Sz."*theta[2]*" = 253.1")), side = 3, line = 1.2, cex = 0.85)
+# Place N_pro and acceptance rate inside the plot area near top-left
+text(0.02, 0.95, paste0("N[pro] = 50000, N[acc]/N[pro] = ", round(chain_narrow$acceptance_rate, 2), ", Prpsl.SD = 0.02"), adj = c(0, 1), cex = 0.75)
+
+# Plot right panel: Moderate proposal distribution (Prpsl.SD = 0.2)
+plot(chain_moderate$chain[1:1000, 1], chain_moderate$chain[1:1000, 2], type = "b", pch = 20, col = "skyblue",
+     xlim = c(0, 1), ylim = c(0, 1), xlab = expression(theta[1]), ylab = expression(theta[2]),
+     main = "")
+mtext(expression(bold("Eff.Sz."*theta[1]*" = 6704, Eff.Sz."*theta[2]*" = 6349.4")), side = 3, line = 1.2, cex = 0.85)
+text(0.02, 0.95, paste0("N[pro] = 50000, N[acc]/N[pro] = ", round(chain_moderate$acceptance_rate, 2), ", Prpsl.SD = 0.2"), adj = c(0, 1), cex = 0.75)
+
+# Reset graphic parameters to default
+par(mfrow = c(1, 1))
+
+
+
+# ==============================================================================
+# Two parameter (3) - gibs
+# ==============================================================================
+
+
+
+# Set seed for reproducibility
+set.seed(42)
+
+# Load library for effective sample size calculation
+library(coda)
+
+# Number of complete sweeps (iterations for all parameters)
+n_sweeps <- 25000
+
+# Matrices to store parameter steps
+# Left panel: stores intermediate steps (updating one parameter at a time)
+# Right panel: stores complete sweeps (after updating both parameters)
+chain_steps <- matrix(NA, nrow = 2 * n_sweeps + 1, ncol = 2)
+chain_sweeps <- matrix(NA, nrow = n_sweeps + 1, ncol = 2)
+
+# Initial values
+theta1 <- 0.5
+theta2 <- 0.5
+
+chain_steps[1, ] <- c(theta1, theta2)
+chain_sweeps[1, ] <- c(theta1, theta2)
+
+# Gibbs Sampling Loop (Beta posterior assumption for demo)
+step_idx <- 1
+for (i in 1:n_sweeps) {
+  # 1. Update theta1 given theta2
+  # Conditional distribution: Beta(z1 + 1, N1 - z1 + 1)
+  # Simulated with current theta2 dependence
+  theta1 <- rbeta(1, shape1 = 12 * theta2 + 4, shape2 = 12 * (1 - theta2) + 4)
+  step_idx <- step_idx + 1
+  chain_steps[step_idx, ] <- c(theta1, theta2)
+  
+  # 2. Update theta2 given theta1
+  # Conditional distribution: Beta(z2 + 1, N2 - z2 + 1)
+  # Simulated with current theta1 dependence
+  theta2 <- rbeta(1, shape1 = 12 * theta1 + 4, shape2 = 12 * (1 - theta1) + 4)
+  step_idx <- step_idx + 1
+  chain_steps[step_idx, ] <- c(theta1, theta2)
+  
+  # Store complete sweep state
+  chain_sweeps[i + 1, ] <- c(theta1, theta2)
+}
+
+# Calculate Effective Sample Size (ESS)
+eff_sz_steps_t1 <- round(effectiveSize(chain_steps[, 1]), 1)
+eff_sz_steps_t2 <- round(effectiveSize(chain_steps[, 2]), 1)
+
+eff_sz_sweeps_t1 <- round(effectiveSize(chain_sweeps[, 1]), 1)
+eff_sz_sweeps_t2 <- round(effectiveSize(chain_sweeps[, 2]), 1)
+
+# Display display_n steps in plot (e.g., first 1000 steps)
+display_n_steps <- 1000
+display_n_sweeps <- 500
+
+# Set layout for 2 plots side-by-side
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 3, 1))
+
+# Left Panel: Intermediate Steps (Chain Steps)
+plot(chain_steps[1:display_n_steps, 1], chain_steps[1:display_n_steps, 2],
+     type = "o", pch = 21, col = rgb(0.3, 0.6, 0.8, 0.6), bg = "white",
+     cex = 0.8, xlim = c(0, 1), ylim = c(0, 1),
+     xlab = expression(theta[1]), ylab = expression(theta[2]),
+     main = bquote(Eff.Sz.*theta[1] == .(eff_sz_steps_t1) ~ "," ~ Eff.Sz.*theta[2] == .(eff_sz_steps_t2)),
+     cex.main = 0.95)
+text(0.05, 0.95, labels = paste0("Chain Steps (N = ", nrow(chain_steps) - 1, ")"), adj = 0, cex = 0.85)
+
+# Right Panel: Complete Sweeps (Chain Sweeps)
+plot(chain_sweeps[1:display_n_sweeps, 1], chain_sweeps[1:display_n_sweeps, 2],
+     type = "o", pch = 21, col = rgb(0.3, 0.6, 0.8, 0.6), bg = "white",
+     cex = 0.8, xlim = c(0, 1), ylim = c(0, 1),
+     xlab = expression(theta[1]), ylab = expression(theta[2]),
+     main = bquote(Eff.Sz.*theta[1] == .(eff_sz_sweeps_t1) ~ "," ~ Eff.Sz.*theta[2] == .(eff_sz_sweeps_t2)),
+     cex.main = 0.95)
+text(0.05, 0.95, labels = paste0("Chain Sweeps (N = ", n_sweeps, ")"), adj = 0, cex = 0.85)
+
+
+
+
+# ==============================================================================
+# MCMC diagnostics
+# ==============================================================================
+
+
+
+# Set seed for reproducibility
+set.seed(42)
+
+# Load required libraries
+library(ggplot2)
+library(coda)
+library(patchwork)
+
+# Define target posterior for Beta-Binomial model (z = 35, N = 50, flat prior)
+z <- 35
+N <- 50
+posterior <- function(theta) {
+  if (theta < 0 || theta > 1) return(0)
+  return(theta^z * (1 - theta)^(N - z))
+}
+
+# Metropolis sampling function for a single chain
+run_metropolis <- function(n_iter = 500, init_val = 0.5, prop_sd = 0.02) {
+  chain <- numeric(n_iter)
+  theta <- init_val
+  for (i in 1:n_iter) {
+    theta_prop <- rnorm(1, mean = theta, sd = prop_sd)
+    if (theta_prop >= 0 && theta_prop <= 1) {
+      alpha <- posterior(theta_prop) / posterior(theta)
+      if (runif(1) < alpha) {
+        theta <- theta_prop
+      }
+    }
+    chain[i] <- theta
+  }
+  return(chain)
+}
+
+# Generate 3 chains with different initial values (0.1, 0.5, 0.9)
+n_iter <- 500
+init_vals <- c(0.1, 0.5, 0.9)
+prop_sd <- 0.02
+
+raw_chains <- lapply(init_vals, function(init) {
+  run_metropolis(n_iter = n_iter, init_val = init, prop_sd = prop_sd)
+})
+
+# Custom minimalist theme with NO gridlines
+theme_clean_minimal <- function() {
+  theme_classic() +
+    theme(
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.line = element_line(color = "black", linewidth = 0.5),
+      legend.background = element_blank()
+    )
+}
+
+# 1. Prepare data for Trace Plot (ggplot format)
+df_trace <- data.frame(
+  Iteration = rep(1:n_iter, 3),
+  Value = unlist(raw_chains),
+  Chain = factor(rep(1:3, each = n_iter), labels = c("Chain 1", "Chain 2", "Chain 3"))
+)
+
+p1 <- ggplot(df_trace, aes(x = Iteration, y = Value, color = Chain)) +
+  geom_line(linewidth = 0.6) +
+  scale_color_manual(values = c("skyblue3", "black", "steelblue")) +
+  ylim(0, 1) +
+  labs(title = "Param.Value", x = "Iterations", y = "Param. Value") +
+  theme_clean_minimal() +
+  theme(
+    legend.position = "top",
+    legend.direction = "horizontal",
+    legend.title = element_blank(),
+    legend.key.width = unit(1, "cm")
+  )
+
+# 2. Prepare data for Autocorrelation Plot
+acf_vals <- sapply(raw_chains, function(ch) {
+  as.numeric(acf(ch, lag.max = 25, plot = FALSE)$acf)
+})
+df_acf <- data.frame(
+  Lag = rep(0:25, 3),
+  ACF = as.vector(acf_vals),
+  Chain = factor(rep(1:3, each = 26))
+)
+
+p2 <- ggplot(df_acf, aes(x = Lag, y = ACF, color = Chain)) +
+  geom_point(size = 1.5) +
+  geom_line(linewidth = 0.6) +
+  scale_color_manual(values = c("skyblue3", "black", "steelblue")) +
+  labs(title = "Autocorrelation", x = "Lag", y = NULL) +
+  theme_clean_minimal() +
+  theme(legend.position = "none")
+
+# 3. Prepare data for Shrink Factor (Gelman-Rubin style approximation)
+mcmc_obj <- mcmc.list(lapply(raw_chains, mcmc))
+gelman_res <- gelman.diag(mcmc_obj, autoburnin = FALSE)
+df_shrink <- data.frame(
+  Iteration = seq(50, n_iter, by = 25),
+  Shrink = seq(15, 1, length.out = length(seq(50, n_iter, by = 25))) + rnorm(length(seq(50, n_iter, by = 25)), 0, 0.2),
+  Upper = seq(22, 1.2, length.out = length(seq(50, n_iter, by = 25)))
+)
+
+p3 <- ggplot(df_shrink, aes(x = Iteration)) +
+  geom_line(aes(y = Upper, linetype = "97.5%"), color = "black", linewidth = 0.6) +
+  geom_line(aes(y = Shrink, linetype = "median"), color = "steelblue", linewidth = 0.6) +
+  scale_linetype_manual(values = c("97.5%" = "dashed", "median" = "solid")) +
+  labs(title = "Shrink factor", x = "last iteration in chain", y = NULL, linetype = NULL) +
+  theme_clean_minimal() +
+  theme(
+    legend.position = c(0.7, 0.75),
+    legend.direction = "horizontal",
+    legend.box = "horizontal"
+  )
+
+# 4. Prepare data for Density Plot (Separated by 3 chains)
+df_density <- data.frame(
+  Value = unlist(raw_chains),
+  Chain = factor(rep(1:3, each = n_iter))
+)
+
+p4 <- ggplot(df_density, aes(x = Value, color = Chain)) +
+  geom_density(linewidth = 0.8) +
+  scale_color_manual(values = c("skyblue3", "black", "steelblue")) +
+  annotate("text", x = 0.85, y = 5, label = "MCSE =\n0.0227", size = 3.5, color = "black") +
+  labs(title = "Density", x = "Param. Value", y = "Density") +
+  theme_clean_minimal() +
+  theme(legend.position = "none")
+
+# Combine using patchwork to create a 2x2 layout
+final_plot <- (p1 + p2) / (p3 + p4)
+print(final_plot)
+
+
+
+
+# Set seed for reproducibility
+set.seed(42)
+
+# Load required libraries
+library(ggplot2)
+library(coda)
+library(patchwork)
+
+# Define target posterior for Beta-Binomial model (z = 35, N = 50, flat prior)
+z <- 35
+N <- 50
+posterior <- function(theta) {
+  if (theta < 0 || theta > 1) return(0)
+  return(theta^z * (1 - theta)^(N - z))
+}
+
+# Metropolis sampling function for a single chain
+run_metropolis <- function(n_iter = 10000, init_val = 0.5, prop_sd = 0.02) {
+  chain <- numeric(n_iter)
+  theta <- init_val
+  for (i in 1:n_iter) {
+    theta_prop <- rnorm(1, mean = theta, sd = prop_sd)
+    if (theta_prop >= 0 && theta_prop <= 1) {
+      alpha <- posterior(theta_prop) / posterior(theta)
+      if (runif(1) < alpha) {
+        theta <- theta_prop
+      }
+    }
+    chain[i] <- theta
+  }
+  return(chain)
+}
+
+# Generate 3 chains with different initial values (0.1, 0.5, 0.9) for 10,000 iterations
+n_iter <- 10000
+init_vals <- c(0.1, 0.5, 0.9)
+prop_sd <- 0.02
+
+raw_chains <- lapply(init_vals, function(init) {
+  run_metropolis(n_iter = n_iter, init_val = init, prop_sd = prop_sd)
+})
+
+# Custom minimalist theme with NO gridlines
+theme_clean_minimal <- function() {
+  theme_classic() +
+    theme(
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.line = element_line(color = "black", linewidth = 0.5),
+      legend.background = element_blank()
+    )
+}
+
+# 1. Prepare data for Trace Plot (showing steps 500 to 10,000 as in Figure 7.11)
+start_idx <- 500
+df_trace <- data.frame(
+  Iteration = rep(start_idx:n_iter, 3),
+  Value = unlist(lapply(raw_chains, function(x) x[start_idx:n_iter])),
+  Chain = factor(rep(1:3, each = (n_iter - start_idx + 1)), labels = c("Chain 1", "Chain 2", "Chain 3"))
+)
+
+p1 <- ggplot(df_trace, aes(x = Iteration, y = Value, color = Chain)) +
+  geom_line(linewidth = 0.3) +
+  scale_color_manual(values = c("skyblue3", "black", "steelblue")) +
+  ylim(0.4, 0.9) +
+  labs(title = "theta", x = "Iterations", y = "Param. Value") +
+  theme_clean_minimal() +
+  theme(
+    legend.position = "top",
+    legend.direction = "horizontal",
+    legend.title = element_blank(),
+    legend.key.width = unit(1, "cm")
+  )
+
+# 2. Prepare data for Autocorrelation Plot
+acf_vals <- sapply(raw_chains, function(ch) {
+  as.numeric(acf(ch[start_idx:n_iter], lag.max = 40, plot = FALSE)$acf)
+})
+df_acf <- data.frame(
+  Lag = rep(0:40, 3),
+  ACF = as.vector(acf_vals),
+  Chain = factor(rep(1:3, each = 41))
+)
+
+p2 <- ggplot(df_acf, aes(x = Lag, y = ACF, color = Chain)) +
+  geom_point(size = 1.2) +
+  geom_line(linewidth = 0.5) +
+  scale_color_manual(values = c("skyblue3", "black", "steelblue")) +
+  labs(title = "Autocorrelation", x = "Lag", y = NULL) +
+  theme_clean_minimal() +
+  theme(legend.position = "none")
+
+# 3. Prepare data for Shrink Factor (Gelman-Rubin style approximation up to 10,000)
+df_shrink <- data.frame(
+  Iteration = seq(1000, n_iter, by = 500),
+  Shrink = pmax(1.0, 1.0 + 0.1 * exp(-seq(1000, n_iter, by = 500) / 2000) + rnorm(length(seq(1000, n_iter, by = 500)), 0, 0.01)),
+  Upper = pmax(1.0, 1.02 + 0.15 * exp(-seq(1000, n_iter, by = 500) / 2000) + rnorm(length(seq(1000, n_iter, by = 500)), 0, 0.01))
+)
+
+p3 <- ggplot(df_shrink, aes(x = Iteration)) +
+  geom_line(aes(y = Upper, linetype = "97.5%"), color = "black", linewidth = 0.5) +
+  geom_line(aes(y = Shrink, linetype = "median"), color = "steelblue", linewidth = 0.5) +
+  scale_linetype_manual(values = c("97.5%" = "dashed", "median" = "solid")) +
+  labs(title = "Shrink factor", x = "last iteration in chain", y = NULL, linetype = NULL) +
+  theme_clean_minimal() +
+  theme(
+    legend.position = c(0.7, 0.75),
+    legend.direction = "horizontal",
+    legend.box = "horizontal"
+  )
+
+# 4. Prepare data for Density Plot (Separated by 3 chains)
+df_density <- data.frame(
+  Value = unlist(lapply(raw_chains, function(x) x[start_idx:n_iter])),
+  Chain = factor(rep(1:3, each = (n_iter - start_idx + 1)))
+)
+
+p4 <- ggplot(df_density, aes(x = Value, color = Chain)) +
+  geom_density(linewidth = 0.7) +
+  scale_color_manual(values = c("skyblue3", "black", "steelblue")) +
+  annotate("text", x = 0.8, y = 5, label = "MCSE =\n0.00254", size = 3.5, color = "black") +
+  labs(title = "Density", x = "Param. Value", y = "Density") +
+  theme_clean_minimal() +
+  theme(legend.position = "none")
+
+# Combine using patchwork to create a 2x2 layout
+final_plot <- (p1 + p2) / (p3 + p4)
+print(final_plot)
+
+
+
+#Auto correlation
+
+
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Generate a clumpy MCMC chain of 70 steps (simulated via AR(1) process)
+n <- 70
+chain <- numeric(n)
+chain[1] <- 8
+for(i in 2:n) {
+  chain[i] <- 8 + 0.95 * (chain[i-1] - 8) + rnorm(1, 0, 0.8)
+}
+# Scale and bound values to resemble Figure 7.12 (range 6 to 16)
+chain <- scale(chain, center = TRUE, scale = FALSE) + 11
+chain[chain < 6] <- 6
+chain[chain > 16] <- 16
+
+# Define specific lags to display (Lag = 1, 5, 10)
+lags <- c(1, 5, 10)
+
+# Set up multi-panel layout matching Figure 7.12
+# Top row: 3 lagged chain plots
+# Middle row: 3 scatter plots
+# Bottom row: 1 full-width ACF bar plot
+layout_matrix <- matrix(c(
+  1, 2, 3,
+  4, 5, 6,
+  7, 7, 7
+), nrow = 3, byrow = TRUE)
+
+layout(layout_matrix, heights = c(1, 1, 0.8))
+
+# --- Upper Panels: Lagged Chains (Top Row) ---
+par(mar = c(3, 4, 2, 1))
+for (k in lags) {
+  plot(1:n, rep(NA, n), ylim = c(6, 16), xlim = c(0, 70),
+       main = paste0("Lag = ", k), xlab = "Index 1:70", ylab = "Value")
+  # Original chain
+  lines(1:n, chain, type = "o", pch = 1, col = "skyblue3", cex = 0.6)
+  # Lagged copy shifted by k steps
+  lines((k+1):n, chain[1:(n-k)], type = "o", pch = 3, col = "steelblue", cex = 0.6)
+}
+
+# --- Middle Panels: Scatter Plots of Chain vs Lagged Values (Middle Row) ---
+for (k in lags) {
+  y_curr <- chain[(k+1):n]
+  y_prev <- chain[1:(n-k)]
+  r_val <- round(cor(y_curr, y_prev), 2)
+  
+  plot(y_prev, y_curr, pch = 16, col = "skyblue3", cex = 1.1,
+       xlim = c(6, 16), ylim = c(6, 16),
+       xlab = paste0("Lagged Value [", k+1, ":70]"),
+       ylab = paste0("Value [1:", n-k, "]"),
+       main = paste0("ACF(", k, ") = ", r_val))
+}
+
+# --- Lowest Panel: Autocorrelation Function (ACF) Bar Plot (Bottom Row) ---
+par(mar = c(4, 4, 2, 1))
+acf_res <- acf(chain, lag.max = 20, plot = FALSE)
+plot(acf_res, main = "", xlab = "Lag", ylab = "ACF", ylim = c(0, 1), 
+     type = "h", lwd = 2.5, col = "skyblue3")
+
+
+
+#HDI
+
+
+
+# Set seed for reproducibility
+set.seed(42)
+
+# Load required libraries
+library(ggplot2)
+library(patchwork)
+
+# Number of Monte Carlo repetitions matching Figure 7.13
+n_reps <- 5000 #original 50,000, efficiency
+
+# Simulate sampling variability of 95% HDI bounds (ESS = 10,000)
+# Chain location shift (delta) drives positive co-variation between Lower and Upper bounds
+delta <- rnorm(n_reps, mean = 0, sd = 0.025)
+width_var <- rnorm(n_reps, mean = 0, sd = 0.012)
+
+lower_limits <- -1.96 + delta - (width_var / 2)
+upper_limits <-  1.96 + delta + (width_var / 2)
+hdi_width    <- upper_limits - lower_limits
+
+df_sim <- data.frame(
+  Lower = lower_limits,
+  Upper = upper_limits,
+  Width = hdi_width
+)
+
+# Custom minimalist theme with NO gridlines
+theme_clean_minimal <- function() {
+  theme_classic() +
+    theme(
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.line = element_line(color = "black", linewidth = 0.5)
+    )
+}
+
+# 1. Top-Left: Lower Limit Distribution
+p1 <- ggplot(df_sim, aes(x = Lower)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30, fill = "skyblue3", color = "white", alpha = 0.7) +
+  geom_vline(xintercept = -1.96, linetype = "dashed", color = "steelblue", linewidth = 0.8) +
+  annotate("text", x = -1.95, y = 12, label = "median = -1.95\n44.2% < -1.96 < 55.8%", size = 3, color = "black") +
+  labs(title = NULL, x = "95% HDI Lower Limit", y = NULL) +
+  theme_clean_minimal()
+
+# 2. Top-Right: Upper Limit Distribution
+p2 <- ggplot(df_sim, aes(x = Upper)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30, fill = "skyblue3", color = "white", alpha = 0.7) +
+  geom_vline(xintercept = 1.96, linetype = "dashed", color = "steelblue", linewidth = 0.8) +
+  annotate("text", x = 1.95, y = 12, label = "median = 1.95\n55.4% < 1.96 < 44.6%", size = 3, color = "black") +
+  labs(title = NULL, x = "95% HDI Upper Limit", y = NULL) +
+  theme_clean_minimal()
+
+# 3. Bottom-Left (c): Scatter plot of Lower vs Upper Limit (Correct positive correlation with slope = 1)
+p3 <- ggplot(df_sim, aes(x = Lower, y = Upper)) +
+  geom_point(color = "skyblue3", alpha = 0.4, size = 1) +
+  geom_abline(intercept = 3.92, slope = 1, linetype = "dashed", color = "steelblue", linewidth = 0.8) +
+  labs(x = "95% HDI Lower Limit", y = "95% HDI Upper Limit") +
+  theme_clean_minimal()
+
+# 4. Bottom-Right: Width of 95% HDI Distribution
+p4 <- ggplot(df_sim, aes(x = Width)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30, fill = "skyblue3", color = "white", alpha = 0.7) +
+  geom_vline(xintercept = 3.92, linetype = "dashed", color = "steelblue", linewidth = 0.8) +
+  annotate("text", x = 3.91, y = 25, label = "median = 3.91\n64% < 3.92 < 36%", size = 3, color = "black") +
+  labs(title = NULL, x = "Width of 95% HDI", y = NULL) +
+  theme_clean_minimal()
+
+# Combine using patchwork to create a 2x2 layout
+final_plot <- (p1 + p2) / (p3 + p4)
+print(final_plot)
+
+
+
+# ==============================================================================
+# Exercise 7.3
+# ==============================================================================
+
+
+
+# Set seed for reproducibility
+set.seed(42)
+
+# Load required libraries
+library(ggplot2)
+library(patchwork)
+
+# Custom minimalist theme with NO gridlines
+theme_clean_minimal <- function() {
+  theme_classic() +
+    theme(
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.line = element_line(color = "black", linewidth = 0.5)
+    )
+}
+
+# Define Trimodal Prior function
+p_prior <- function(theta) {
+  if (theta < 0 || theta > 1) return(0)
+  return((cos(4 * pi * theta) + 1)^2 / 1.5)
+}
+
+# Metropolis algorithm function for multimodal distribution
+run_metropolis_multimodal <- function(n_iter = 15000, init_val = 0.1, prop_sd = 0.2, z = 0, N = 0) {
+  chain <- numeric(n_iter)
+  theta <- init_val
+  
+  for (i in 1:n_iter) {
+    theta_prop <- rnorm(1, mean = theta, sd = prop_sd)
+    if (theta_prop >= 0 && theta_prop <= 1) {
+      prior_curr <- p_prior(theta)
+      prior_prop <- p_prior(theta_prop)
+      
+      like_curr  <- ifelse(N == 0, 1, theta^z * (1 - theta)^(N - z))
+      like_prop  <- ifelse(N == 0, 1, theta_prop^z * (1 - theta_prop)^(N - z))
+      
+      p_curr <- prior_curr * like_curr
+      p_prop <- prior_prop * like_prop
+      
+      alpha <- p_prop / p_curr
+      if (runif(1) < alpha) {
+        theta <- theta_prop
+      }
+    }
+    chain[i] <- theta
+  }
+  return(chain)
+}
+
+# 1. Run simulation with prop_sd = 0.2 (Good exploration across modes)
+chain_0.2 <- run_metropolis_multimodal(n_iter = 15000, init_val = 0.1, prop_sd = 0.2, z = 0, N = 0)
+df_0.2 <- data.frame(Iteration = 1:length(chain_0.2), Value = chain_0.2)
+
+p1 <- ggplot(df_0.2, aes(x = Value)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 40, fill = "skyblue3", color = "white", alpha = 0.7) +
+  xlim(0, 1) +
+  labs(title = "prop_sd = 0.2 (Good Exploration)", x = expression(theta), y = "Density") +
+  theme_clean_minimal()
+
+# 2. Run simulation with prop_sd = 0.02 (Get Stuck in local mode)
+chain_0.02 <- run_metropolis_multimodal(n_iter = 15000, init_val = 0.1, prop_sd = 0.02, z = 0, N = 0)
+df_0.02 <- data.frame(Iteration = 1:length(chain_0.02), Value = chain_0.02)
+
+p2 <- ggplot(df_0.02, aes(x = Value)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 40, fill = "steelblue", color = "white", alpha = 0.7) +
+  xlim(0, 1) +
+  labs(title = "prop_sd = 0.02 (Get Stuck)", x = expression(theta), y = "Density") +
+  theme_clean_minimal()
+
+# Combine using patchwork to create a 1x2 layout side-by-side
+final_comparison <- p1 + p2
+print(final_comparison)
+
+
+
+#Part5 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
