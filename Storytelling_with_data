@@ -9109,3 +9109,459 @@ ggdraw() +
              x = 0.05, y = 0.075, size = 9, hjust = 0, color = "gray40") +
   draw_label("Do those who completed survey look like the overall population, demographic-wise? When was the survey conducted?", 
              x = 0.05, y = 0.05, size = 9, hjust = 0, color = "gray40")
+
+
+
+
+#-------------------------------------------------------------------------------
+## Strategies for avoiding the spaghetti graph - original graph
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot) # Required for ggdraw layout placement
+
+# 1. Prepare data based on the chart
+years <- 2010:2015
+
+df <- data.frame(
+  Year = rep(years, 5),
+  Category = rep(c("Arts & culture", "Education", "Health", "Human services", "Other"), each = length(years)),
+  Percent = c(
+    20, 25, 28, 42, 30, 43,  # Arts & culture
+    73, 80, 74, 70, 63, 60,  # Education
+    67, 53, 61, 65, 70, 75,  # Health
+    60, 85, 78, 60, 58, 55,  # Human services
+    53, 30, 45, 30, 45, 30   # Other
+  )
+)
+
+# Set factor levels to control legend and line order
+df$Category <- factor(df$Category, levels = c("Arts & culture", "Education", "Health", "Human services", "Other"))
+
+# 2. Define custom color palette matching the image
+custom_colors <- c(
+  "Arts & culture" = "#2b7bde",
+  "Education" = "#b82b2b",
+  "Health" = "#7cb942",
+  "Human services" = "#7b52a1",
+  "Other" = "#969696"
+)
+
+# 3. Create core ggplot visualization (Line markers removed)
+p <- ggplot(df, aes(x = Year, y = Percent, color = Category)) +
+  geom_line(linewidth = 1.2) +
+  
+  # Scale settings for Y axis (0% to 100% with 10% breaks)
+  scale_y_continuous(
+    limits = c(0, 100),
+    breaks = seq(0, 100, by = 10),
+    labels = paste0(seq(0, 100, by = 10), "%"),
+    expand = c(0, 0)
+  ) +
+  
+  # X axis setup
+  scale_x_continuous(
+    breaks = years,
+    expand = c(0.02, 0.02)
+  ) +
+  
+  # Apply custom colors
+  scale_color_manual(values = custom_colors) +
+  
+  # Clean minimal theme
+  theme_minimal(base_family = "sans") +
+  theme(
+    # Remove default titles/labels/legends from ggplot to position them precisely via ggdraw
+    plot.title = element_blank(),
+    plot.subtitle = element_blank(),
+    legend.position = "none",
+    
+    # Axis styling (Preserving both x and y axis lines)
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text = element_text(size = 11, color = "#555555"),
+    axis.ticks.y = element_line(color = "#cccccc"),
+    axis.line.x = element_line(color = "#cccccc"), # Keep x-axis line
+    axis.line.y = element_line(color = "#cccccc"), # Keep y-axis line
+    
+    # Remove gridlines for a clean storytelling look
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    
+    # Adjust plot margins to make space for custom ggdraw annotations
+    plot.margin = margin(50, 20, 40, 20)
+  )
+
+
+windows(width = 12, height = 8)
+# 4. Construct precise custom layout using ggdraw
+ggdraw(p) +
+  # Title (Bold removed, placed at top-left)
+  draw_label("Types of non-profits supported by area funders", 
+             x = 0.05, y = 0.99, hjust = 0, vjust = 1, 
+             fontface = "plain", size = 18, colour = "#333333") +
+  
+  # Legend (Positioned at y = 0.93 as requested)
+  draw_label("—Arts & culture", x = 0.1, y = 0.93, hjust = 0, size = 10, colour = "#2b7bde", fontface = "bold") +
+  draw_label("—Education", x = 0.1+0.2*1, y = 0.93, hjust = 0, size = 10, colour = "#b82b2b", fontface = "bold") +
+  draw_label("—Health", x = 0.1+0.2*2, y = 0.93, hjust = 0, size = 10, colour = "#7cb942", fontface = "bold") +
+  draw_label("—Human services", x = 0.1+0.2*3, y = 0.93, hjust = 0, size = 10, colour = "#7b52a1", fontface = "bold") +
+  draw_label("—Other", x = 0.9, y = 0.93, hjust = 0, size = 10, colour = "#969696", fontface = "bold") +
+  
+  # Y-axis Label (Placed below the legend)
+  draw_label("Percent of funders", 
+             x = 0.01, y = 0.75, hjust = 0, vjust = 1, angle = 90, 
+             size = 11, colour = "#555555") +
+  
+  # Caption (Placed at bottom-left)
+  draw_label("Data is self-reported by funders; percents sum to greater than 100 because respondents can make multiple selections.", 
+             x = 0.05, y = 0.03, hjust = 0, vjust = 0, 
+             size = 9, colour = "#777777")
+
+#-------------------------------------------------------------------------------
+## Strategies for avoiding the spaghetti graph - Emphasize a single line
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot) # Required for ggdraw layout placement
+library(patchwork) # Required for combining multiple plots into 1x2 layout
+
+# 1. Prepare data based on the chart
+years <- 2010:2015
+
+df <- data.frame(
+  Year = rep(years, 5),
+  Category = rep(c("Arts & culture", "Education", "Health", "Human services", "Other"), each = length(years)),
+  Percent = c(
+    20, 25, 28, 42, 30, 43,  # Arts & culture
+    73, 80, 74, 70, 63, 60,  # Education
+    67, 53, 61, 65, 70, 75,  # Health
+    60, 85, 78, 60, 58, 55,  # Human services
+    53, 30, 45, 30, 45, 30   # Other
+  )
+)
+
+# Set factor levels to control order
+df$Category <- factor(df$Category, levels = c("Arts & culture", "Education", "Health", "Human services", "Other"))
+
+# ==========================================
+# Function to generate each styled plot
+# ==========================================
+create_story_plot <- function(highlight_cat, highlight_color, highlight_text) {
+  
+  # Assign color: highlighted category gets its designated color, others turn gray
+  plot_df <- df %>%
+    mutate(
+      LineColor = ifelse(Category == highlight_cat, highlight_cat, "Others")
+    )
+  
+  color_map <- c("Others" = "#cccccc")
+  color_map[highlight_cat] <- highlight_color
+  
+  p <- ggplot(plot_df, aes(x = Year, y = Percent, group = Category, color = LineColor)) +
+    # Draw gray background lines first, then the highlighted line on top
+    geom_line(data = subset(plot_df, LineColor == "Others"), linewidth = 1.0, alpha = 0.8) +
+    geom_line(data = subset(plot_df, LineColor != "Others"), linewidth = 1.4) +
+    
+    # Add a data point and label at the final year (2015) for the highlighted category
+    geom_point(data = subset(plot_df, Category == highlight_cat & Year == 2015), size = 3.5) +
+    
+    scale_y_continuous(
+      limits = c(0, 100),
+      breaks = seq(0, 100, by = 10),
+      labels = paste0(seq(0, 100, by = 10), "%"),
+      expand = c(0, 0)
+    ) +
+    scale_x_continuous(
+      breaks = years,
+      limits = c(2010, 2016.2), # Expand x-axis slightly to fit the end label comfortably
+      expand = c(0.02, 0.02)
+    ) +
+    scale_color_manual(values = color_map) +
+    theme_minimal(base_family = "sans") +
+    theme(
+      plot.title = element_blank(),
+      plot.subtitle = element_blank(),
+      legend.position = "none",
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank(),
+      axis.text = element_text(size = 11, color = "#555555"),
+      axis.ticks.y = element_line(color = "#cccccc"),
+      axis.line.x = element_line(color = "#cccccc"),
+      axis.line.y = element_line(color = "#cccccc"),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      plot.margin = margin(50, 20, 40, 20)
+    )
+  
+  # Wrap with ggdraw for precise layout annotations
+  ggdraw(p) +
+    draw_label("Types of non-profits supported by area funders", 
+               x = 0.05, y = 0.99, hjust = 0, vjust = 1, 
+               fontface = "plain", size = 16, colour = "#333333") +
+    
+    draw_label("Percent of funders", 
+               x = 0.01, y = 0.75, hjust = 0, vjust = 1, angle = 90, 
+               size = 11, colour = "#555555") +
+    
+    draw_label(highlight_text, 
+               x = 0.79, y = 0.76, hjust = 0, vjust = 0.5, 
+               fontface = "bold", size = 12, colour = highlight_color) +
+    
+    draw_label("Data is self-reported by funders; percents sum to greater than 100 because respondents\ncan make multiple selections.", 
+               x = 0.05, y = 0.03, hjust = 0, vjust = 0, 
+               size = 8.5, colour = "#777777")
+}
+
+# 2. Generate the two individual plots
+p_health <- create_story_plot("Health", "#2b7bde", "75% Health")
+p_education <- create_story_plot("Education", "#2b7bde", "60% Education")
+
+# 3. Combine using patchwork (1x2 layout side-by-side)
+windows(width = 20, height = 8) # Open a wide graphics window for dual plots
+p_health + p_education
+
+
+#-------------------------------------------------------------------------------
+## Strategies for avoiding the spaghetti graph - Pull the lines apart vertically
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(patchwork)
+library(cowplot)
+
+# 1. Prepare data based on the chart
+years <- 2010:2015
+
+df <- data.frame(
+  Year = rep(years, 5),
+  Category = rep(c("Health", "Education", "Human services", "Arts & culture", "Other"), each = length(years)),
+  Percent = c(
+    67, 53, 61, 65, 70, 75,  # Health
+    73, 80, 74, 70, 63, 60,  # Education
+    60, 85, 78, 60, 58, 55,  # Human services
+    20, 25, 28, 42, 30, 43,  # Arts & culture
+    53, 30, 45, 30, 45, 30   # Other
+  )
+)
+
+categories <- c("Health", "Education", "Human services", "Arts & culture", "Other")
+
+# 2. Function to create each horizontal row plot with an X-axis line but hidden year labels/ticks
+create_row_plot <- function(cat_name) {
+  cat_data <- df %>% filter(Category == cat_name)
+  start_val <- cat_data %>% filter(Year == 2010) %>% pull(Percent)
+  end_val <- cat_data %>% filter(Year == 2015) %>% pull(Percent)
+  
+  ggplot(cat_data, aes(x = Year, y = Percent)) +
+    # Trend line and endpoints
+    geom_line(color = "#2b7bde", linewidth = 1.2) +
+    geom_point(data = subset(cat_data, Year %in% c(2010, 2015)), color = "#2b7bde", size = 2.5) +
+    
+    # Start and end text labels
+    geom_text(data = subset(cat_data, Year == 2010), 
+              aes(label = paste0(start_val, "%")), 
+              hjust = 1.4, vjust = 0.5, color = "#2b7bde", size = 3.5, fontface = "bold") +
+    geom_text(data = subset(cat_data, Year == 2015), 
+              aes(label = paste0(end_val, "%")), 
+              hjust = -0.4, vjust = 0.5, color = "#2b7bde", size = 4, fontface = "bold") +
+    
+    # Scales
+    scale_y_continuous(limits = c(0, 100), breaks = NULL, expand = c(0, 0)) +
+    scale_x_continuous(breaks = years, limits = c(2009.3, 2016.8), expand = c(0, 0)) +
+    
+    # Minimal theme styling with X-axis line preserved, but text/ticks removed
+    theme_minimal(base_family = "sans") +
+    theme(
+      plot.title = element_blank(),
+      axis.title = element_blank(),
+      axis.text.y = element_blank(),
+      axis.text.x = element_blank(),  # Hide year labels
+      axis.ticks.x = element_blank(), # Hide ticks
+      axis.line.x = element_line(color = "#cccccc", linewidth = 0.6), # Keep the X axis line for every row
+      axis.ticks = element_blank(),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      plot.margin = margin(10, 30, 10, 80) # Left margin for category labels
+    )
+}
+
+# 3. Generate individual row plots
+p_health    <- create_row_plot("Health")
+p_educ      <- create_row_plot("Education")
+p_human     <- create_row_plot("Human services")
+p_arts      <- create_row_plot("Arts & culture")
+p_other     <- create_row_plot("Other")
+
+# 4. Combine rows vertically using patchwork (Added bottom margin to create space below the last row)
+rows_combined <- p_health / p_educ / p_human / p_arts / p_other + 
+  plot_annotation(theme = theme(plot.margin = margin(85, 0, 45, 0)))
+
+# 5. Define spacing variable and construct the header string using paste0
+space_gap <- "                " # Adjust the number of spaces here as needed
+years_header_text <- paste0(years[1], space_gap, years[2], space_gap, years[3], space_gap, years[4], space_gap, years[5], space_gap, years[6])
+
+# 6. Add overarching layout annotations using ggdraw (Increased window height for extra bottom space)
+windows(width = 11, height = 9)
+ggdraw(rows_combined) +
+  # Main Title
+  draw_label("Types of non-profits supported by area funders", 
+             x = 0.05, y = 0.96, hjust = 0, vjust = 1, 
+             fontface = "plain", size = 18, colour = "#333333") +
+  
+  # Header Row (Years dynamically spaced using paste0)
+  draw_label(years_header_text, 
+             x = 0.2, y = 0.90, hjust = 0, size = 11, colour = "#555555") +
+  draw_label("| % of funders", 
+             x = 0.8, y = 0.90, hjust = 0, size = 11, colour = "#2b7bde") +
+  
+  # Top Header Divider Line
+  draw_line(x = c(0.05, 0.95), y = c(0.87, 0.87), color = "#cccccc", linewidth = 0.8) +
+  
+  # Row Category Labels (Left side)
+  draw_label("Health", x = 0.11, y = 0.75 + 0.04, hjust = 0.5, size = 14, colour = "#444444", fontface = "bold") +
+  draw_label("Education", x = 0.11, y = 0.59 + 0.04, hjust = 0.5, size = 14, colour = "#444444", fontface = "bold") +
+  draw_label("Human\nservices", x = 0.11, y = 0.43 + 0.04, hjust = 0.5, lineheight = 0.9, size = 14, colour = "#444444", fontface = "bold") +
+  draw_label("Arts &\nculture", x = 0.11, y = 0.27 + 0.04, hjust = 0.5, lineheight = 0.9, size = 14, colour = "#444444", fontface = "bold") +
+  draw_label("Other", x = 0.11, y = 0.11 + 0.04, hjust = 0.5, size = 14, colour = "#444444", fontface = "bold") +
+  
+  # Bottom Caption (Positioned slightly higher to ensure a neat bottom margin)
+  draw_label("Data is self-reported by funders; percents sum to greater than 100 because respondents\ncan make multiple selections.", 
+             x = 0.05, y = 0.04, hjust = 0, vjust = 0, 
+             size = 9, colour = "#777777")
+
+
+
+#-------------------------------------------------------------------------------
+## Strategies for avoiding the spaghetti graph - Pull the lines apart horizontally
+#-------------------------------------------------------------------------------
+
+
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(patchwork)
+library(cowplot)
+
+# 1. Prepare data based on the chart
+years <- 2010:2015
+short_years <- c("'10", "'11", "'12", "'13", "'14", "'15")
+
+df <- data.frame(
+  Year = rep(years, 5),
+  YearLabel = rep(short_years, 5),
+  Category = rep(c("Health", "Education", "Human services", "Arts & culture", "Other"), each = length(years)),
+  Percent = c(
+    67, 53, 61, 65, 70, 75,  # Health
+    73, 80, 74, 70, 63, 60,  # Education
+    60, 85, 78, 60, 58, 55,  # Human services
+    20, 25, 28, 42, 30, 43,  # Arts & culture
+    53, 30, 45, 30, 45, 30   # Other
+  )
+)
+
+categories <- c("Health", "Education", "Human services", "Arts & culture", "Other")
+
+# 2. Function to create each vertical column plot (with short year labels and compact margins)
+create_col_plot <- function(cat_name, show_yaxis = FALSE, highlight_pct_end = FALSE) {
+  cat_data <- df %>% filter(Category == cat_name)
+  start_val <- cat_data %>% filter(Year == 2010) %>% pull(Percent)
+  end_val <- cat_data %>% filter(Year == 2015) %>% pull(Percent)
+  
+  p <- ggplot(cat_data, aes(x = Year, y = Percent)) +
+    # Trend line and endpoints
+    geom_line(color = "#2b7bde", linewidth = 1.2) +
+    geom_point(data = subset(cat_data, Year %in% c(2010, 2015)), color = "#2b7bde", size = 2.5) +
+    
+    # Optional start/end percentage labels
+    { if (highlight_pct_end) 
+      geom_text(data = subset(cat_data, Year == 2015), aes(label = paste0(end_val, "%")), hjust = -0.3, vjust = 0.5, color = "#2b7bde", size = 3.5, fontface = "bold") } +
+    
+    # Scales using short year labels mapped via labels parameter
+    scale_y_continuous(
+      limits = c(0, 100), 
+      breaks = seq(0, 100, by = 10), 
+      labels = if (show_yaxis) paste0(seq(0, 100, by = 10), "%") else NULL, 
+      expand = c(0, 0)
+    ) +
+    scale_x_continuous(breaks = years, labels = short_years, limits = c(2009.2, 2015.8), expand = c(0, 0)) +
+    
+    # Minimal theme styling with minimal horizontal margins to eliminate gaps between plots
+    theme_minimal(base_family = "sans") +
+    theme(
+      plot.title = element_blank(),
+      axis.title = element_blank(),
+      # Conditionally show or hide Y-axis text, ticks, and line
+      axis.text.y = if (show_yaxis) element_text(size = 9, color = "#555555") else element_blank(),
+      axis.ticks.y = if (show_yaxis) element_line(color = "#cccccc") else element_blank(),
+      axis.line.y = if (show_yaxis) element_line(color = "#cccccc", linewidth = 0.6) else element_blank(),
+      
+      axis.text.x = element_text(size = 9, color = "#555555", angle = 0, hjust = 0.5),
+      axis.ticks.x = element_blank(),
+      axis.line.x = element_line(color = "#cccccc", linewidth = 0.6),
+      axis.ticks = element_blank(),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      plot.margin = margin(10, 15, 10, 30) # Minimized left/right margins for tight spacing between panels
+    )
+  
+  return(p)
+}
+
+# 3. Generate individual column plots
+p_health  <- create_col_plot("Health", show_yaxis = TRUE, highlight_pct_end = TRUE)
+p_educ    <- create_col_plot("Education", show_yaxis = FALSE, highlight_pct_end = TRUE)
+p_human   <- create_col_plot("Human services", show_yaxis = FALSE, highlight_pct_end = TRUE)
+p_arts    <- create_col_plot("Arts & culture", show_yaxis = FALSE, highlight_pct_end = TRUE)
+p_other   <- create_col_plot("Other", show_yaxis = FALSE, highlight_pct_end = TRUE)
+
+# 4. Combine columns side-by-side horizontally using patchwork with zero gap
+cols_combined <- p_health + p_educ + p_human + p_arts + p_other + 
+  plot_layout(nrow = 1, guides = "collect") & 
+  theme(plot.margin = margin(40, 10, 20, 10))
+
+# 5. Add overarching layout annotations using ggdraw
+windows(width = 14, height = 7)
+ggdraw(cols_combined) +
+  # Main Title
+  draw_label("Types of non-profits supported by area funders", 
+             x = 0.05, y = 0.95, hjust = 0, vjust = 1, 
+             fontface = "plain", size = 18, colour = "#333333") +
+  
+  # Category Headers (Top row titles)
+  draw_label("Health", x = 0.135, y = 0.88, hjust = 0.5, size = 12, colour = "#2b7bde", fontface = "bold") +
+  draw_label("Education", x = 0.325, y = 0.88, hjust = 0.5, size = 12, colour = "#2b7bde", fontface = "bold") +
+  draw_label("Human services", x = 0.515, y = 0.88, hjust = 0.5, size = 12, colour = "#2b7bde", fontface = "bold") +
+  draw_label("Arts & culture", x = 0.705, y = 0.88, hjust = 0.5, size = 12, colour = "#2b7bde", fontface = "bold") +
+  draw_label("Other", x = 0.895, y = 0.88, hjust = 0.5, size = 12, colour = "#2b7bde", fontface = "bold") +
+  
+  # Top Header Divider Lines separating category blocks
+  draw_line(x = c(0.05, 0.22), y = c(0.85, 0.85), color = "#cccccc", linewidth = 0.8) +
+  draw_line(x = c(0.24, 0.41), y = c(0.85, 0.85), color = "#cccccc", linewidth = 0.8) +
+  draw_line(x = c(0.43, 0.60), y = c(0.85, 0.85), color = "#cccccc", linewidth = 0.8) +
+  draw_line(x = c(0.62, 0.79), y = c(0.85, 0.85), color = "#cccccc", linewidth = 0.8) +
+  draw_line(x = c(0.81, 0.95), y = c(0.85, 0.85), color = "#cccccc", linewidth = 0.8) +
+  
+  # Y-axis Label
+  draw_label("Percent of funders", 
+             x = 0.01, y = 0.75, hjust = 0.5, vjust = 1, angle = 90, 
+             size = 11, colour = "#555555") +
+  
+  # Bottom Caption
+  draw_label("Data is self-reported by funders; percents sum to greater than 100 because respondents can make multiple selections.", 
+             x = 0.05, y = 0.03, hjust = 0, vjust = 0, 
+             size = 9, colour = "#777777")
+
