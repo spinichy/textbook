@@ -8350,6 +8350,10 @@ ggdraw() +
 
 
 
+#-------------------------------------------------------------------------------
+##  Establishing logic in order - 6) Satisfaction
+#-------------------------------------------------------------------------------
+
 
 #-------------------------------------------------------------------------------
 ##  Establishing logic in order - Direct Color Mapping in df_long with Adjusted Spacing
@@ -8494,14 +8498,144 @@ ggdraw() +
 
 
 #-------------------------------------------------------------------------------
-##  Establishing logic in order - 6) Dissatisfaction
-#-------------------------------------------------------------------------------
-
-
-
-#-------------------------------------------------------------------------------
 ##  Establishing logic in order - 7) Dissatisfaction
 #-------------------------------------------------------------------------------
+
+#-------------------------------------------------------------------------------
+##  Establishing logic in order - Correct Color Mapping with Reverse Stacking
+#-------------------------------------------------------------------------------
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot)
+library(grid)
+
+# 1. Prepare your data frame (df) with feature and category columns 
+df <- data.frame(
+  Feature = paste0("Feature ", LETTERS[1:15]),
+  Cat1 = c(46, 45, 32, 26, 25, 26, 36, 24, 29, 32, 31, 22, 24, 16, 18), 
+  Cat2 = c(40, 36, 34, 37, 36, 35, 26, 32, 27, 27, 28, 27, 18, 17, 16), 
+  Cat3 = c(11, 13, 24, 21, 23, 20, 15, 23, 17, 24, 17, 23, 25, 24, 15), 
+  Cat4 = c(1, 3, 5, 4, 6, 5, 5, 6, 5, 14, 4, 4, 8, 14, 6),         
+  Cat5 = c(1, 2, 3, 2, 2, 2, 3, 3, 2, 1, 2, 2, 3, 4, 5),         
+  Cat6 = c(1, 1, 2, 10, 8, 12, 15, 12, 20, 2, 18, 19, 22, 25, 40)    
+)
+
+# 2. Extract category column names in their EXACT physical order from the data frame
+cat_levels <- setdiff(names(df), "Feature")
+
+# 3. Convert to long format preserving the exact left-to-right order
+df_long <- df %>%
+  pivot_longer(cols = all_of(cat_levels), names_to = "Category", values_to = "Value") %>%
+  group_by(Feature) %>%
+  mutate(
+    Percentage = Value / sum(Value) * 100,
+    LabelText = ifelse(Percentage >= 4, paste0(round(Percentage), "%"), "")
+  ) %>%
+  ungroup()
+
+# 4. Explicitly enforce the factor levels to match the exact column order (Left -> Right)
+df_long$Category <- factor(df_long$Category, levels = cat_levels)
+
+# 5. Preserve the exact row order of features from top to bottom
+df_long$Feature <- factor(df_long$Feature, levels = rev(unique(df$Feature)))
+
+# 6. Directly assign color codes into df_long (Reversed color mapping to match position_stack(reverse = TRUE))
+df_long <- df_long %>%
+  mutate(
+    BarColor = case_when(
+      # Feature J and N (Orange tones matched to reversed stacking: Cat2 and Cat3)
+      Feature %in% c("Feature J", "Feature N") & Category == "Cat1" ~ "#999999",
+      Feature %in% c("Feature J", "Feature N") & Category == "Cat2" ~ "#B0B0B0",
+      Feature %in% c("Feature J", "Feature N") & Category == "Cat3" ~ "#C8C8C8",
+      Feature %in% c("Feature J", "Feature N") & Category == "Cat4" ~ "#E8833A",
+      Feature %in% c("Feature J", "Feature N") & Category == "Cat5" ~ "#D35400",
+      Feature %in% c("Feature J", "Feature N") & Category == "Cat6" ~ "#EAEAEA",
+      
+      # Standard gray tones for all other features (reversed mapping)
+      Category == "Cat1" ~ "#999999",
+      Category == "Cat2" ~ "#B0B0B0",
+      Category == "Cat3" ~ "#C8C8C8",
+      Category == "Cat4" ~ "#C8C8C8",
+      Category == "Cat5" ~ "#DCDCDC",
+      Category == "Cat6" ~ "#EAEAEA",
+      TRUE ~ "#CCCCCC"
+    )
+  )
+
+# 7. Create the horizontal stacked bar chart using scale_fill_identity() with white segment borders
+p_bar <- ggplot(df_long, aes(x = Percentage, y = Feature, fill = BarColor)) +
+  geom_bar(stat = "identity", width = 0.7, colour = "white", linewidth = 0.5,
+           position = position_stack(reverse = FALSE)) +
+  scale_fill_identity() + # Direct hex color mapping
+  scale_x_continuous(expand = c(0, 0)) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.title = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.text.y = element_text(size = 12, face = "bold", color = "black"),
+    legend.position = "none",
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+# 8. Use ggdraw to manually draw the title, custom legend layout, side callout box, and bottom footnotes
+legend_labels <- c(
+  "Have not used", 
+  "Not satisfied at all", 
+  "Not very satisfied", 
+  "Somewhat satisfied", 
+  "Very satisfied", 
+  "Completely satisfied"
+)
+legend_colors <- c("#C8C8C8", "#D35400", "#E8833A", "#C8C8C8", "#B0B0B0", "#999999")
+
+windows(width = 12, height = 8.5)
+ggdraw() +
+  # Restrict plot width to 0.85 to leave space for the right-side callout box
+  draw_plot(p_bar, x = 0.0, y = 0.12, width = 0.85, height = 0.76) +
+  
+  # Main Title
+  draw_label(
+    "Product X User Satisfaction: Features", 
+    x = 0.05, y = 0.94, 
+    size = 15, fontface = "bold", hjust = 0.0
+  ) +
+  
+  # --- Custom Top Legend Layout (Balanced spacing & reversed to match the visual layout) ---
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[1], col = NA)), x = 0.05, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[1], x = 0.07, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "gray50") +
+  
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[2], col = NA)), x = 0.18, y = 0.88, width = 0.015, height = 0.02) + 
+  draw_label(legend_labels[2], x = 0.20, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "#E8833A") +
+  
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[3], col = NA)), x = 0.33, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[3], x = 0.35, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "#D35400") +
+  
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[4], col = NA)), x = 0.48, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[4], x = 0.50, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "gray50") +
+  
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[5], col = NA)), x = 0.65, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[5], x = 0.67, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "gray50") +
+  
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[6], col = NA)), x = 0.78, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(legend_labels[6], x = 0.80, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "gray50") +
+  
+  # --- Side Callout Box (Orange box for Features J and N) ---
+  draw_grob(rectGrob(gp = gpar(fill = "#D35400", col = NA)), x = 0.865, y = 0.15, width = 0.11, height = 0.16) +
+  draw_label("Users are least\nsatisfied with\nFeatures J and N;\nwhat improvements\ncan we make here\nfor a better user\nexperience?", 
+             x = 0.92, y = 0.23, size = 9, fontface = "bold", color = "white", hjust = 0.5, vjust = 0.5, lineheight = 1.1) +
+  
+  # --- Bottom Captions / Footnotes ---
+  draw_label("Responses based on survey question \"How satisfied have you been with each of these features?\".", 
+             x = 0.05, y = 0.07+0.03, size = 9, hjust = 0, color = "gray40") +
+  draw_label("Need more details here to help put this data into context: How many people completed survey? What proportion of users does this represent?", 
+             x = 0.05, y = 0.045+0.03, size = 9, hjust = 0, color = "gray40") +
+  draw_label("Do those who completed survey look like the overall population, demographic-wise? When was the survey conducted?", 
+             x = 0.05, y = 0.02+0.03, size = 9, hjust = 0, color = "gray40")
 
 
 
@@ -8511,8 +8645,467 @@ ggdraw() +
 
 
 
+library(tidyverse)
+library(cowplot)
+library(grid)
+
+# 1. Define category levels and colors
+category_levels <- c(
+  "Have not used",
+  "Not satisfied at all", 
+  "Not very satisfied", 
+  "Somewhat satisfied", 
+  "Very satisfied", 
+  "Completely satisfied"
+)
+
+legend_colors <- c(
+  "Have not used"        = "#3b9ab8",
+  "Not satisfied at all" = "#d1d1d1", 
+  "Not very satisfied"   = "#c2c2c2", 
+  "Somewhat satisfied"   = "#b0b0b0", 
+  "Very satisfied"       = "#dedede", 
+  "Completely satisfied" = "#ebebeb"
+)
+
+# 2. Create dataset
+df <- tribble(
+  ~Feature,    ~Category,               ~Value,
+  "Feature A", "Have not used",          0,
+  "Feature A", "Not satisfied at all",    1,
+  "Feature A", "Not very satisfied",      2,
+  "Feature A", "Somewhat satisfied",      10,
+  "Feature A", "Very satisfied",          40,
+  "Feature A", "Completely satisfied",    46,
+  
+  "Feature B", "Have not used",          0,
+  "Feature B", "Not satisfied at all",    2,
+  "Feature B", "Not very satisfied",      2,
+  "Feature B", "Somewhat satisfied",      13,
+  "Feature B", "Very satisfied",          38,
+  "Feature B", "Completely satisfied",    44,
+  
+  "Feature C", "Have not used",          2,
+  "Feature C", "Not satisfied at all",    1,
+  "Feature C", "Not very satisfied",      2,
+  "Feature C", "Somewhat satisfied",      15,
+  "Feature C", "Very satisfied",          35,
+  "Feature C", "Completely satisfied",    45,
+  
+  "Feature D", "Have not used",          8,
+  "Feature D", "Not satisfied at all",    1,
+  "Feature D", "Not very satisfied",      2,
+  "Feature D", "Somewhat satisfied",      15,
+  "Feature D", "Very satisfied",          34,
+  "Feature D", "Completely satisfied",    40,
+  
+  "Feature E", "Have not used",          6,
+  "Feature E", "Not satisfied at all",    1,
+  "Feature E", "Not very satisfied",      2,
+  "Feature E", "Somewhat satisfied",      15,
+  "Feature E", "Very satisfied",          36,
+  "Feature E", "Completely satisfied",    40,
+  
+  "Feature F", "Have not used",          14,
+  "Feature F", "Not satisfied at all",    1,
+  "Feature F", "Not very satisfied",      2,
+  "Feature F", "Somewhat satisfied",      12,
+  "Feature F", "Very satisfied",          31,
+  "Feature F", "Completely satisfied",    40,
+  
+  "Feature G", "Have not used",          19,
+  "Feature G", "Not satisfied at all",    1,
+  "Feature G", "Not very satisfied",      2,
+  "Feature G", "Somewhat satisfied",      10,
+  "Feature G", "Very satisfied",          30,
+  "Feature G", "Completely satisfied",    38,
+  
+  "Feature H", "Have not used",          13,
+  "Feature H", "Not satisfied at all",    1,
+  "Feature H", "Not very satisfied",      2,
+  "Feature H", "Somewhat satisfied",      15,
+  "Feature H", "Very satisfied",          30,
+  "Feature H", "Completely satisfied",    39,
+  
+  "Feature I", "Have not used",          22,
+  "Feature I", "Not satisfied at all",    1,
+  "Feature I", "Not very satisfied",      2,
+  "Feature I", "Somewhat satisfied",      12,
+  "Feature I", "Very satisfied",          28,
+  "Feature I", "Completely satisfied",    35,
+  
+  "Feature J", "Have not used",          2,
+  "Feature J", "Not satisfied at all",    1,
+  "Feature J", "Not very satisfied",      3,
+  "Feature J", "Somewhat satisfied",      20,
+  "Feature J", "Very satisfied",          34,
+  "Feature J", "Completely satisfied",    40,
+  
+  "Feature K", "Have not used",          29,
+  "Feature K", "Not satisfied at all",    1,
+  "Feature K", "Not very satisfied",      2,
+  "Feature K", "Somewhat satisfied",      10,
+  "Feature K", "Very satisfied",          28,
+  "Feature K", "Completely satisfied",    30,
+  
+  "Feature L", "Have not used",          29,
+  "Feature L", "Not satisfied at all",    1,
+  "Feature L", "Not very satisfied",      2,
+  "Feature L", "Somewhat satisfied",      15,
+  "Feature L", "Very satisfied",          25,
+  "Feature L", "Completely satisfied",    28,
+  
+  "Feature M", "Have not used",          33,
+  "Feature M", "Not satisfied at all",    1,
+  "Feature M", "Not very satisfied",      3,
+  "Feature M", "Somewhat satisfied",      12,
+  "Feature M", "Very satisfied",          23,
+  "Feature M", "Completely satisfied",    28,
+  
+  "Feature N", "Have not used",          26,
+  "Feature N", "Not satisfied at all",    2,
+  "Feature N", "Not very satisfied",      4,
+  "Feature N", "Somewhat satisfied",      15,
+  "Feature N", "Very satisfied",          25,
+  "Feature N", "Completely satisfied",    28,
+  
+  "Feature O", "Have not used",          51,
+  "Feature O", "Not satisfied at all",    1,
+  "Feature O", "Not very satisfied",      2,
+  "Feature O", "Somewhat satisfied",      10,
+  "Feature O", "Very satisfied",          18,
+  "Feature O", "Completely satisfied",    18
+)
+
+# 3. Factorize variables (Fixed paste5 to paste0)
+df <- df %>%
+  mutate(
+    Feature = factor(Feature, levels = paste0("Feature ", rev(LETTERS[1:15]))),
+    Category = factor(Category, levels = category_levels),
+    Label = if_else(Category == "Have not used" & Value >= 2, paste0(Value, "%"), NA_character_)
+  )
+
+# 4. Create base bar plot with white background theme
+p_bar <- ggplot(df, aes(x = Feature, y = Value, fill = Category)) +
+  geom_col(position = position_stack(reverse = TRUE), width = 0.7) +
+  geom_text(aes(label = Label), 
+            position = position_stack(vjust = 0.5, reverse = TRUE), 
+            color = "white", size = 3.2, fontface = "bold",
+            na.rm = TRUE) +
+  coord_flip() +
+  scale_fill_manual(values = legend_colors) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.grid = element_blank(),
+    axis.text = element_text(color = "gray20", size = 11, face = "bold"),
+    axis.title = element_blank(),
+    legend.position = "none"
+  )
+
+# 5. Render final layout using ggdraw with white background, callout box, and footnotes
+windows(width = 12, height = 8.5)
+ggdraw() +
+  draw_grob(rectGrob(gp = gpar(fill = "white", col = NA))) +
+  draw_plot(p_bar, x = 0.0, y = 0.12, width = 0.85, height = 0.76) +
+  
+  # Main Title
+  draw_label(
+    "Product X User Satisfaction: Features", 
+    x = 0.05, y = 0.94, 
+    size = 16, fontface = "bold", hjust = 0.0, color = "gray10"
+  ) +
+  
+  # --- Custom Top Legend Layout ---
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[1], col = NA)), x = 0.05, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(category_levels[1], x = 0.07, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "#3b9ab8") +
+  
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[2], col = NA)), x = 0.18, y = 0.88, width = 0.015, height = 0.02) + 
+  draw_label(category_levels[2], x = 0.20, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "gray40") +
+  
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[3], col = NA)), x = 0.33, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(category_levels[3], x = 0.35, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "gray40") +
+  
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[4], col = NA)), x = 0.48, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(category_levels[4], x = 0.50, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "gray40") +
+  
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[5], col = NA)), x = 0.65, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(category_levels[5], x = 0.67, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "gray40") +
+  
+  draw_grob(rectGrob(gp = gpar(fill = legend_colors[6], col = NA)), x = 0.78, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(category_levels[6], x = 0.80, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "gray40") +
+  
+  # --- Side Callout Box ---
+  draw_grob(rectGrob(gp = gpar(fill = "#3b9ab8", col = NA)), x = 0.835, y = 0.16, width = 0.14, height = 0.16) +
+  draw_label("Feature O is least\nused. What steps can\nwe proactively take\nwith existing users to\nincrease utilization?", 
+             x = 0.905, y = 0.24, size = 9, fontface = "bold", color = "white", hjust = 0.5, vjust = 0.5, lineheight = 1.1) +
+  
+  # --- Bottom Captions / Footnotes ---
+  draw_label("Responses based on survey question \"How satisfied have you been with each of these features?\".", 
+             x = 0.05, y = 0.10, size = 9, hjust = 0, color = "gray40") +
+  draw_label("Need more details here to help put this data into context: How many people completed survey? What proportion of users does this represent?", 
+             x = 0.05, y = 0.075, size = 9, hjust = 0, color = "gray40") +
+  draw_label("Do those who completed survey look like the overall population, demographic-wise? When was the survey conducted?", 
+             x = 0.05, y = 0.05, size = 9, hjust = 0, color = "gray40")
+
+
 #-------------------------------------------------------------------------------
 ##  Establishing logic in order - 9) Comprehensive visual
 #-------------------------------------------------------------------------------
 
 
+
+library(tidyverse)
+library(cowplot)
+library(grid)
+
+# 1. Define category levels and colors
+category_levels <- c(
+  "Have not used",
+  "Not satisfied at all", 
+  "Not very satisfied", 
+  "Somewhat satisfied", 
+  "Very satisfied", 
+  "Completely satisfied"
+)
+
+# 2. Create dataset
+df <- tribble(
+  ~Feature,    ~Category,               ~Value,
+  "Feature A", "Have not used",          0,
+  "Feature A", "Not satisfied at all",    1,
+  "Feature A", "Not very satisfied",      2,
+  "Feature A", "Somewhat satisfied",      10,
+  "Feature A", "Very satisfied",          40,
+  "Feature A", "Completely satisfied",    46,
+  
+  "Feature B", "Have not used",          0,
+  "Feature B", "Not satisfied at all",    2,
+  "Feature B", "Not very satisfied",      2,
+  "Feature B", "Somewhat satisfied",      13,
+  "Feature B", "Very satisfied",          38,
+  "Feature B", "Completely satisfied",    44,
+  
+  "Feature C", "Have not used",          2,
+  "Feature C", "Not satisfied at all",    1,
+  "Feature C", "Not very satisfied",      2,
+  "Feature C", "Somewhat satisfied",      15,
+  "Feature C", "Very satisfied",          35,
+  "Feature C", "Completely satisfied",    45,
+  
+  "Feature D", "Have not used",          8,
+  "Feature D", "Not satisfied at all",    1,
+  "Feature D", "Not very satisfied",      2,
+  "Feature D", "Somewhat satisfied",      15,
+  "Feature D", "Very satisfied",          34,
+  "Feature D", "Completely satisfied",    40,
+  
+  "Feature E", "Have not used",          6,
+  "Feature E", "Not satisfied at all",    1,
+  "Feature E", "Not very satisfied",      2,
+  "Feature E", "Somewhat satisfied",      15,
+  "Feature E", "Very satisfied",          36,
+  "Feature E", "Completely satisfied",    40,
+  
+  "Feature F", "Have not used",          14,
+  "Feature F", "Not satisfied at all",    1,
+  "Feature F", "Not very satisfied",      2,
+  "Feature F", "Somewhat satisfied",      12,
+  "Feature F", "Very satisfied",          31,
+  "Feature F", "Completely satisfied",    40,
+  
+  "Feature G", "Have not used",          19,
+  "Feature G", "Not satisfied at all",    1,
+  "Feature G", "Not very satisfied",      2,
+  "Feature G", "Somewhat satisfied",      10,
+  "Feature G", "Very satisfied",          30,
+  "Feature G", "Completely satisfied",    38,
+  
+  "Feature H", "Have not used",          13,
+  "Feature H", "Not satisfied at all",    1,
+  "Feature H", "Not very satisfied",      2,
+  "Feature H", "Somewhat satisfied",      15,
+  "Feature H", "Very satisfied",          30,
+  "Feature H", "Completely satisfied",    39,
+  
+  "Feature I", "Have not used",          22,
+  "Feature I", "Not satisfied at all",    1,
+  "Feature I", "Not very satisfied",      2,
+  "Feature I", "Somewhat satisfied",      12,
+  "Feature I", "Very satisfied",          28,
+  "Feature I", "Completely satisfied",    35,
+  
+  "Feature J", "Have not used",          2,
+  "Feature J", "Not satisfied at all",    1,
+  "Feature J", "Not very satisfied",      3,
+  "Feature J", "Somewhat satisfied",      20,
+  "Feature J", "Very satisfied",          34,
+  "Feature J", "Completely satisfied",    40,
+  
+  "Feature K", "Have not used",          29,
+  "Feature K", "Not satisfied at all",    1,
+  "Feature K", "Not very satisfied",      2,
+  "Feature K", "Somewhat satisfied",      10,
+  "Feature K", "Very satisfied",          28,
+  "Feature K", "Completely satisfied",    30,
+  
+  "Feature L", "Have not used",          29,
+  "Feature L", "Not satisfied at all",    1,
+  "Feature L", "Not very satisfied",      2,
+  "Feature L", "Somewhat satisfied",      15,
+  "Feature L", "Very satisfied",          25,
+  "Feature L", "Completely satisfied",    28,
+  
+  "Feature M", "Have not used",          33,
+  "Feature M", "Not satisfied at all",    1,
+  "Feature M", "Not very satisfied",      3,
+  "Feature M", "Somewhat satisfied",      12,
+  "Feature M", "Very satisfied",          23,
+  "Feature M", "Completely satisfied",    28,
+  
+  "Feature N", "Have not used",          26,
+  "Feature N", "Not satisfied at all",    2,
+  "Feature N", "Not very satisfied",      4,
+  "Feature N", "Somewhat satisfied",      15,
+  "Feature N", "Very satisfied",          25,
+  "Feature N", "Completely satisfied",    28,
+  
+  "Feature O", "Have not used",          51,
+  "Feature O", "Not satisfied at all",    1,
+  "Feature O", "Not very satisfied",      2,
+  "Feature O", "Somewhat satisfied",      10,
+  "Feature O", "Very satisfied",          18,
+  "Feature O", "Completely satisfied",    18
+)
+
+# 3. Factorize variables and define FillGroup to preserve exact stacking order
+df <- df %>%
+  mutate(
+    Feature = factor(Feature, levels = paste0("Feature ", rev(LETTERS[1:15]))),
+    Category = factor(Category, levels = category_levels),
+    
+    # Create sub-groups so specific cells get highlight colors without breaking stack order
+    FillGroup = case_when(
+      Category == "Have not used" & Feature == "Feature O" ~ "Have_O",
+      Category == "Have not used" ~ "Have_normal",
+      Category == "Not satisfied at all" & Feature %in% c("Feature J", "Feature N") ~ "Sat1_JN",
+      Category == "Not satisfied at all" ~ "Sat1_normal",
+      Category == "Not very satisfied" & Feature %in% c("Feature J", "Feature N") ~ "Sat2_JN",
+      Category == "Not very satisfied" ~ "Sat2_normal",
+      Category == "Somewhat satisfied" ~ "Somewhat_normal",
+      Category == "Very satisfied" & Feature %in% c("Feature A", "Feature B") ~ "VerySat_AB",
+      Category == "Very satisfied" ~ "VerySat_normal",
+      Category == "Completely satisfied" & Feature %in% c("Feature A", "Feature B") ~ "Complet_AB",
+      Category == "Completely satisfied" ~ "Complet_normal"
+    ),
+    
+    # Exact text labels mapping
+    Label = case_when(
+      Category == "Have not used" & Value >= 2 ~ paste0(Value, "%"),
+      Category == "Not satisfied at all" & Feature %in% c("Feature J", "Feature N") & Value >= 2 ~ paste0(Value, "%"),
+      Category == "Not very satisfied" & Feature %in% c("Feature J", "Feature N") & Value >= 3 ~ paste0(Value, "%"),
+      Category == "Very satisfied" & Feature %in% c("Feature A", "Feature B") ~ paste0(Value, "%"),
+      Category == "Completely satisfied" & Feature %in% c("Feature A", "Feature B") ~ paste0(Value, "%"),
+      TRUE ~ NA_character_
+    )
+  )
+
+# Enforce exact left-to-right stacking order via FillGroup levels
+fill_group_levels <- c(
+  "Have_normal", "Have_O",
+  "Sat1_normal", "Sat1_JN",
+  "Sat2_normal", "Sat2_JN",
+  "Somewhat_normal",
+  "VerySat_normal", "VerySat_AB",
+  "Complet_normal", "Complet_AB"
+)
+
+df$FillGroup <- factor(df$FillGroup, levels = fill_group_levels)
+
+# Color mapping for each sub-group
+fill_colors <- c(
+  "Have_normal"     = "#3b9ab8",
+  "Have_O"          = "#1b4f72",
+  "Sat1_normal"     = "#d1d1d1",
+  "Sat1_JN"         = "#d35400",
+  "Sat2_normal"     = "#c2c2c2",
+  "Sat2_JN"         = "#e8833a",
+  "Somewhat_normal" = "#b0b0b0",
+  "VerySat_normal"  = "#dedede",
+  "VerySat_AB"      = "#3b9ab8",
+  "Complet_normal"  = "#ebebeb",
+  "Complet_AB"      = "#08306b"
+)
+
+# 4. Create base bar plot using FillGroup to preserve perfect horizontal stacking
+p_bar <- ggplot(df, aes(x = Feature, y = Value, fill = FillGroup)) +
+  geom_col(position = position_stack(reverse = TRUE), width = 0.7, color = "white", linewidth = 0.5) +
+  geom_text(aes(label = Label), 
+            position = position_stack(vjust = 0.5, reverse = TRUE), 
+            color = "white", size = 3.2, fontface = "bold",
+            na.rm = TRUE) +
+  coord_flip() +
+  scale_fill_manual(values = fill_colors) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.grid = element_blank(),
+    axis.text = element_text(color = "gray20", size = 11, face = "bold"),
+    axis.title = element_blank(),
+    legend.position = "none"
+  )
+
+# 5. Render final layout using ggdraw with white background, 3 callout boxes, and footnotes
+windows(width = 12, height = 8.5)
+ggdraw() +
+  draw_grob(rectGrob(gp = gpar(fill = "white", col = NA))) +
+  draw_plot(p_bar, x = 0.0, y = 0.12, width = 0.83, height = 0.76) +
+  
+  # Main Title
+  draw_label(
+    "Product X User Satisfaction: Features", 
+    x = 0.05, y = 0.94, 
+    size = 16, fontface = "bold", hjust = 0.0, color = "gray10"
+  ) +
+  
+  # --- Custom Top Legend Layout ---
+  draw_grob(rectGrob(gp = gpar(fill = "#3b9ab8", col = NA)), x = 0.05, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(category_levels[1], x = 0.07, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "#3b9ab8") +
+  
+  draw_grob(rectGrob(gp = gpar(fill = "#d1d1d1", col = NA)), x = 0.18, y = 0.88, width = 0.015, height = 0.02) + 
+  draw_label(category_levels[2], x = 0.20, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "gray40") +
+  
+  draw_grob(rectGrob(gp = gpar(fill = "#c2c2c2", col = NA)), x = 0.33, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(category_levels[3], x = 0.35, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "gray40") +
+  
+  draw_grob(rectGrob(gp = gpar(fill = "#b0b0b0", col = NA)), x = 0.48, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(category_levels[4], x = 0.50, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "gray40") +
+  
+  draw_grob(rectGrob(gp = gpar(fill = "#dedede", col = NA)), x = 0.65, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(category_levels[5], x = 0.67, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "gray40") +
+  
+  draw_grob(rectGrob(gp = gpar(fill = "#ebebeb", col = NA)), x = 0.78, y = 0.88, width = 0.015, height = 0.02) +
+  draw_label(category_levels[6], x = 0.80, y = 0.89, size = 9, hjust = 0, fontface = "bold", color = "gray40") +
+  
+  # --- Side Callout Boxes (3 Stacked Boxes on the Right) ---
+  # 1. Top Box (Dark Blue - Features A & B)
+  draw_grob(rectGrob(gp = gpar(fill = "#08306b", col = NA)), x = 0.84, y = 0.72, width = 0.14, height = 0.13) +
+  draw_label("Features A and B\ncontinue to top user\nsatisfaction", x = 0.91, y = 0.785, size = 9, fontface = "bold", color = "white", hjust = 0.5, vjust = 0.5, lineheight = 1.1) +
+  
+  # 2. Middle Box (Orange - Features J & N)
+  draw_grob(rectGrob(gp = gpar(fill = "#d35400", col = NA)), x = 0.84, y = 0.40, width = 0.14, height = 0.28) +
+  draw_label("Users are least\nsatisfied with\nFeatures J and N;\nwhat improvements\ncan we make here\nfor a better user\nexperience?", x = 0.91, y = 0.54, size = 9, fontface = "bold", color = "white", hjust = 0.5, vjust = 0.5, lineheight = 1.1) +
+  
+  # 3. Bottom Box (Teal - Feature O)
+  draw_grob(rectGrob(gp = gpar(fill = "#3b9ab8", col = NA)), x = 0.84, y = 0.16, width = 0.14, height = 0.20) +
+  draw_label("Feature O is least\nused. What steps can\nwe proactively take\nwith existing users to\nincrease utilization?", x = 0.91, y = 0.26, size = 9, fontface = "bold", color = "white", hjust = 0.5, vjust = 0.5, lineheight = 1.1) +
+  
+  # --- Bottom Captions / Footnotes ---
+  draw_label("Responses based on survey question \"How satisfied have you been with each of these features?\".", 
+             x = 0.05, y = 0.10, size = 9, hjust = 0, color = "gray40") +
+  draw_label("Need more details here to help put this data into context: How many people completed survey? What proportion of users does this represent?", 
+             x = 0.05, y = 0.075, size = 9, hjust = 0, color = "gray40") +
+  draw_label("Do those who completed survey look like the overall population, demographic-wise? When was the survey conducted?", 
+             x = 0.05, y = 0.05, size = 9, hjust = 0, color = "gray40")
