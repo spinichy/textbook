@@ -9799,8 +9799,225 @@ print(final_slide)
 ## Alternatives to pies - 100% stacked horizontal bar graph
 #-------------------------------------------------------------------------------
 
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot) # Required for ggdraw and draw_plot / draw_label
+library(grid)
+
+# 1. Prepare data based on the survey chart structure
+df <- data.frame(
+  timing = c("BEFORE", "AFTER"),
+  Excited = c(32, 38),
+  Kind_of_interested = c(25, 30),
+  OK = c(25, 14),
+  Not_great = c(8, 9),
+  Bored = c(10, 9)
+)
+
+# Reshape data to long format
+df_long <- df %>%
+  pivot_longer(cols = -timing, names_to = "response", values_to = "percentage")
+
+# Set factor levels to ensure positive sentiments ('Excited', 'Kind_of_interested') are on the left
+df_long$response <- factor(
+  df_long$response, 
+  levels = c("Excited", "Kind_of_interested", "OK", "Not_great", "Bored")
+)
+
+# Ensure proper timing order for y-axis (BEFORE on top, AFTER on bottom)
+df_long$timing <- factor(df_long$timing, levels = c("AFTER", "BEFORE"))
+
+# Calculate cumulative positions for text labels (only for positive categories)
+df_long <- df_long %>%
+  group_by(timing) %>%
+  arrange(timing, response) %>%
+  mutate(
+    ymax = cumsum(percentage),
+    ymin = lag(ymax, default = 0),
+    xpos = (ymin + ymax) / 2
+  ) %>%
+  ungroup()
+
+# Define exact colors matching the reference image style
+color_palette <- c(
+  "Excited" = "#4A90E2",         # Blue
+  "Kind_of_interested" = "#5B9BD5", # Lighter Blue
+  "OK" = "#ED9343",              # Orange
+  "Not_great" = "#7F7F7F",       # Gray
+  "Bored" = "#595959"            # Dark Gray
+)
+
+# 2. Build core ggplot visualization (Removing X-axis completely)
+p <- ggplot(df_long, aes(x = timing, y = percentage, fill = response)) +
+  geom_bar(stat = "identity", width = 0.5, position = "stack", ) +
+  coord_flip() +
+  scale_fill_manual(values = color_palette) +
+  scale_y_continuous(limits = c(0, 100), expand = c(0, 0)) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "none",
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks = element_blank(),
+    plot.margin = margin(t = 40, r = 20, b = 20, l = 20)
+  )
+
+# 3. Assemble final layout using ggdraw
+windows(width = 12, height = 8)
+final_plot <- ggdraw() +
+  # Draw the core ggplot bar chart
+  draw_plot(p, x = 0.1, y = 0.1, width = 0.9, height = 0.8) +
+  # --- TOP GRAY BANNER BACKGROUND & TITLE (using grid::rectGrob via draw_grob) ---
+  draw_grob(rectGrob(gp = gpar(fill = "#7F7F7F", col = NA)), x = 0.05, y = 0.92, width = 0.93, height = 0.05) +
+  draw_label("Pilot program was a success", x = 0.05, y = 0.95, hjust = 0, fontface = "bold", size = 20, color = "white") +
+  draw_label("How do you feel about science?", x = 0.05, y = 0.90, hjust = 0, fontface = "bold", size = 18, color = "#333333") +
+  
+  # Legend items
+  draw_label("Bored", x = 0.12+0.2*0, y = 0.84, hjust = 0, fontface = "bold", size = 12, color = "#595959") +
+  draw_label("|", x = 0.25, y = 0.84, hjust = 0, size = 12, color = "#CCCCCC") +
+  draw_label("Not great", x = 0.12+0.2*1, y = 0.84, hjust = 0, fontface = "bold", size = 12, color = "#7F7F7F") +
+  draw_label("|", x = 0.25 + 0.21*1, y = 0.84, hjust = 0, size = 12, color = "#CCCCCC") +
+  draw_label("OK", x = 0.12+0.2*2, y = 0.84, hjust = 0, fontface = "bold", size = 12, color = "#ED9343") +
+  draw_label("|", x = 0.19 + 0.21*2, y = 0.84, hjust = 0, size = 12, color = "#CCCCCC") +
+  draw_label("Kind of interested", x = 0.1+0.2*3, y = 0.84, hjust = 0, fontface = "bold", size = 12, color = "#5B9BD5") +
+  draw_label("|", x = 0.88, y = 0.84, hjust = 0, size = 12, color = "#CCCCCC") +
+  draw_label("Excited", x = 0.12+0.2*4, y = 0.84, hjust = 0, fontface = "bold", size = 12, color = "#4A90E2") +
+  
+  # Subtitle scale indicator (% of total)
+  draw_label("% of total", x = 0.12, y = 0.79, hjust = 0, size = 10, color = "#777777") +
+  draw_label("0%", x = 0.12, y = 0.75, hjust = 0, size = 10, color = "#777777") +
+  draw_label("20%", x = 0.30, y = 0.75, hjust = 0, size = 10, color = "#777777") +
+  draw_label("40%", x = 0.48, y = 0.75, hjust = 0, size = 10, color = "#777777") +
+  draw_label("60%", x = 0.66, y = 0.75, hjust = 0, size = 10, color = "#777777") +
+  draw_label("80%", x = 0.84, y = 0.75, hjust = 0, size = 10, color = "#777777") +
+  draw_label("100%", x = 0.95, y = 0.75, hjust = 1, size = 10, color = "#777777") +
+  
+  # --- HORIZONTAL SOLID GRAY LINE UNDER PERCENTAGE SCALE (using linewidth instead of size) ---
+  draw_line(x = c(0.12, 0.95), y = c(0.73, 0.73), color = "#CCCCCC", linewidth = 0.75) +
+  
+  # --- Y-AXIS LABELS via ggdraw (BEFORE / AFTER) ---
+  draw_label("BEFORE", x = 0.05, y = 0.61, hjust = 0, fontface = "bold", size = 12, color = "#777777") +
+  draw_label("AFTER", x = 0.05, y = 0.39, hjust = 0, fontface = "bold", size = 12, color = "#777777") +
+  
+  # --- BOTTOM SUBTITLES & ANNOTATIONS (ggdraw) ---
+  draw_label("BEFORE program, the", x = 0.12, y = 0.20, hjust = 0, size = 12, color = "#777777") +
+  draw_label("majority of children (40%)", x = 0.12, y = 0.16, hjust = 0, fontface = "bold", size = 12, color = "#ED9343") +
+  draw_label("felt just OK about science.", x = 0.12, y = 0.12, hjust = 0, size = 12, color = "#777777") +
+  
+  draw_label("AFTER program, more children", x = 0.58, y = 0.20, hjust = 0, size = 12, color = "#777777") +
+  draw_label("were Kind of interested (30%)", x = 0.58, y = 0.16, hjust = 0, fontface = "italic", size = 12, color = "#5B9BD5") +
+  draw_label("& Excited (38%) about science.", x = 0.58, y = 0.12, hjust = 0, size = 12, color = "#4A90E2") +
+  
+  # Footer note
+  draw_label("Based on survey of 100 students conducted before and after pilot program (100% response rate on both surveys).", 
+             x = 0.05, y = 0.04, hjust = 0, size = 9, color = "#888888")
+
+print(final_plot)
+
 
 
 #-------------------------------------------------------------------------------
 ## Alternatives to pies - Slopegraph
 #-------------------------------------------------------------------------------
+
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot) # Required for ggdraw and draw_plot / draw_label
+library(grid)    # Required for rectGrob and gpar
+
+# 1. Prepare data for the slope chart
+df <- data.frame(
+  response = c("Excited", "Kind_of_interested", "OK", "Not_great", "Bored"),
+  BEFORE = c(19, 25, 40, 5, 11),
+  AFTER = c(38, 30, 14, 6, 12)
+)
+
+# Reshape data to long format for ggplot2
+df_long <- df %>%
+  pivot_longer(cols = c(BEFORE, AFTER), names_to = "timing", values_to = "percentage")
+
+# Set factor levels for timing and response categories
+df_long$timing <- factor(df_long$timing, levels = c("BEFORE", "AFTER"))
+df_long$response <- factor(df_long$response, levels = c("Excited", "Kind_of_interested", "OK", "Not_great", "Bored"))
+
+# Define colors matching the reference style (Blue for positive, Orange for OK, Gray for others)
+color_palette <- c(
+  "Excited" = "#4A90E2",         
+  "Kind_of_interested" = "#5B9BD5", 
+  "OK" = "#ED9343",              
+  "Not_great" = "#999999",       
+  "Bored" = "#999999"            
+)
+
+# 2. Build core slope chart visualization with geom_text for each point
+p <- ggplot(df_long, aes(x = timing, y = percentage, group = response, color = response)) +
+  geom_line(linewidth = 1.3, lineend = "round", linejoin = "round", antialias = TRUE) +
+  geom_point(size = 3) +
+  # Add text labels directly to the points (left side offset for BEFORE, right side offset for AFTER)
+  geom_text(
+    aes(label = paste0(percentage, "%"), 
+        hjust = ifelse(timing == "BEFORE", 1.3, -0.3)),
+    size = 4,
+    fontface = "bold",
+    show.legend = FALSE
+  ) +
+  scale_color_manual(values = color_palette) +
+  # Extend y-axis limits slightly to prevent text labels from getting clipped
+  scale_y_continuous(limits = c(0, 48), breaks = seq(0, 40, by = 10)) +
+  # Extend x-axis expansion to give enough breathing room for text labels on both ends
+  scale_x_discrete(expand = expansion(add = c(0.3, 0.4))) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "none",
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(face = "bold", size = 12, color = "#777777"),
+    axis.ticks = element_blank(),
+    plot.margin = margin(t = 10, r = 20, b = 10, l = 20)
+  )
+
+# 3. Assemble final layout using ggdraw with annotations and top banner
+windows(width = 12, height = 12)
+final_plot <- ggdraw() +
+  # --- CORE PLOT (Slope Chart with internal geom_text) ---
+  draw_plot(p, x = 0.01, y = 0.22, width = 0.55, height = 0.68) +
+  
+  # --- TOP GRAY BANNER BACKGROUND & TITLE ---
+  draw_grob(rectGrob(gp = gpar(fill = "#7F7F7F", col = NA)), x = 0.04, y = 0.83, width = 0.95, height = 0.05) +
+  draw_label("Pilot program was a success", x = 0.05, y = 0.86, hjust = 0, fontface = "bold", size = 20, color = "white") +
+  
+  # --- MAIN TITLE ---
+  draw_label("How do you feel about science?", x = 0.05, y = 0.8, hjust = 0, fontface = "bold", size = 18, color = "#333333") +
+  
+ 
+  
+  # --- RIGHT SIDE LABELS (Category names matching AFTER points) ---
+  draw_label("Excited", x = 0.47, y = 0.74, hjust = 0, fontface = "bold", size = 13, color = "#4A90E2") +
+  draw_label("Kind of interested", x = 0.47, y = 0.65, hjust = 0, fontface = "bold", size = 13, color = "#5B9BD5") +
+  draw_label("OK", x = 0.47, y = 0.46, hjust = 0, fontface = "bold", size = 13, color = "#ED9343") +
+  draw_label("Bored", x = 0.47, y = 0.44, hjust = 0, fontface = "bold", size = 11, color = "#999999") +
+  draw_label("Not great", x = 0.47, y = 0.37, hjust = 0, fontface = "bold", size = 11, color = "#999999") +
+  
+  # --- RIGHT SIDE EXPLANATORY TEXT ---
+  draw_label("BEFORE program, the", x = 0.68, y = 0.75, hjust = 0, size = 12, color = "#777777") +
+  draw_label("majority of children felt", x = 0.68, y = 0.70, hjust = 0, fontface = "bold", size = 14, color = "#ED9343") +
+  draw_label("just OK about science.", x = 0.68, y = 0.65, hjust = 0, fontface = "bold", size = 14, color = "#ED9343") +
+  
+  draw_label("AFTER program,", x = 0.68, y = 0.55, hjust = 0, size = 12, color = "#777777") +
+  draw_label("more children were", x = 0.68, y = 0.50, hjust = 0, fontface = "bold", size = 14, color = "#5B9BD5") +
+  draw_label("Kind of interested &", x = 0.68, y = 0.45, hjust = 0, fontface = "italic", size = 14, color = "#5B9BD5") +
+  draw_label("Excited about science.", x = 0.68, y = 0.40, hjust = 0, fontface = "italic", size = 14, color = "#4A90E2") +
+  
+  # --- FOOTER NOTE ---
+  draw_label("Based on survey of 100 students conducted before and after pilot program (100% response rate on both surveys).", 
+             x = 0.05, y = 0.2, hjust = 0, size = 9, color = "#888888")
+
+print(final_plot)
