@@ -1626,6 +1626,10 @@ grid.arrange(res_A$Plot, res_B$Plot, ncol = 2)
 
 
 
+#Part4 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
 ################################################################################
 # Beta dist
 ################################################################################
@@ -2483,7 +2487,7 @@ ggplot(df_ex65, aes(x = Theta, y = Density)) +
 
 
 
-#Part4 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#Part5 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
 
@@ -3548,4 +3552,241 @@ print(final_comparison)
 
 
 
-#Part5 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#Part6 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+#################################################################################
+## Diagram of model with Bernoulli likelihood and beta prio
+################################################################################
+
+
+
+
+# Load required libraries
+library(ggplot2)
+library(patchwork)
+
+# Set seed for reproducibility
+set.seed(42)
+
+# 1. First plot: Beta(2, 2) prior distribution for theta
+theta_vals <- seq(0, 1, length.out = 500)
+df_beta <- data.frame(
+  Theta = theta_vals, 
+  Density = dbeta(theta_vals, shape1 = 2, shape2 = 2)
+)
+
+p1 <- ggplot(df_beta, aes(x = Theta, y = Density)) +
+  geom_line(color = "#4A90E2", linewidth = 1.2) +
+  geom_area(fill = "#4A90E2", alpha = 0.2) +
+  labs(
+    title = expression(paste("Prior: ", theta %~% Beta(2, 2))),
+    x = expression(theta),
+    y = "Density"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.5)
+  )
+
+# 2. Second plot: Bernoulli likelihood representation
+df_bern <- data.frame(
+  Outcome = c("0", "1"),
+  Probability = c(0.4, 0.6)
+)
+
+p2 <- ggplot(df_bern, aes(x = Outcome, y = Probability)) +
+  geom_col(fill = "#4A90E2", width = 0.5) +
+  ylim(0, 1) +
+  labs(
+    title = expression(paste("Likelihood: ", y[i] %~% Bernoulli(theta))),
+    x = expression(y[i]),
+    y = "Probability"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.5)
+  )
+
+# 3. Third plot: Larger arrow '~ i' and 'y_i' matching the diagram structure
+p3 <- ggplot() +
+  annotate("text", x = 0.9, y = 1.5, label = "~", size = 8) +
+  annotate("text", x = 1, y = 1.5, label = "↓", size = 30) +
+  annotate("text", x = 1, y = 0.5, label = expression(italic(y)[i]), size = 8, parse = TRUE) +
+  xlim(0, 2) + ylim(0, 2) +
+  theme_void() +
+  labs(title = "") +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+# Combine three plots vertically using patchwork
+combined_plot <- p1 / p2 / p3
+
+# Display the combined plot
+print(combined_plot)
+
+
+
+
+################################################################################
+## JAGS 
+################################################################################
+library(rjags)
+
+
+#loading data
+# Create the vector y with 15 ones and 35 zeros (total 50 observations) matching z15N50.csv
+y <- c(0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+       1, 0, 0, 0, 1, 1, 1, 0, 0, 1,
+       0, 0, 0, 0, 1, 1, 0, 0, 0, 0,
+       0, 1, 0, 1, 0, 1, 0, 0, 0, 1,
+       0, 0, 1, 1, 0, 1, 0, 0, 0, 0)
+
+# Create a data frame
+myData <- data.frame(y = y)
+
+# Verify the data properties
+cat("Total observations (N):", length(y), "\n")
+cat("Total successes (z):", sum(y), "\n")
+
+
+
+# Specify model
+#Specify the Bayesian model structure in JAGS
+modelString <- "
+model {
+  
+  for (i in 1:Ntotal) {
+    y[i] ~ dbern(theta) # Likelihood specification for each observation
+  }
+  
+  theta ~ dbeta(2, 2) # Prior distribution for theta (Beta(2, 2) as discussed)
+}
+"
+
+writeLines( modelString , con="TEMPmodel.txt" ) # write to file
+
+
+
+# Initialize chains
+thetaInit = sum(y)/length(y)
+initsList = list( theta=thetaInit )
+
+initsList = function() {
+  resampledY = sample( y , replace=TRUE ) # resample values from y
+  thetaInit = sum(resampledY)/length(resampledY) # compute proportion (MLE)
+  thetaInit = 0.001+0.998*thetaInit # keep away from 0,1
+  return( list( theta=thetaInit ) ) # return as a named list
+}
+
+
+y <- c(rep(0,25),rep(1,75))
+initsList()
+initsList()
+initsList()
+
+
+y <- c(0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+       1, 0, 0, 0, 1, 1, 1, 0, 0, 1,
+       0, 0, 0, 0, 1, 1, 0, 0, 0, 0,
+       0, 1, 0, 1, 0, 1, 0, 0, 0, 1,
+       0, 0, 1, 1, 0, 1, 0, 0, 0, 0)
+
+
+# Create the data list for JAGS
+dataList <- list(
+  y = y,
+  Ntotal = length(y)
+)
+
+
+# Generate chains
+jagsModel = jags.model(file="TEMPmodel.txt",
+                       data=dataList, 
+                       inits=initsList,
+                       n.chains=3, 
+                       n.adapt=500)
+
+
+
+###Generate chain
+
+
+
+# Load required libraries for JAGS and MCMC diagnostics
+library(rjags)
+library(coda)
+
+
+# Set the number of iterations to sample from the posterior distribution
+# n.iter represents the number of steps per chain after adaptation
+numSavedSteps <- 3500  
+thinSteps <- 1
+
+# Generate MCMC samples from the jags model
+posteriorSamples <- coda.samples(
+  model = jagsModel, 
+  variable.names = c("theta"), 
+  n.iter = numSavedSteps, 
+  thin = thinSteps
+)
+posteriorSamples
+
+
+library(rjags)
+library(coda)
+
+# Save current graphical parameters
+oldPar <- par(no.readonly = TRUE)
+
+# Set up a 2x2 plotting layout (row-wise)
+par(mfrow = c(2, 2), mar = c(4, 4, 2.5, 1.5))
+
+# 1. Top-left: Trace plot
+traceplot(posteriorSamples, main = "Trace of theta", ylab = "Param. Value")
+
+# 2. Top-right: Autocorrelation (single plot)
+thetaVec <- as.matrix(posteriorSamples) 
+acVals <- acf(thetaVec, lag.max = 35, plot = FALSE)$acf
+plot(0:35, acVals, type = "h", lwd = 2, col = "black",
+     xlab = "Lag", ylab = "Autocorrelation", main = "Autocorrelation",
+     ylim = c(0, 1))
+abline(h = 0, col = "gray", lty = 2)
+points(0:35, acVals, pch = 19, col = "blue")
+
+# 3. Bottom-left: Gelman-Rubin shrink factor plot
+gelman.plot(posteriorSamples, auto.layout = FALSE, ask = FALSE, main = "Shrink factor")
+
+# 4. Bottom-right: Posterior Density plot with 3 separate chain lines matching Figure 8.3
+nChains <- nchain(posteriorSamples)
+chainList <- mcmc.list(posteriorSamples)
+
+# Calculate density for each chain to find proper axis limits
+densities <- lapply(1:nChains, function(i) density(chainList[[i]][, "theta"]))
+allX <- unlist(lapply(densities, function(d) d$x))
+allY <- unlist(lapply(densities, function(d) d$y))
+
+# Plot the first chain's density
+plot(densities[[1]], type = "l", col = "black", lwd = 1.5, lty = 1,
+     main = "Density of theta", xlab = "Param. Value", ylab = "Density",
+     xlim = range(allX), ylim = range(allY))
+
+# Overlay the remaining chains' densities with different line styles/colors
+lineTypes <- c(2, 3, 4) # dashed, dotted, dotdash
+lineColors <- c("black", "red3", "forestgreen")
+for (i in 2:nChains) {
+  lines(densities[[i]], col = lineColors[i], lwd = 1.5, lty = lineTypes[i])
+}
+
+# Restore original graphical parameters
+par(oldPar)
