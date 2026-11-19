@@ -1,0 +1,152 @@
+#Part1 
+
+
+################################################################################
+# correlation
+################################################################################
+
+
+
+# Set working directory and load dataset
+f2structure <- read.csv(file = "F2structure.csv", header = TRUE)
+
+# Compute mean (M) and standard deviation (SD) across columns
+mydesc <- round(
+  rbind(
+    apply(f2structure, 2, FUN = mean),
+    apply(f2structure, 2, FUN = sd)
+  ),
+  2
+)
+
+# Compute rounded correlation matrix
+mycor <- round(cor(f2structure), 2)
+
+# Combine correlation matrix and descriptive statistics into one table
+myresult <- rbind(mycor, mydesc)
+rownames(myresult)[7:8] <- c("M", "SD")
+
+# Print result table
+myresult
+
+
+# Allow text labels to extend outside the plot region without clipping
+par(xpd = NA)
+# Plot correlation matrix with ellipses and place color legend at the bottom
+corrplot::corrplot(
+  mycor,
+  method = "ellipse",
+  type = "upper",
+  diag = FALSE,
+  cl.pos = "b",
+  addCoef.col = "black",
+  number.cex = 0.8,
+  tl.col = "black",
+  tl.srt = 0,
+  mar = c(0, 0, 1, 0) #mar = c(bottom, left, top, right)
+)
+
+
+
+################################################################################
+# FA
+################################################################################
+
+
+# Run maximum likelihood exploratory factor analysis with 2 factors and promax rotation
+myefa <- factanal(f2structure, factors = 2, rotation = "promax")
+
+# Print full EFA results including uniquenesses, loadings, variance, and factor correlations
+myefa
+myefa$loadings[,]
+
+
+
+################################################################################
+# FA - Detailed
+################################################################################
+
+
+
+# 1단계: 데이터 적합성 검토 (KMO & Bartlett 검정)
+
+
+# Load required packages for EFA diagnostics and estimation
+library(psych)
+
+# Inspect correlation matrix and sample size
+n_obs <- nrow(f2structure)
+cor_mat <- cor(f2structure, use = "pairwise.complete.obs")
+
+# Test whether the correlation matrix is an identity matrix (Bartlett's test)
+cortest.bartlett(cor_mat, n = n_obs)
+
+# Evaluate sampling adequacy overall and per variable (Kaiser-Meyer-Olkin)
+KMO(cor_mat)
+
+
+#2단계: 초기 추출 및 요인 수 결정 (고유값, 스크리 도표, 병렬분석, 적합도)
+# Compute eigenvalues of the correlation matrix (Kaiser rule: eigenvalue > 1)
+ev_cor <- eigen(cor_mat)$values
+print(round(ev_cor, 3))
+
+# Run parallel analysis and scree plot (comparing PAF and ML factor eigenvalues)
+fa.parallel(
+  x = f2structure,
+  fm = "pa", #주축요인추출(Principal Axis)
+  fa = "fa", #공통요인분석(Factor Analysis) 기준
+  n.iter = 500,
+  show.legend = TRUE,
+  main = "Parallel Analysis & Scree Plot"
+)
+
+# Compare candidate factor counts (e.g., 1 to 3 factors) via ML and PAF
+for (k in 1:3) {
+  cat("\n--- Factor count:", k, "---\n")
+  fit_ml <- fa(r = cor_mat, n.obs = n_obs, nfactors = k, fm = "ml", rotate = "none")
+  cat("ML TLI:", round(fit_ml$TLI, 3), "RMSEA:", round(fit_ml$RMSEA[1], 3), "\n")
+}
+
+
+#3단계: 요인 회전 (직교 회전 vs 사각 회전 비교)
+# Estimate 2-factor model with orthogonal rotation (Varimax)
+efa_varimax <- fa(
+  r = f2structure,
+  nfactors = 2,
+  fm = "ml",
+  rotate = "varimax"
+)
+print(efa_varimax$loadings, cutoff = 0.30, sort = TRUE)
+
+# Estimate 2-factor model with oblique rotation (Promax) allowing factor correlation
+efa_promax <- fa(
+  r = f2structure,
+  nfactors = 2,
+  fm = "ml",
+  rotate = "promax"
+)
+print(efa_promax$loadings, cutoff = 0.30, sort = TRUE)
+print(round(efa_promax$Phi, 3))
+
+
+#4단계: 요인 해석·명명 및 해석 주의점 점검 (교차적재, 공통분산/고유분산)
+# Extract loadings, communalities (h2), and uniquenesses (u2)
+efa_summary <- data.frame(
+  Variable = rownames(efa_promax$loadings),
+  MR1 = round(as.numeric(efa_promax$loadings[, 1]), 3),
+  MR2 = round(as.numeric(efa_promax$loadings[, 2]), 3),
+  Communality_h2 = round(efa_promax$communality, 3),
+  Uniqueness_u2 = round(efa_promax$uniquenesses, 3)
+)
+print(efa_summary, row.names = FALSE)
+
+# Flag potential cross-loadings where secondary loading exceeds 0.30
+cross_load_flags <- subset(
+  efa_summary,
+  abs(MR1) >= 0.30 & abs(MR2) >= 0.30
+)
+print(cross_load_flags)
+
+# Assign domain factor names after inspecting variable groupings
+colnames(efa_promax$loadings) <- c("Factor_A_Name", "Factor_B_Name")
+print(efa_promax$loadings, cutoff = 0.30)
