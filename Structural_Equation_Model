@@ -248,3 +248,48 @@ print(calc_cr_ave_auto(myefa), row.names = FALSE)
 
 
 #Part2 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+################################################################################
+# lavaan
+################################################################################
+
+
+# Load lavaan package
+library(lavaan)
+
+# Load dataset
+f2structure <- read.csv(file = "F2structure.csv", header = TRUE)
+str(f2structure)
+
+# CFA model without estimating intercepts
+# =~ indicates factor loadings estimation in lavaan (book printed <-)
+# ~~ indicates covariance estimation
+mycfal <- '
+#Factor loadings (LAMBDA)
+F1 =~ X1 + X2 + X3; F2 =~ X6 + X7 + X8
+#Covariances between latent variables (PHI)
+F1 ~~ F1; F2 ~~ F2; F1 ~~ F2
+#Covariances between observed variables (THETA)
+X1 ~~ X1; X2 ~~ X2; X3 ~~ X3
+X6 ~~ X6; X7 ~~ X7; X8 ~~ X8
+'
+
+# CFA model with intercept estimation
+# ~ 1 indicates intercept estimation in lavaan (book printed - 1)
+mycfa2 <- paste(mycfal,
+                '#Intercepts of observed variables (KAPPA)
+X1 ~ 1; X2 ~ 1; X3 ~ 1
+X6 ~ 1; X7 ~ 1; X8 ~ 1',
+                sep = "")
+
+# Fit CFA models
+obj.mycfa1 <- sem(model = mycfal, data = f2structure)
+obj.mycfa2 <- sem(model = mycfa2, data = f2structure)
+
+# Inspect model summaries and nested LR test if needed
+summary(obj.mycfa1, fit.measures = TRUE) 
+summary(obj.mycfa1, fit.measures = TRUE, standardized = TRUE) #standardized
+summary(obj.mycfa2, fit.measures = TRUE) #intercept
+summary(obj.mycfa2, fit.measures = TRUE, standardized = TRUE)
