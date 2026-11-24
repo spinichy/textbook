@@ -293,3 +293,170 @@ summary(obj.mycfa1, fit.measures = TRUE)
 summary(obj.mycfa1, fit.measures = TRUE, standardized = TRUE) #standardized
 summary(obj.mycfa2, fit.measures = TRUE) #intercept
 summary(obj.mycfa2, fit.measures = TRUE, standardized = TRUE)
+
+
+################################################################################
+# semPlot
+###############################################################################
+
+
+
+library(semPlot)
+semPaths(object = obj.mycfa1,
+         what = "par", #비표준화 모수 추정치(parameter estimates, 즉 자유 모수 값)
+         intercepts = FALSE, #intercepts = FALSE: 절편(intercepts)이나 평균 관련 노드를 다이어그램에서 숨깁니다.
+         edge.label.cex = 1, 
+         edge.color = 'black',
+         whatLabels = "par")
+
+semPaths(object = obj.mycfa1,
+         what = "std",
+         intercepts = FALSE,
+         edge.label.cex = 1, 
+         edge.color = 'black',
+         whatLabels = "std")
+
+semPaths(object = obj.mycfa2,
+         what = "par",
+         intercepts = TRUE, 
+         edge.label.cex = 1, 
+         edge.color = 'black',
+         whatLabels = "par")
+
+
+################################################################################
+# MTMM, Multi-Trait Multi-Method
+###############################################################################
+
+
+mtmm <- read.csv(file = "mtmm.csv", header = TRUE)
+str(mtmm)
+
+round(cor(mtmm),2)
+
+
+library(corrplot)
+R <- cor(mtmm)
+
+# 기본 상관행렬 플롯 (상관계수 숫자 표시)
+corrplot(
+  R,
+  method = "color",
+  type = "upper",
+  addCoef.col = "black",
+  number.cex = 0.75,
+  tl.col = "black",
+  tl.srt = 45,
+  diag = TRUE
+)
+
+
+#EFA
+myefa.f3 <- factanal(x = mtmm, factors = 3, rotation = "promax")
+myefa.f3
+
+
+#MTMM
+library(lavaan)
+
+mycfa <- '
+  # Factor loadings (LAMBDA)
+  t1 =~ t1m1 + t1m2 + t1m3
+  t2 =~ t2m1 + t2m2 + t2m3
+  t3 =~ t3m1 + t3m2 + t3m3
+
+  # Covariances between latent variables (PHI)
+  t1 ~~ t1; t2 ~~ t2; t3 ~~ t3
+  t1 ~~ t2; t1 ~~ t3; t2 ~~ t3
+
+  # Covariances between errors (THETA)
+  t1m1 ~~ t1m1; t1m2 ~~ t1m2; t1m3 ~~ t1m3
+  t2m1 ~~ t2m1; t2m2 ~~ t2m2; t2m3 ~~ t2m3
+  t3m1 ~~ t3m1; t3m2 ~~ t3m2; t3m3 ~~ t3m3
+  t1m1 ~~ t2m1; t1m1 ~~ t3m1; t2m1 ~~ t3m1
+  t1m2 ~~ t2m2; t1m2 ~~ t3m2; t2m2 ~~ t3m2
+  t1m3 ~~ t2m3; t1m3 ~~ t3m3; t2m3 ~~ t3m3
+'
+
+obj.mtmm <- sem(mycfa, data = mtmm)
+summary(obj.mtmm, fit.measures = TRUE, standardized = TRUE)
+
+
+#equality constraints
+
+
+mycfa.ec <- '
+  # Factor loadings (LAMBDA)
+  t1 =~ lmbd_1*t1m1 + lmbd_1*t1m2 + lmbd_1*t1m3
+  t2 =~ t2m1 + t2m2 + t2m3
+  t3 =~ t3m1 + t3m2 + t3m3
+
+  # Covariances between latent variables (PHI)
+  t1 ~~ t1; t2 ~~ t2; t3 ~~ t3
+  t1 ~~ t2; t1 ~~ t3; t2 ~~ t3
+
+  # Covariances between errors (THETA)
+  t1m1 ~~ t1m1; t1m2 ~~ t1m2; t1m3 ~~ t1m3
+  t2m1 ~~ t2m1; t2m2 ~~ t2m2; t2m3 ~~ t2m3
+  t3m1 ~~ t3m1; t3m2 ~~ t3m2; t3m3 ~~ t3m3
+  t1m1 ~~ t2m1; t1m1 ~~ t3m1; t2m1 ~~ t3m1
+  t1m2 ~~ t2m2; t1m2 ~~ t3m2; t2m2 ~~ t3m2
+  t1m3 ~~ t2m3; t1m3 ~~ t3m3; t2m3 ~~ t3m3
+'
+
+obj.mtmm.ec <- sem(mycfa.ec, data = mtmm)
+summary(obj.mtmm.ec, fit.measures = TRUE, standardized = TRUE)
+
+anova(object = obj.mtmm, obj.mtmm.ec)
+
+
+
+mycfa.ec2 <- '
+  # Factor loadings (LAMBDA)
+  t1 =~ t1m1 + t1m2 + t1m3
+  t2 =~ t2m1 + t2m2 + t2m3
+  t3 =~ t3m1 + t3m2 + t3m3
+
+  # Covariances between latent variables (PHI)
+  t1 ~~ t1; t2 ~~ t2; t3 ~~ t3
+  t1 ~~ t2; t1 ~~ t3; t2 ~~ t3
+
+  # Covariances between errors (THETA)
+  t1m1 ~~ t1m1; t1m2 ~~ t1m2; t1m3 ~~ t1m3
+  t2m1 ~~ t2m1; t2m2 ~~ t2m2; t2m3 ~~ t2m3
+  t3m1 ~~ t3m1; t3m2 ~~ t3m2; t3m3 ~~ t3m3
+  t1m1 ~~ d1*t2m1; t1m1 ~~ d1*t3m1; t2m1 ~~ d1*t3m1
+  t1m2 ~~ d2*t2m2; t1m2 ~~ d2*t3m2; t2m2 ~~ d2*t3m2
+  t1m3 ~~ d3*t2m3; t1m3 ~~ d3*t3m3; t2m3 ~~ d3*t3m3
+'
+
+obj.mtmm.ec2 <- sem(mycfa.ec2, data = mtmm)
+summary(obj.mtmm.ec2, fit.measures = TRUE, standardized = TRUE)
+
+anova(object = obj.mtmm, obj.mtmm.ec2)
+
+
+
+#MI (Modification Index, MI)
+
+
+
+myMIexample <- '
+#Factor loadings (LAMBDA)
+F1 =~ X1 + X2 + X3 + X6; F2 =~  X7 + X8
+#Covariances between latent variables (PHI)
+F1 ~~ F1; F2 ~~ F2; F1 ~~ F2
+#Covariances between observed variables (THETA)
+X1 ~~ X1; X2 ~~ X2; X3 ~~ X3
+X6 ~~ X6; X7 ~~ X7; X8 ~~ X8
+'
+obj.myMIexample <- sem(model = myMIexample, data = f2structure)
+summary(obj.myMIexample, fit.measures = TRUE, standardized = TRUE)
+
+
+myMI <- modindices(object = obj.myMIexample)
+myMI
+
+
+
+#Part3 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
