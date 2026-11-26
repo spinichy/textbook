@@ -4220,3 +4220,1407 @@ plot(theta, cond_post_25, type = "l", col = sky_blue, lwd = 1.5,
 
 # Reset layout
 par(mfrow = c(1, 1))
+
+
+
+################################################################################
+# Aw = 2, Bw = 2, K=5
+################################################################################
+
+
+
+# Load required packages for Bayesian hierarchical modeling and plotting
+library(rjags)
+library(coda)
+library(ggplot2)
+library(patchwork)
+
+# Set seed for reproducibility
+set.seed(20261124)
+
+# Define observed data: D1 (3 heads, 12 tails) and D2 (4 heads, 1 tail)
+n1 <- 15
+z1 <- 3
+n2 <- 5
+z2 <- 4
+
+# Define prior hyperparameters for Figure 9.5 (K = 5, weak dependence)
+a_omega <- 2
+b_omega <- 2
+K_val <- 5
+
+# Specify JAGS model using Kruschke's K-based Beta parameterization
+model_string <- "
+model {
+  for (i in 1:n1) {
+    y1[i] ~ dbern(theta1)
+  }
+  for (i in 1:n2) {
+    y2[i] ~ dbern(theta2)
+  }
+  theta1 ~ dbeta(omega * (K - 2) + 1, (1 - omega) * (K - 2) + 1)
+  theta2 ~ dbeta(omega * (K - 2) + 1, (1 - omega) * (K - 2) + 1)
+  omega ~ dbeta(A_omega, B_omega)
+}
+"
+
+# Prepare data list for JAGS
+data_list <- list(
+  y1 = c(rep(1, z1), rep(0, n1 - z1)),
+  y2 = c(rep(1, z2), rep(0, n2 - z2)),
+  n1 = n1,
+  n2 = n2,
+  A_omega = a_omega,
+  B_omega = b_omega,
+  K = K_val
+)
+
+# Run MCMC sampling in JAGS
+jags_mod <- jags.model(
+  textConnection(model_string),
+  data = data_list,
+  n.chains = 3,
+  n.adapt = 1000
+)
+update(jags_mod, n.iter = 2000)
+mcmc_samples <- coda.samples(
+  jags_mod,
+  variable.names = c("omega", "theta1", "theta2"),
+  n.iter = 15000
+)
+post_df <- as.data.frame(as.matrix(mcmc_samples))
+
+# Use a coarse grid (~0.04 step) to match grid-approximation probability mass scale
+n_grid <- 25
+grid_theta <- seq(0.02, 0.98, length.out = n_grid)
+grid_omega <- seq(0.02, 0.98, length.out = n_grid)
+d_theta <- diff(grid_theta)[1]
+d_omega <- diff(grid_omega)[1]
+
+# Prior probability mass on grid
+p_omega_raw <- dbeta(grid_omega, a_omega, b_omega)
+p_omega_mass <- p_omega_raw / sum(p_omega_raw)
+
+joint_grid <- expand.grid(theta = grid_theta, omega = grid_omega)
+w_mass_vec <- dbeta(joint_grid$omega, a_omega, b_omega)
+w_mass_vec <- w_mass_vec / sum(dbeta(grid_omega, a_omega, b_omega))
+
+cond_theta_raw <- dbeta(
+  joint_grid$theta,
+  joint_grid$omega * (K_val - 2) + 1,
+  (1 - joint_grid$omega) * (K_val - 2) + 1
+)
+# Normalize conditional theta mass across theta grid for each omega
+cond_mat <- matrix(cond_theta_raw, nrow = n_grid, ncol = n_grid)
+cond_mat <- sweep(cond_mat, 2, colSums(cond_mat), "/")
+joint_grid$p_joint <- as.vector(sweep(cond_mat, 2, p_omega_mass, "*"))
+
+prior_omega_df <- data.frame(omega = grid_omega, mass = p_omega_mass)
+prior_theta_df <- data.frame(
+  theta = grid_theta,
+  mass = rowSums(sweep(cond_mat, 2, p_omega_mass, "*"))
+)
+
+# Posterior probability mass on the same grid
+# 2D histogram / binned mass for contour plots
+bin_t1 <- cut(post_df$theta1, breaks = seq(0, 1, length.out = n_grid + 1), include.lowest = TRUE)
+bin_t2 <- cut(post_df$theta2, breaks = seq(0, 1, length.out = n_grid + 1), include.lowest = TRUE)
+bin_w  <- cut(post_df$omega,  breaks = seq(0, 1, length.out = n_grid + 1), include.lowest = TRUE)
+mid_pts <- seq(0.5 / n_grid, 1 - 0.5 / n_grid, length.out = n_grid)
+
+tab_t1w <- as.matrix(table(bin_t1, bin_w)) / nrow(post_df)
+post_joint1_df <- expand.grid(theta = mid_pts, omega = mid_pts)
+post_joint1_df$mass <- as.vector(tab_t1w)
+
+tab_t2w <- as.matrix(table(bin_t2, bin_w)) / nrow(post_df)
+post_joint2_df <- expand.grid(theta = mid_pts, omega = mid_pts)
+post_joint2_df$mass <- as.vector(tab_t2w)
+
+post_omega_df <- data.frame(
+  omega = mid_pts,
+  mass = as.numeric(table(bin_w)) / nrow(post_df)
+)
+post_t1_df <- data.frame(
+  theta = mid_pts,
+  mass = as.numeric(table(bin_t1)) / nrow(post_df)
+)
+post_t2_df <- data.frame(
+  theta = mid_pts,
+  mass = as.numeric(table(bin_t2)) / nrow(post_df)
+)
+
+# Shared minimal theme for Kruschke-style panels
+theme_kruschke <- function() {
+  theme_bw(base_size = 8.5) +
+    theme(
+      panel.grid = element_blank(),
+      plot.title = element_text(size = 8, hjust = 0.03, vjust = -2.2),
+      plot.margin = margin(2, 4, 2, 4)
+    )
+}
+
+# Row 1: Prior contours for (theta1, omega) and (theta2, omega), plus p(omega)
+p_r1_c1 <- ggplot(joint_grid, aes(x = theta, y = omega, z = p_joint)) +
+  geom_contour(color = "#3b82b6", bins = 3, linewidth = 0.5) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.4)) +
+  labs(title = "p(theta1, omega)", x = "theta1", y = "omega") +
+  theme_kruschke()
+
+p_r1_c2 <- ggplot(joint_grid, aes(x = theta, y = omega, z = p_joint)) +
+  geom_contour(color = "#3b82b6", bins = 3, linewidth = 0.5) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.4)) +
+  labs(title = "p(theta2, omega)", x = "theta2", y = "omega") +
+  theme_kruschke()
+
+p_r1_c3 <- ggplot(prior_omega_df, aes(x = mass, y = omega)) +
+  geom_path(color = "#3b82b6", linewidth = 0.6) +
+  scale_x_continuous(breaks = seq(0, 0.08, 0.02)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.4)) +
+  coord_cartesian(xlim = c(0, 0.08)) +
+  labs(x = "p(omega)", y = "omega") +
+  theme_kruschke()
+
+# Row 2: Marginal priors p(theta1), p(theta2), and Prior parameter text
+p_r2_c1 <- ggplot(prior_theta_df, aes(x = theta, y = mass)) +
+  geom_line(color = "#3b82b6", linewidth = 0.6) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(breaks = seq(0, 0.08, 0.04)) +
+  coord_cartesian(ylim = c(0, 0.08)) +
+  labs(x = "theta1", y = "p(theta1)") +
+  theme_kruschke()
+
+p_r2_c2 <- ggplot(prior_theta_df, aes(x = theta, y = mass)) +
+  geom_line(color = "#3b82b6", linewidth = 0.6) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(breaks = seq(0, 0.08, 0.04)) +
+  coord_cartesian(ylim = c(0, 0.08)) +
+  labs(x = "theta2", y = "p(theta2)") +
+  theme_kruschke()
+
+p_r2_c3 <- ggplot() +
+  annotate(
+    "text",
+    x = 0.05, y = 0.50,
+    label = "Prior\nA_omega = 2, B_omega = 2\nK = 5",
+    hjust = 0, vjust = 0.5, size = 3.2, lineheight = 1.15
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1), clip = "off") +
+  theme_void()
+
+# Row 3: Likelihood spikes for D1 and D2, plus Likelihood summary text
+spikes_d1 <- seq(0.08, 0.46, length.out = n1)
+spikes_d2 <- c(0.40, 0.52, 0.65, 0.90, 0.93, 0.96, 0.98)[1:n2]
+
+p_r3_c1 <- ggplot(data.frame(x = spikes_d1), aes(x = x, xend = x, y = 0, yend = 1)) +
+  geom_segment(color = "#3b82b6", linewidth = 0.4) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.4)) +
+  labs(x = "theta1", y = "omega") +
+  theme_kruschke()
+
+p_r3_c2 <- ggplot(data.frame(x = spikes_d2), aes(x = x, xend = x, y = 0, yend = 1)) +
+  geom_segment(color = "#3b82b6", linewidth = 0.4) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.4)) +
+  labs(x = "theta2", y = "omega") +
+  theme_kruschke()
+
+p_r3_c3 <- ggplot() +
+  annotate(
+    "text",
+    x = 0.05, y = 0.50,
+    label = "Likelihood\nD1: 3 heads, 12 tails\nD2: 4 heads, 1 tail",
+    hjust = 0, vjust = 0.5, size = 3.2, lineheight = 1.15
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1), clip = "off") +
+  theme_void()
+
+# Row 4: Posterior contours p(theta1, omega|D), p(theta2, omega|D), and p(omega|D)
+p_r4_c1 <- ggplot(post_joint1_df, aes(x = theta, y = omega, z = mass)) +
+  geom_contour(color = "#3b82b6", bins = 6, linewidth = 0.5) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.4)) +
+  labs(title = "p(theta1, omega|D)", x = "theta1", y = "omega") +
+  theme_kruschke()
+
+p_r4_c2 <- ggplot(post_joint2_df, aes(x = theta, y = omega, z = mass)) +
+  geom_contour(color = "#3b82b6", bins = 6, linewidth = 0.5) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.4)) +
+  labs(title = "p(theta2, omega|D)", x = "theta2", y = "omega") +
+  theme_kruschke()
+
+p_r4_c3 <- ggplot(post_omega_df, aes(x = mass, y = omega)) +
+  geom_path(color = "#3b82b6", linewidth = 0.6) +
+  scale_x_continuous(breaks = seq(0, 0.08, 0.02)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.4)) +
+  coord_cartesian(xlim = c(0, 0.08)) +
+  labs(x = "p(omega|D)", y = "omega") +
+  theme_kruschke()
+
+# Row 5: Posterior marginals p(theta1|D), p(theta2|D), and Posterior label
+p_r5_c1 <- ggplot(post_t1_df, aes(x = theta, y = mass)) +
+  geom_line(color = "#3b82b6", linewidth = 0.6) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(breaks = seq(0, 0.08, 0.04)) +
+  coord_cartesian(ylim = c(0, 0.08)) +
+  labs(x = "theta1", y = "p(theta1|D)") +
+  theme_kruschke()
+
+p_r5_c2 <- ggplot(post_t2_df, aes(x = theta, y = mass)) +
+  geom_line(color = "#3b82b6", linewidth = 0.6) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(breaks = seq(0, 0.08, 0.04)) +
+  coord_cartesian(ylim = c(0, 0.08)) +
+  labs(x = "theta2", y = "p(theta2|D)") +
+  theme_kruschke()
+
+p_r5_c3 <- ggplot() +
+  annotate(
+    "text",
+    x = 0.05, y = 0.50,
+    label = "Posterior",
+    hjust = 0, vjust = 0.5, size = 3.6
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1), clip = "off") +
+  theme_void()
+
+# Assemble full 5x3 grid for Figure 9.5
+full_fig_9_5 <- (
+  (p_r1_c1 | p_r1_c2 | p_r1_c3) /
+    (p_r2_c1 | p_r2_c2 | p_r2_c3) /
+    (p_r3_c1 | p_r3_c2 | p_r3_c3) /
+    (p_r4_c1 | p_r4_c2 | p_r4_c3) /
+    (p_r5_c1 | p_r5_c2 | p_r5_c3)
+) + plot_layout(heights = c(1, 0.9, 0.9, 1, 0.9))
+
+print(full_fig_9_5)
+
+
+
+################################################################################
+# Aw = 2, Bw = 2, K=75
+################################################################################
+
+
+
+# Load required packages for Bayesian hierarchical modeling and plotting
+library(rjags)
+library(coda)
+library(ggplot2)
+library(patchwork)
+
+# Set seed for reproducibility
+set.seed(20261124)
+
+# Define observed data: D1 (3 heads, 12 tails) and D2 (4 heads, 1 tail)
+n1 <- 15
+z1 <- 3
+n2 <- 5
+z2 <- 4
+
+# Define prior hyperparameters for Figure 9.6 (K = 75, strong dependence)
+a_omega <- 2
+b_omega <- 2
+K_val <- 75
+
+# Specify JAGS model using Kruschke's K-based Beta parameterization
+model_string <- "
+model {
+  for (i in 1:n1) {
+    y1[i] ~ dbern(theta1)
+  }
+  for (i in 1:n2) {
+    y2[i] ~ dbern(theta2)
+  }
+  theta1 ~ dbeta(omega * (K - 2) + 1, (1 - omega) * (K - 2) + 1)
+  theta2 ~ dbeta(omega * (K - 2) + 1, (1 - omega) * (K - 2) + 1)
+  omega ~ dbeta(A_omega, B_omega)
+}
+"
+
+# Prepare data list for JAGS
+data_list <- list(
+  y1 = c(rep(1, z1), rep(0, n1 - z1)),
+  y2 = c(rep(1, z2), rep(0, n2 - z2)),
+  n1 = n1,
+  n2 = n2,
+  A_omega = a_omega,
+  B_omega = b_omega,
+  K = K_val
+)
+
+# Run MCMC sampling in JAGS
+jags_mod <- jags.model(
+  textConnection(model_string),
+  data = data_list,
+  n.chains = 3,
+  n.adapt = 1000
+)
+update(jags_mod, n.iter = 2000)
+mcmc_samples <- coda.samples(
+  jags_mod,
+  variable.names = c("omega", "theta1", "theta2"),
+  n.iter = 15000
+)
+post_df <- as.data.frame(as.matrix(mcmc_samples))
+
+# Use n_grid = 50 (step 0.02) so posterior peak mass fits cleanly within [0, 0.08]
+n_grid <- 50
+grid_theta <- seq(0.01, 0.99, length.out = n_grid)
+grid_omega <- seq(0.01, 0.99, length.out = n_grid)
+
+# Prior probability mass on grid
+p_omega_raw <- dbeta(grid_omega, a_omega, b_omega)
+p_omega_mass <- p_omega_raw / sum(p_omega_raw)
+
+joint_grid <- expand.grid(theta = grid_theta, omega = grid_omega)
+cond_theta_raw <- dbeta(
+  joint_grid$theta,
+  joint_grid$omega * (K_val - 2) + 1,
+  (1 - joint_grid$omega) * (K_val - 2) + 1
+)
+
+# Normalize conditional theta mass across theta grid for each omega
+cond_mat <- matrix(cond_theta_raw, nrow = n_grid, ncol = n_grid)
+cond_mat <- sweep(cond_mat, 2, colSums(cond_mat), "/")
+joint_grid$p_joint <- as.vector(sweep(cond_mat, 2, p_omega_mass, "*"))
+
+prior_omega_df <- data.frame(omega = grid_omega, mass = p_omega_mass)
+prior_theta_df <- data.frame(
+  theta = grid_theta,
+  mass = rowSums(sweep(cond_mat, 2, p_omega_mass, "*"))
+)
+
+# Posterior probability mass on n_grid = 50 bins
+bin_t1 <- cut(post_df$theta1, breaks = seq(0, 1, length.out = n_grid + 1), include.lowest = TRUE)
+bin_t2 <- cut(post_df$theta2, breaks = seq(0, 1, length.out = n_grid + 1), include.lowest = TRUE)
+bin_w  <- cut(post_df$omega,  breaks = seq(0, 1, length.out = n_grid + 1), include.lowest = TRUE)
+mid_pts <- seq(0.5 / n_grid, 1 - 0.5 / n_grid, length.out = n_grid)
+
+tab_t1w <- as.matrix(table(bin_t1, bin_w)) / nrow(post_df)
+post_joint1_df <- expand.grid(theta = mid_pts, omega = mid_pts)
+post_joint1_df$mass <- as.vector(tab_t1w)
+
+tab_t2w <- as.matrix(table(bin_t2, bin_w)) / nrow(post_df)
+post_joint2_df <- expand.grid(theta = mid_pts, omega = mid_pts)
+post_joint2_df$mass <- as.vector(tab_t2w)
+
+post_omega_df <- data.frame(
+  omega = mid_pts,
+  mass = as.numeric(table(bin_w)) / nrow(post_df)
+)
+post_t1_df <- data.frame(
+  theta = mid_pts,
+  mass = as.numeric(table(bin_t1)) / nrow(post_df)
+)
+post_t2_df <- data.frame(
+  theta = mid_pts,
+  mass = as.numeric(table(bin_t2)) / nrow(post_df)
+)
+
+# Shared minimal theme for Kruschke-style panels
+theme_kruschke <- function() {
+  theme_bw(base_size = 8.5) +
+    theme(
+      panel.grid = element_blank(),
+      plot.title = element_text(size = 8, hjust = 0.03, vjust = -2.2),
+      plot.margin = margin(2, 4, 2, 4)
+    )
+}
+
+# Row 1: Prior contours for (theta1, omega) and (theta2, omega), plus p(omega)
+p_r1_c1 <- ggplot(joint_grid, aes(x = theta, y = omega, z = p_joint)) +
+  geom_contour(color = "#3b82b6", bins = 3, linewidth = 0.5) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.4)) +
+  labs(title = "p(theta1, omega)", x = "theta1", y = "omega") +
+  theme_kruschke()
+
+p_r1_c2 <- ggplot(joint_grid, aes(x = theta, y = omega, z = p_joint)) +
+  geom_contour(color = "#3b82b6", bins = 3, linewidth = 0.5) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.4)) +
+  labs(title = "p(theta2, omega)", x = "theta2", y = "omega") +
+  theme_kruschke()
+
+p_r1_c3 <- ggplot(prior_omega_df, aes(x = mass, y = omega)) +
+  geom_path(color = "#3b82b6", linewidth = 0.6) +
+  scale_x_continuous(breaks = seq(0, 0.08, 0.02)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.4)) +
+  coord_cartesian(xlim = c(0, 0.08)) +
+  labs(x = "p(omega)", y = "omega") +
+  theme_kruschke()
+
+# Row 2: Marginal priors p(theta1), p(theta2), and Prior parameter text
+p_r2_c1 <- ggplot(prior_theta_df, aes(x = theta, y = mass)) +
+  geom_line(color = "#3b82b6", linewidth = 0.6) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(breaks = seq(0, 0.08, 0.04)) +
+  coord_cartesian(ylim = c(0, 0.08)) +
+  labs(x = "theta1", y = "p(theta1)") +
+  theme_kruschke()
+
+p_r2_c2 <- ggplot(prior_theta_df, aes(x = theta, y = mass)) +
+  geom_line(color = "#3b82b6", linewidth = 0.6) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(breaks = seq(0, 0.08, 0.04)) +
+  coord_cartesian(ylim = c(0, 0.08)) +
+  labs(x = "theta2", y = "p(theta2)") +
+  theme_kruschke()
+
+p_r2_c3 <- ggplot() +
+  annotate(
+    "text",
+    x = 0.05, y = 0.50,
+    label = paste0("Prior\nA_omega = ", a_omega, ", B_omega = ", b_omega, "\nK = ", K_val),
+    hjust = 0, vjust = 0.5, size = 3.2, lineheight = 1.15
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1), clip = "off") +
+  theme_void()
+
+# Row 3: Likelihood spikes for D1 and D2, plus Likelihood summary text
+spikes_d1 <- seq(0.08, 0.46, length.out = n1)
+spikes_d2 <- c(0.40, 0.52, 0.65, 0.90, 0.93, 0.96, 0.98)[1:n2]
+
+p_r3_c1 <- ggplot(data.frame(x = spikes_d1), aes(x = x, xend = x, y = 0, yend = 1)) +
+  geom_segment(color = "#3b82b6", linewidth = 0.4) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.4)) +
+  labs(x = "theta1", y = "omega") +
+  theme_kruschke()
+
+p_r3_c2 <- ggplot(data.frame(x = spikes_d2), aes(x = x, xend = x, y = 0, yend = 1)) +
+  geom_segment(color = "#3b82b6", linewidth = 0.4) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.4)) +
+  labs(x = "theta2", y = "omega") +
+  theme_kruschke()
+
+p_r3_c3 <- ggplot() +
+  annotate(
+    "text",
+    x = 0.05, y = 0.50,
+    label = "Likelihood\nD1: 3 heads, 12 tails\nD2: 4 heads, 1 tail",
+    hjust = 0, vjust = 0.5, size = 3.2, lineheight = 1.15
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1), clip = "off") +
+  theme_void()
+
+# Row 4: Posterior contours p(theta1, omega|D), p(theta2, omega|D), and p(omega|D)
+p_r4_c1 <- ggplot(post_joint1_df, aes(x = theta, y = omega, z = mass)) +
+  geom_contour(color = "#3b82b6", bins = 6, linewidth = 0.5) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.4)) +
+  labs(title = "p(theta1, omega|D)", x = "theta1", y = "omega") +
+  theme_kruschke()
+
+p_r4_c2 <- ggplot(post_joint2_df, aes(x = theta, y = omega, z = mass)) +
+  geom_contour(color = "#3b82b6", bins = 6, linewidth = 0.5) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.4)) +
+  labs(title = "p(theta2, omega|D)", x = "theta2", y = "omega") +
+  theme_kruschke()
+
+p_r4_c3 <- ggplot(post_omega_df, aes(x = mass, y = omega)) +
+  geom_path(color = "#3b82b6", linewidth = 0.6) +
+  scale_x_continuous(breaks = seq(0, 0.08, 0.02)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.4)) +
+  coord_cartesian(xlim = c(0, 0.08)) +
+  labs(x = "p(omega|D)", y = "omega") +
+  theme_kruschke()
+
+# Row 5: Posterior marginals p(theta1|D), p(theta2|D), and Posterior label
+p_r5_c1 <- ggplot(post_t1_df, aes(x = theta, y = mass)) +
+  geom_line(color = "#3b82b6", linewidth = 0.6) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(breaks = seq(0, 0.08, 0.04)) +
+  coord_cartesian(ylim = c(0, 0.08)) +
+  labs(x = "theta1", y = "p(theta1|D)") +
+  theme_kruschke()
+
+p_r5_c2 <- ggplot(post_t2_df, aes(x = theta, y = mass)) +
+  geom_line(color = "#3b82b6", linewidth = 0.6) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_y_continuous(breaks = seq(0, 0.08, 0.04)) +
+  coord_cartesian(ylim = c(0, 0.08)) +
+  labs(x = "theta2", y = "p(theta2|D)") +
+  theme_kruschke()
+
+p_r5_c3 <- ggplot() +
+  annotate(
+    "text",
+    x = 0.05, y = 0.50,
+    label = "Posterior",
+    hjust = 0, vjust = 0.5, size = 3.6
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1), clip = "off") +
+  theme_void()
+
+# Assemble full 5x3 grid for Figure 9.6
+full_fig_9_6 <- (
+  (p_r1_c1 | p_r1_c2 | p_r1_c3) /
+    (p_r2_c1 | p_r2_c2 | p_r2_c3) /
+    (p_r3_c1 | p_r3_c2 | p_r3_c3) /
+    (p_r4_c1 | p_r4_c2 | p_r4_c3) /
+    (p_r5_c1 | p_r5_c2 | p_r5_c3)
+) + plot_layout(heights = c(1, 0.9, 0.9, 1, 0.9))
+
+print(full_fig_9_6)
+
+
+
+################################################################################
+# structure - beta & gamma dist 
+################################################################################
+
+
+
+library(ggplot2)
+library(grid)
+
+# Generate smooth curve data for the top-left beta distribution
+x_beta_top <- seq(0.01, 0.99, length.out = 200)
+y_beta_top <- dbeta(x_beta_top, shape1 = 2.2, shape2 = 2.2)
+y_beta_top_scaled <- y_beta_top / max(y_beta_top) * 1.15
+
+df_beta_top <- data.frame(
+  x = x_beta_top * 2.2 + 2.9,
+  y = y_beta_top_scaled + 8.35
+)
+
+# Generate smooth curve data for the top-right gamma distribution
+x_gamma_top <- seq(0.05, 8, length.out = 200)
+y_gamma_top <- dgamma(x_gamma_top, shape = 1.6, rate = 0.8)
+y_gamma_top_scaled <- y_gamma_top / max(y_gamma_top) * 1.15
+
+df_gamma_top <- data.frame(
+  x = x_gamma_top / 8 * 2.2 + 5.65,
+  y = y_gamma_top_scaled + 8.35
+)
+
+# Generate smooth curve data for the middle beta distribution
+x_beta_mid <- seq(0.01, 0.99, length.out = 200)
+y_beta_mid <- dbeta(x_beta_mid, shape1 = 2.2, shape2 = 2.2)
+y_beta_mid_scaled <- y_beta_mid / max(y_beta_mid) * 1.15
+
+df_beta_mid <- data.frame(
+  x = x_beta_mid * 2.2 + 2.9,
+  y = y_beta_mid_scaled + 5.15
+)
+
+# Build the hierarchical diagram in ggplot2
+p <- ggplot() +
+  # Top-left beta density and baseline
+  geom_line(data = df_beta_top, aes(x = x, y = y), color = "#5B9BD5", linewidth = 1.6) +
+  geom_segment(aes(x = 2.8, y = 8.3, xend = 5.2, yend = 8.3), color = "gray30", linewidth = 0.8) +
+  annotate("text", x = 4.0, y = 9.05, label = "A[omega]~','~B[omega]", parse = TRUE, size = 4.5) +
+  annotate("text", x = 4.0, y = 8.52, label = "beta", size = 4.5) +
+  
+  # Top-right gamma density and baseline
+  geom_line(data = df_gamma_top, aes(x = x, y = y), color = "#5B9BD5", linewidth = 1.6) +
+  geom_segment(aes(x = 5.55, y = 8.3, xend = 7.95, yend = 8.3), color = "gray30", linewidth = 0.8) +
+  annotate("text", x = 6.75, y = 9.05, label = "S[kappa]~','~R[kappa]", parse = TRUE, size = 4.5) +
+  annotate("text", x = 6.75, y = 8.52, label = "gamma", size = 4.5) +
+  
+  # Curved arrows from top distributions to middle parameters
+  geom_curve(
+    aes(x = 4.0, y = 8.3, xend = 3.55, yend = 6.65),
+    curvature = -0.25, color = "black", linewidth = 0.8,
+    arrow = arrow(length = unit(0.22, "cm"), type = "closed")
+  ) +
+  geom_curve(
+    aes(x = 4.0, y = 8.3, xend = 6.15, yend = 6.65),
+    curvature = 0.25, color = "gray75", linewidth = 0.8,
+    arrow = arrow(length = unit(0.22, "cm"), type = "closed")
+  ) +
+  geom_curve(
+    aes(x = 6.75, y = 8.3, xend = 3.55, yend = 6.65),
+    curvature = -0.25, color = "black", linewidth = 0.8,
+    arrow = arrow(length = unit(0.22, "cm"), type = "closed")
+  ) +
+  geom_curve(
+    aes(x = 6.75, y = 8.3, xend = 6.15, yend = 6.65),
+    curvature = 0.2, color = "gray75", linewidth = 0.8,
+    arrow = arrow(length = unit(0.22, "cm"), type = "closed")
+  ) +
+  
+  # Tilted tilde labels on primary black arrows
+  annotate("text", x = 3.72, y = 7.5, label = "~", angle = 25, size = 5) +
+  annotate("text", x = 5.65, y = 7.55, label = "~", angle = -20, size = 5) +
+  
+  # Middle parameter expression and beta density
+  annotate(
+    "text", x = 5.65, y = 6.45,
+    label = "omega*(kappa - 2) + 1 ~','~ (1 - omega)*(kappa - 2) + 1",
+    parse = TRUE, size = 4.4
+  ) +
+  geom_line(data = df_beta_mid, aes(x = x, y = y), color = "#5B9BD5", linewidth = 1.6) +
+  geom_segment(aes(x = 2.8, y = 5.1, xend = 5.2, yend = 5.1), color = "gray30", linewidth = 0.8) +
+  annotate("text", x = 4.0, y = 5.32, label = "beta", size = 4.5) +
+  
+  # Arrow from middle beta to theta_s
+  geom_segment(
+    aes(x = 4.0, y = 5.1, xend = 4.0, yend = 4.15),
+    color = "black", linewidth = 0.8,
+    arrow = arrow(length = unit(0.22, "cm"), type = "closed")
+  ) +
+  annotate("text", x = 3.75, y = 4.65, label = "~", size = 5) +
+  annotate("text", x = 4.2, y = 4.55, label = "s", fontface = "italic", size = 3.8) +
+  annotate("text", x = 4.0, y = 3.9, label = "theta[s]", parse = TRUE, size = 4.5) +
+  
+  # Bernoulli bars and baseline
+  geom_rect(aes(xmin = 3.65, xmax = 3.88, ymin = 3.05, ymax = 3.55), fill = "#7EAAD6", color = NA) +
+  geom_rect(aes(xmin = 4.12, xmax = 4.35, ymin = 3.05, ymax = 3.72), fill = "#7EAAD6", color = NA) +
+  annotate("text", x = 4.0, y = 3.25, label = "Bernoulli", size = 4.3) +
+  geom_segment(aes(x = 3.45, y = 3.02, xend = 4.55, yend = 3.02), color = "gray30", linewidth = 0.8) +
+  
+  # Arrow from Bernoulli to y_{i|s}
+  geom_segment(
+    aes(x = 4.0, y = 3.02, xend = 4.0, yend = 2.15),
+    color = "black", linewidth = 0.8,
+    arrow = arrow(length = unit(0.22, "cm"), type = "closed")
+  ) +
+  annotate("text", x = 3.75, y = 2.6, label = "~", size = 5) +
+  annotate("text", x = 4.25, y = 2.52, label = "i*'|'*s", parse = TRUE, size = 3.8) +
+  annotate("text", x = 4.0, y = 1.9, label = "y[i*'|'*s]", parse = TRUE, size = 4.5) +
+  
+  # Clean theme with no axes or background grid
+  coord_cartesian(xlim = c(2.2, 8.6), ylim = c(1.5, 9.6)) +
+  theme_void()
+
+print(p)
+
+
+
+
+################################################################################
+# gamma dist
+################################################################################
+
+
+
+# Load required packages for gamma density plotting and panel layout
+library(ggplot2)
+library(patchwork)
+
+# Define the four gamma distribution parameter sets shown in Figure 9.8
+gamma_specs <- data.frame(
+  panel = 1:4,
+  shape = c(0.01, 1.56, 1.00, 6.25),
+  rate  = c(0.01, 0.0312, 0.02, 0.125),
+  mean  = c(1, 50, 50, 50),
+  sd    = c(10, 40, 50, 20),
+  mode  = c(0, 18, 0, 42),
+  stringsAsFactors = FALSE
+)
+
+# Build x-axis grid for kappa from 0 to 150
+kappa_grid <- seq(0.01, 150, length.out = 600)
+
+# Compute gamma density curves for each panel
+curve_list <- lapply(seq_len(nrow(gamma_specs)), function(i) {
+  row <- gamma_specs[i, ]
+  data.frame(
+    panel = row$panel,
+    kappa = kappa_grid,
+    dens  = dgamma(kappa_grid, shape = row$shape, rate = row$rate)
+  )
+})
+curve_df <- do.call(rbind, curve_list)
+
+# Format annotation label for each panel
+format_label <- function(row) {
+  shape_txt <- ifelse(row$shape == 1, "1", format(row$shape, trim = TRUE))
+  rate_txt  <- ifelse(row$rate == 0.02, "0.02", format(row$rate, trim = TRUE))
+  paste0(
+    "shape=", shape_txt, ", rate=", rate_txt, "\n",
+    "mean=", row$mean, ", sd=", row$sd, "\n",
+    "mode=", row$mode
+  )
+}
+
+# Build a single panel plot
+make_gamma_panel <- function(idx) {
+  row <- gamma_specs[idx, ]
+  sub_df <- subset(curve_df, panel == idx)
+  label_txt <- format_label(row)
+  
+  ggplot(sub_df, aes(x = kappa, y = dens)) +
+    geom_line(color = "#3b82b6", linewidth = 0.85) +
+    annotate(
+      "text",
+      x = 146,
+      y = 0.0242,
+      label = label_txt,
+      hjust = 1,
+      vjust = 1,
+      size = 3.1,
+      lineheight = 1.15,
+      color = "gray15"
+    ) +
+    scale_x_continuous(
+      limits = c(0, 152),
+      breaks = c(0, 50, 100, 150),
+      expand = expansion(mult = c(0.01, 0.02))
+    ) +
+    scale_y_continuous(
+      breaks = c(0.000, 0.010, 0.020),
+      labels = function(x) sprintf("%.3f", x),
+      expand = expansion(mult = c(0.02, 0.03))
+    ) +
+    coord_cartesian(ylim = c(0, 0.025)) +
+    labs(
+      x = expression(kappa),
+      y = expression(p(kappa * "|" * s * "," * r))
+    ) +
+    theme_classic(base_size = 10) +
+    theme(
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 0.7),
+      axis.line = element_blank(),
+      axis.title.x = element_text(size = 11, margin = margin(t = 4)),
+      axis.title.y = element_text(size = 11, margin = margin(r = 4)),
+      axis.text = element_text(size = 8.5, color = "gray25"),
+      plot.margin = margin(5, 6, 5, 6)
+    )
+}
+
+# Assemble 2x2 grid matching Figure 9.8
+fig_9_8 <- (make_gamma_panel(1) | make_gamma_panel(2)) /
+  (make_gamma_panel(3) | make_gamma_panel(4))
+
+print(fig_9_8)
+
+
+
+################################################################################
+# structure - beta & gamma dist  - MCMC, posterior
+################################################################################
+
+
+
+library(ggplot2)
+library(dplyr)
+
+# Load raw trial-level data with subject ID ('s') and binary outcome ('y')
+myData <- read.csv("TherapeuticTouchData.csv")
+
+# Compute empirical probability (proportion correct) per practitioner directly from raw data
+subj_prob <- myData %>%
+  group_by(s) %>%
+  summarise(
+    n_trials = n(),
+    n_correct = sum(y),
+    prob_correct = mean(y),
+    .groups = "drop"
+  )
+
+# Compute overall empirical probability across all trials
+overall_prob <- mean(myData$y)
+print(overall_prob)
+
+# Plot histogram of practitioner-level empirical probabilities
+breaks_seq <- seq(-0.05, 1.05, by = 0.1)
+
+p <- ggplot(subj_prob, aes(x = prob_correct)) +
+  geom_histogram(
+    breaks = breaks_seq,
+    fill = "#C6C8CA",
+    color = "white",
+    linewidth = 0.6,
+    closed = "left"
+  ) +
+  annotate("segment", x = 0.0, xend = 1.0, y = -0.35, yend = -0.35, color = "black", linewidth = 0.5) +
+  annotate("segment", x = -0.09, xend = -0.09, y = 0, yend = 8, color = "black", linewidth = 0.5) +
+  annotate(
+    "segment",
+    x = seq(0.0, 1.0, by = 0.2),
+    xend = seq(0.0, 1.0, by = 0.2),
+    y = -0.35,
+    yend = -0.58,
+    color = "black",
+    linewidth = 0.5
+  ) +
+  annotate(
+    "segment",
+    x = -0.09,
+    xend = -0.11,
+    y = seq(0, 8, by = 2),
+    yend = seq(0, 8, by = 2),
+    color = "black",
+    linewidth = 0.5
+  ) +
+  scale_x_continuous(
+    breaks = seq(0.0, 1.0, by = 0.2),
+    labels = sprintf("%.1f", seq(0.0, 1.0, by = 0.2)),
+    expand = expansion(mult = c(0.06, 0.04))
+  ) +
+  scale_y_continuous(
+    breaks = seq(0, 8, by = 2),
+    expand = expansion(mult = c(0.06, 0.05))
+  ) +
+  coord_cartesian(xlim = c(-0.09, 1.05), ylim = c(-0.35, 8.2), clip = "off") +
+  labs(
+    x = "Proportion Correct",
+    y = "# Practitioners"
+  ) +
+  theme_classic(base_size = 13) +
+  theme(
+    axis.line = element_blank(),
+    axis.ticks = element_blank(),
+    axis.text.x = element_text(color = "black", margin = margin(t = 2)),
+    axis.text.y = element_text(color = "black", angle = 90, hjust = 0.5, margin = margin(r = 4)),
+    axis.title.x = element_text(color = "black", margin = margin(t = 8)),
+    axis.title.y = element_text(color = "black", margin = margin(r = 10)),
+    plot.margin = margin(15, 20, 15, 15)
+  )
+
+print(p)
+
+
+
+
+
+
+library(rjags)
+library(coda)
+
+# Load dataset containing subject ID ('s') and binary outcome ('y')
+myData <- read.csv("TherapeuticTouchData.csv")
+str(myData)
+
+
+# Prepare data list for JAGS
+s_idx <- as.integer(as.factor(myData$s))
+n_subj <- max(s_idx)
+n_total <- nrow(myData)
+
+jags_data <- list(
+  y = myData$y,
+  s = s_idx,
+  nSubj = n_subj,
+  nTotal = n_total
+)
+
+# Define hierarchical model string (omega, kappa, theta_s, and Bernoulli likelihood)
+model_string <- "
+model {
+  for (i in 1:nTotal) {
+    y[i] ~ dbern(theta[s[i]])
+  }
+  for (j in 1:nSubj) {
+    theta[j] ~ dbeta(omega * (kappa - 2) + 1, (1 - omega) * (kappa - 2) + 1)
+  }
+  omega ~ dbeta(2, 2)
+  kappaMinusTwo ~ dgamma(0.01, 0.01)
+  kappa <- kappaMinusTwo + 2
+}
+"
+
+# Initialize and burn-in the JAGS model
+jags_mod <- jags.model(
+  textConnection(model_string),
+  data = jags_data,
+  n.chains = 3,
+  n.adapt = 1000
+)
+update(jags_mod, n.iter = 2000)
+
+# Draw posterior MCMC samples with thinning
+mcmc_coda <- coda.samples(
+  model = jags_mod,
+  variable.names = c("omega", "kappa", "theta"),
+  n.iter = 70000,
+  thin = 10
+)
+
+# Chain diagnostics for key parameters
+print(gelman.diag(mcmc_coda[, c("omega", "kappa", "theta[1]")]))
+print(effectiveSize(mcmc_coda[, c("omega", "kappa", "theta[1]")]))
+plot(mcmc_coda[, c("omega", "kappa", "theta[1]")])
+
+# Posterior summary statistics and comparison against 0.5
+print(summary(mcmc_coda))
+
+# Compute posterior differences between selected subjects (e.g., 1, 14, 28)
+mat <- as.matrix(mcmc_coda)
+if (n_subj >= 28) {
+  diff_1_14 <- mat[, "theta[1]"] - mat[, "theta[14]"]
+  diff_1_28 <- mat[, "theta[1]"] - mat[, "theta[28]"]
+  diff_14_28 <- mat[, "theta[14]"] - mat[, "theta[28]"]
+  print(summary(mcmc(cbind(diff_1_14 = diff_1_14, diff_1_28 = diff_1_28, diff_14_28 = diff_14_28))))
+}
+
+
+
+################################################################################
+# structure - beta & gamma dist  - MCMC - marginal posterior
+################################################################################
+
+
+
+library(coda)
+library(ggplot2)
+library(patchwork)
+
+# Convert mcmc.list to a single matrix of posterior draws
+mat <- as.matrix(mcmc_coda)
+
+# Compute posterior mode from kernel density estimate
+get_mode <- function(x) {
+  d <- density(x, n = 4096)
+  d$x[which.max(d$y)]
+}
+
+# Compute exact highest density interval (HDI) for a numeric vector
+get_hdi <- function(x, credMass = 0.95) {
+  x <- x[!is.na(x)]
+  sorted_x <- sort(x)
+  n <- length(sorted_x)
+  ci_width <- ceiling(credMass * n)
+  if (ci_width >= n) {
+    return(c(lower = sorted_x[1], upper = sorted_x[n]))
+  }
+  idx_start <- 1:(n - ci_width + 1)
+  idx_end <- idx_start + ci_width - 1
+  widths <- sorted_x[idx_end] - sorted_x[idx_start]
+  best_i <- which.min(widths)
+  c(lower = sorted_x[best_i], upper = sorted_x[best_i + ci_width - 1])
+}
+
+# Format numbers cleanly without trailing zeros
+fmt_num <- function(val) {
+  if (abs(val) >= 100) sprintf("%.1f", val)
+  else if (abs(val) >= 10) sprintf("%.2f", val)
+  else if (abs(val) >= 1) sprintf("%.3f", val)
+  else sprintf("%.4f", val)
+}
+
+# Plot posterior histogram with mode, 95% HDI bar, and optional reference threshold
+plot_posterior_hist <- function(samples, x_label, ref_val = NULL, xlim = NULL) {
+  mode_val <- get_mode(samples)
+  hdi_val <- get_hdi(samples, 0.95)
+  df <- data.frame(val = samples)
+  
+  h_info <- hist(samples, breaks = 45, plot = FALSE)
+  max_h <- max(h_info$density)
+  
+  p <- ggplot(df, aes(x = val)) +
+    geom_histogram(
+      aes(y = after_stat(density)),
+      bins = 45,
+      fill = "#9ecae1",
+      color = "white",
+      linewidth = 0.2
+    )
+  
+  if (!is.null(ref_val)) {
+    pct_below <- mean(samples < ref_val) * 100
+    pct_above <- 100 - pct_below
+    p <- p +
+      geom_vline(
+        xintercept = ref_val,
+        linetype = "dotted",
+        color = "#2b8cbe",
+        linewidth = 0.8
+      ) +
+      annotate(
+        "text",
+        x = mode_val,
+        y = max_h * 0.90,
+        size = 2.5,
+        color = "#2b8cbe",
+        label = sprintf("%.1f%% < %.4g < %.1f%%", pct_below, ref_val, pct_above)
+      )
+  }
+  
+  # Place HDI bar slightly above baseline so lower/upper labels sit cleanly below
+  bar_y <- max_h * 0.05
+  x_span <- if (!is.null(xlim)) diff(xlim) else diff(range(samples))
+  
+  p <- p +
+    annotate(
+      "text",
+      x = mode_val,
+      y = max_h * 1.02,
+      size = 2.9,
+      fontface = "bold",
+      color = "#222222",
+      label = sprintf("mode = %s", fmt_num(mode_val))
+    ) +
+    annotate(
+      "segment",
+      x = hdi_val["lower"],
+      xend = hdi_val["upper"],
+      y = bar_y,
+      yend = bar_y,
+      linewidth = 1.8,
+      color = "#111111"
+    ) +
+    annotate(
+      "text",
+      x = hdi_val["lower"] - x_span * 0.01,
+      y = bar_y * 0.45,
+      hjust = 1,
+      vjust = 1,
+      size = 2.5,
+      color = "#222222",
+      label = fmt_num(hdi_val["lower"])
+    ) +
+    annotate(
+      "text",
+      x = hdi_val["upper"] + x_span * 0.01,
+      y = bar_y * 0.45,
+      hjust = 0,
+      vjust = 1,
+      size = 2.5,
+      color = "#222222",
+      label = fmt_num(hdi_val["upper"])
+    ) +
+    annotate(
+      "text",
+      x = mean(hdi_val),
+      y = bar_y * 1.65,
+      vjust = 0,
+      size = 2.7,
+      color = "#222222",
+      label = "95% HDI"
+    ) +
+    labs(x = x_label, y = NULL) +
+    theme_minimal(base_size = 9) +
+    theme(
+      axis.text.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      panel.grid = element_blank(),
+      axis.line.x = element_line(color = "#444444"),
+      plot.margin = margin(t = 12, r = 6, b = 10, l = 6)
+    )
+  
+  if (!is.null(xlim)) {
+    p <- p + coord_cartesian(xlim = xlim, ylim = c(-max_h * 0.12, max_h * 1.12))
+  } else {
+    p <- p + coord_cartesian(ylim = c(-max_h * 0.12, max_h * 1.12))
+  }
+  p
+}
+
+# Plot pairwise scatterplot with y = x diagonal reference line
+plot_scatter_diag <- function(x_vec, y_vec, x_lab, y_lab, lims = c(0.05, 0.85)) {
+  df <- data.frame(x = x_vec, y = y_vec)
+  # Subsample points for fast, clean rendering
+  if (nrow(df) > 2000) {
+    set.seed(42)
+    df <- df[sample(nrow(df), 2000), ]
+  }
+  ggplot(df, aes(x = x, y = y)) +
+    geom_point(shape = 1, color = "#6baed6", alpha = 0.55, size = 1.3) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dotted", color = "#333333") +
+    coord_cartesian(xlim = lims, ylim = lims) +
+    labs(x = x_lab, y = y_lab) +
+    theme_bw(base_size = 9) +
+    theme(panel.grid = element_blank())
+}
+
+# Top row: group-level hyperparameters kappa and omega
+p_kappa <- plot_posterior_hist(
+  samples = mat[, "kappa"],
+  x_label = expression(kappa),
+  xlim = c(0, 300)
+)
+p_omega <- plot_posterior_hist(
+  samples = mat[, "omega"],
+  x_label = expression(omega),
+  ref_val = 0.5,
+  xlim = c(0.34, 0.56)
+) + ggtitle("Group Mode")
+
+# Extract subject chains and pairwise differences
+t1 <- mat[, "theta[1]"]
+t14 <- mat[, "theta[14]"]
+t28 <- mat[, "theta[28]"]
+
+d_1_14 <- t1 - t14
+d_1_28 <- t1 - t28
+d_14_28 <- t14 - t28
+
+# 3x3 grid matching the lower comparison matrix
+p_1_1 <- plot_posterior_hist(t1, "theta[1]", ref_val = 0.5, xlim = c(0.05, 0.7))
+p_1_2 <- plot_posterior_hist(d_1_14, "theta[1] - theta[14]", ref_val = 0, xlim = c(-0.55, 0.35))
+p_1_3 <- plot_posterior_hist(d_1_28, "theta[1] - theta[28]", ref_val = 0, xlim = c(-0.7, 0.2))
+
+p_2_1 <- plot_scatter_diag(t1, t14, "theta[1]", "theta[14]", lims = c(0.05, 0.75))
+p_2_2 <- plot_posterior_hist(t14, "theta[14]", ref_val = 0.5, xlim = c(0.15, 0.75))
+p_2_3 <- plot_posterior_hist(d_14_28, "theta[14] - theta[28]", ref_val = 0, xlim = c(-0.55, 0.35))
+
+p_3_1 <- plot_scatter_diag(t1, t28, "theta[1]", "theta[28]", lims = c(0.05, 0.90))
+p_3_2 <- plot_scatter_diag(t14, t28, "theta[14]", "theta[28]", lims = c(0.15, 0.90))
+p_3_3 <- plot_posterior_hist(t28, "theta[28]", ref_val = 0.5, xlim = c(0.2, 0.9))
+
+# Assemble full layout
+top_row <- p_kappa | p_omega
+grid_3x3 <- (p_1_1 | p_1_2 | p_1_3) /
+  (p_2_1 | p_2_2 | p_2_3) /
+  (p_3_1 | p_3_2 | p_3_3)
+
+final_plot <- top_row / grid_3x3 + plot_layout(heights = c(1, 2.6))
+print(final_plot)
+
+
+
+
+################################################################################
+# structure - beta & gamma dist  - MCMC, prior
+################################################################################
+
+
+
+library(rjags)
+library(coda)
+
+# Define JAGS model string for prior-only sampling (no likelihood y[i] ~ dbern)
+prior_model_string <- "
+model {
+  for (j in 1:nSubj) {
+    theta[j] ~ dbeta(omega * (kappa - 2) + 1, (1 - omega) * (kappa - 2) + 1)
+  }
+  omega ~ dbeta(2, 2)
+  kappaMinusTwo ~ dgamma(0.01, 0.01)
+  kappa <- kappaMinusTwo + 2
+}
+"
+
+# Supply only structural metadata needed for prior draws
+prior_data <- list(
+  nSubj = 28
+)
+
+# Initialize, burn-in, and draw prior MCMC samples
+set.seed(123)
+prior_jags_mod <- jags.model(
+  file = textConnection(prior_model_string),
+  data = prior_data,
+  n.chains = 3,
+  n.adapt = 1000
+)
+
+update(prior_jags_mod, n.iter = 2000)
+
+prior_mcmc_coda <- coda.samples(
+  model = prior_jags_mod,
+  variable.names = c("omega", "kappa", "theta"),
+  n.iter = 70000,
+  thin = 10
+)
+
+# Inspect summary of marginal prior distributions
+print(summary(prior_mcmc_coda))
+
+
+
+library(coda)
+library(ggplot2)
+library(patchwork)
+
+# Convert prior mcmc.list to a matrix of prior draws
+prior_mat <- as.matrix(prior_mcmc_coda)
+
+# Compute posterior/prior mode from kernel density estimate
+get_mode <- function(x) {
+  d <- density(x, n = 4096)
+  d$x[which.max(d$y)]
+}
+
+# Compute highest density interval (HDI) for a numeric vector
+get_hdi <- function(x, credMass = 0.95) {
+  x <- x[!is.na(x)]
+  sorted_x <- sort(x)
+  n <- length(sorted_x)
+  ci_width <- ceiling(credMass * n)
+  if (ci_width >= n) {
+    return(c(lower = sorted_x[1], upper = sorted_x[n]))
+  }
+  idx_start <- 1:(n - ci_width + 1)
+  idx_end <- idx_start + ci_width - 1
+  widths <- sorted_x[idx_end] - sorted_x[idx_start]
+  best_i <- which.min(widths)
+  c(lower = sorted_x[best_i], upper = sorted_x[best_i + ci_width - 1])
+}
+
+# Format display numbers cleanly across scales
+fmt_num <- function(val) {
+  if (abs(val) >= 100) sprintf("%.1f", val)
+  else if (abs(val) >= 10) sprintf("%.2f", val)
+  else if (abs(val) >= 1) sprintf("%.3g", val)
+  else sprintf("%.3g", val)
+}
+
+# Plot prior distribution histogram with mode, 95% HDI bar, and reference line
+plot_prior_hist <- function(samples, x_label, ref_val = NULL, xlim = NULL, bins = 30) {
+  mode_val <- get_mode(samples)
+  hdi_val <- get_hdi(samples, 0.95)
+  df <- data.frame(val = samples)
+  
+  h_info <- hist(samples, breaks = bins, plot = FALSE)
+  max_h <- max(h_info$density)
+  x_span <- if (!is.null(xlim)) diff(xlim) else diff(range(samples))
+  bar_y <- max_h * 0.05
+  
+  p <- ggplot(df, aes(x = val)) +
+    geom_histogram(
+      aes(y = after_stat(density)),
+      bins = bins,
+      fill = "#9ecae1",
+      color = "white",
+      linewidth = 0.25
+    )
+  
+  if (!is.null(ref_val)) {
+    pct_below <- mean(samples < ref_val) * 100
+    pct_above <- 100 - pct_below
+    p <- p +
+      geom_vline(
+        xintercept = ref_val,
+        linetype = "dotted",
+        color = "#2b8cbe",
+        linewidth = 0.8
+      ) +
+      annotate(
+        "text",
+        x = mode_val,
+        y = max_h * 0.88,
+        size = 2.5,
+        color = "#2b8cbe",
+        label = sprintf("%.1f%% < %.4g < %.1f%%", pct_below, ref_val, pct_above)
+      )
+  }
+  
+  p <- p +
+    annotate(
+      "text",
+      x = mode_val,
+      y = max_h * 1.02,
+      size = 2.9,
+      fontface = "bold",
+      color = "#222222",
+      label = sprintf("mode = %s", fmt_num(mode_val))
+    ) +
+    annotate(
+      "segment",
+      x = hdi_val["lower"],
+      xend = hdi_val["upper"],
+      y = bar_y,
+      yend = bar_y,
+      linewidth = 1.8,
+      color = "#111111"
+    ) +
+    annotate(
+      "text",
+      x = hdi_val["lower"] - x_span * 0.01,
+      y = bar_y * 0.45,
+      hjust = 1,
+      vjust = 1,
+      size = 2.5,
+      color = "#222222",
+      label = fmt_num(hdi_val["lower"])
+    ) +
+    annotate(
+      "text",
+      x = hdi_val["upper"] + x_span * 0.01,
+      y = bar_y * 0.45,
+      hjust = 0,
+      vjust = 1,
+      size = 2.5,
+      color = "#222222",
+      label = fmt_num(hdi_val["upper"])
+    ) +
+    annotate(
+      "text",
+      x = mean(hdi_val),
+      y = bar_y * 1.65,
+      vjust = 0,
+      size = 2.7,
+      color = "#222222",
+      label = "95% HDI"
+    ) +
+    labs(x = x_label, y = NULL) +
+    theme_minimal(base_size = 9) +
+    theme(
+      axis.text.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      panel.grid = element_blank(),
+      axis.line.x = element_line(color = "#444444"),
+      plot.margin = margin(t = 12, r = 6, b = 10, l = 6)
+    )
+  
+  if (!is.null(xlim)) {
+    p <- p + coord_cartesian(xlim = xlim, ylim = c(-max_h * 0.12, max_h * 1.12))
+  } else {
+    p <- p + coord_cartesian(ylim = c(-max_h * 0.12, max_h * 1.12))
+  }
+  p
+}
+
+# Plot pairwise scatterplot with y = x diagonal reference line
+plot_scatter_diag <- function(x_vec, y_vec, x_lab, y_lab, lims = c(0, 1)) {
+  df <- data.frame(x = x_vec, y = y_vec)
+  # Subsample draws for fast, clear rendering
+  if (nrow(df) > 2000) {
+    set.seed(42)
+    df <- df[sample(nrow(df), 2000), ]
+  }
+  ggplot(df, aes(x = x, y = y)) +
+    geom_point(shape = 1, color = "#6baed6", alpha = 0.55, size = 1.3) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dotted", color = "#333333") +
+    coord_cartesian(xlim = lims, ylim = lims) +
+    labs(x = x_lab, y = y_lab) +
+    theme_bw(base_size = 9) +
+    theme(panel.grid = element_blank())
+}
+
+# Top row: group-level hyperparameters kappa and omega
+p_kappa <- plot_prior_hist(
+  samples = prior_mat[, "kappa"],
+  x_label = expression(kappa),
+  xlim = c(0, 30),
+  bins = 60
+)
+p_omega <- plot_prior_hist(
+  samples = prior_mat[, "omega"],
+  x_label = expression(omega),
+  ref_val = 0.5,
+  xlim = c(0, 1),
+  bins = 25
+) + ggtitle("Group Mode")
+
+# Extract prior draws for selected subjects and pairwise differences
+t1 <- prior_mat[, "theta[1]"]
+t14 <- prior_mat[, "theta[14]"]
+t28 <- prior_mat[, "theta[28]"]
+
+d_1_14 <- t1 - t14
+d_1_28 <- t1 - t28
+d_14_28 <- t14 - t28
+
+# 3x3 grid matching the lower comparison matrix on [0, 1] and [-1, 1] scales
+p_1_1 <- plot_prior_hist(t1, "theta[1]", ref_val = 0.5, xlim = c(0, 1), bins = 25)
+p_1_2 <- plot_prior_hist(d_1_14, "theta[1] - theta[14]", ref_val = 0, xlim = c(-1, 1), bins = 25)
+p_1_3 <- plot_prior_hist(d_1_28, "theta[1] - theta[28]", ref_val = 0, xlim = c(-1, 1), bins = 25)
+
+p_2_1 <- plot_scatter_diag(t1, t14, "theta[1]", "theta[14]", lims = c(0, 1))
+p_2_2 <- plot_prior_hist(t14, "theta[14]", ref_val = 0.5, xlim = c(0, 1), bins = 25)
+p_2_3 <- plot_prior_hist(d_14_28, "theta[14] - theta[28]", ref_val = 0, xlim = c(-1, 1), bins = 25)
+
+p_3_1 <- plot_scatter_diag(t1, t28, "theta[1]", "theta[28]", lims = c(0, 1))
+p_3_2 <- plot_scatter_diag(t14, t28, "theta[14]", "theta[28]", lims = c(0, 1))
+p_3_3 <- plot_prior_hist(t28, "theta[28]", ref_val = 0.5, xlim = c(0, 1), bins = 25)
+
+# Assemble full layout
+top_row <- p_kappa | p_omega
+grid_3x3 <- (p_1_1 | p_1_2 | p_1_3) /
+  (p_2_1 | p_2_2 | p_2_3) /
+  (p_3_1 | p_3_2 | p_3_3)
+
+final_prior_plot <- top_row / grid_3x3 + plot_layout(heights = c(1, 2.6))
+print(final_prior_plot)
